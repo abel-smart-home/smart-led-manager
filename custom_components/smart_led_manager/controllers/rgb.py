@@ -27,6 +27,7 @@ from homeassistant.const import (
     STATE_UNKNOWN,
 )
 from homeassistant.core import Context, HomeAssistant, State
+from homeassistant.exceptions import HomeAssistantError
 
 from ..models import LightCommand
 from .base import ApplyResult, ApplyStatus, UnsupportedLightCommandError
@@ -63,17 +64,25 @@ class RGBLightController:
         minimum_interval: float = 0.75,
         global_minimum_interval: float = 0.05,
         max_parallel_commands: int = 4,
+        max_recovery_attempts: int = 3,
+        retry_base_delay: float = 1.0,
+        retry_max_delay: float = 4.0,
     ) -> None:
         self._hass = hass
         self._minimum_interval = max(0.1, float(minimum_interval))
         self._global_minimum_interval = max(0.0, float(global_minimum_interval))
         self._parallel = asyncio.Semaphore(max_parallel_commands)
         self._global_lock = asyncio.Lock()
+        self._max_recovery_attempts = max(1, int(max_recovery_attempts))
+        self._retry_base_delay = max(0.0, float(retry_base_delay))
+        self._retry_max_delay = max(self._retry_base_delay, float(retry_max_delay))
         self._desired: dict[str, _Desired] = {}
         self._workers: dict[str, asyncio.Task[ApplyResult]] = {}
+        self._recovery_generation: dict[str, int] = {}
         self._last_sent: dict[str, float] = {}
         self._last_global_sent = 0.0
         self._last_signature: dict[str, tuple[object, ...]] = {}
+        self._force_send: set[str] = set()
         self._contexts: dict[str, float] = {}
         self._generation = 0
         self._stopping = False
@@ -106,6 +115,21 @@ class RGBLightController:
         desired = _Desired(command, allow_turn_on, self._generation)
         self._desired[target] = desired
 
+        return await self._async_wait_for_worker(target, desired)
+
+    async def async_retry(self, target: str) -> ApplyResult | None:
+        """Retry the retained current intent without creating a new generation."""
+        desired = self._desired.get(target)
+        if desired is None:
+            return None
+        self._recovery_generation[target] = desired.generation
+        return await self._async_wait_for_worker(target, desired)
+
+    async def _async_wait_for_worker(
+        self, target: str, desired: _Desired
+    ) -> ApplyResult:
+        """Start or share the one worker that owns a target's latest intent."""
+
         worker = self._workers.get(target)
         if worker is None or worker.done():
             worker = asyncio.create_task(
@@ -129,15 +153,6 @@ class RGBLightController:
             return ApplyResult(target, ApplyStatus.SUPERSEDED)
         return result
 
-    async def async_retry(self, target: str) -> ApplyResult | None:
-        """Retry retained desired state when an unavailable light returns."""
-        desired = self._desired.get(target)
-        if desired is None:
-            return None
-        return await self.async_apply(
-            target, desired.command, allow_turn_on=desired.allow_turn_on
-        )
-
     async def async_cancel(self, target: str) -> None:
         """Cancel pending work and discard retained intent for one target.
 
@@ -147,6 +162,7 @@ class RGBLightController:
         cancelled explicitly before the new winner is scheduled.
         """
         self._desired.pop(target, None)
+        self._recovery_generation.pop(target, None)
         worker = self._workers.pop(target, None)
         if worker is None:
             return
@@ -156,6 +172,7 @@ class RGBLightController:
     def invalidate_applied_state(self, target: str) -> None:
         """Force the next desired state to be compared and sent again."""
         self._last_signature.pop(target, None)
+        self._force_send.add(target)
 
     def is_own_context(self, context: Context | None) -> bool:
         """Return whether a state change belongs to a recent controller call."""
@@ -175,14 +192,27 @@ class RGBLightController:
         tasks = tuple(self._workers.values())
         self._workers.clear()
         self._desired.clear()
+        self._recovery_generation.clear()
+        self._force_send.clear()
         for task in tasks:
             task.cancel()
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _async_worker(self, target: str) -> ApplyResult:
+        try:
+            return await self._async_worker_loop(target)
+        finally:
+            self._recovery_generation.pop(target, None)
+
+    async def _async_worker_loop(self, target: str) -> ApplyResult:
+        retry_desired: _Desired | None = None
+        failed_attempts = 0
         while True:
             desired = self._desired[target]
+            if desired is not retry_desired:
+                retry_desired = desired
+                failed_attempts = 0
             elapsed = monotonic() - self._last_sent.get(target, 0.0)
             if (delay := self._minimum_interval - elapsed) > 0:
                 await asyncio.sleep(delay)
@@ -200,31 +230,68 @@ class RGBLightController:
                 return ApplyResult(target, ApplyStatus.TURN_ON_BLOCKED)
 
             service, data, signature = self._build_service_call(target, state, desired)
-            if self._last_signature.get(target) == signature:
+            force_send = target in self._force_send
+            if not force_send and self._last_signature.get(target) == signature:
                 return ApplyResult(target, ApplyStatus.DEDUPLICATED)
-            if _state_matches(state, desired.command):
+            if not force_send and _state_matches(state, desired.command):
                 self._last_signature[target] = signature
                 return ApplyResult(target, ApplyStatus.ALREADY_MATCHED)
 
-            async with self._parallel, self._global_lock:
-                global_elapsed = monotonic() - self._last_global_sent
-                if (global_delay := self._global_minimum_interval - global_elapsed) > 0:
-                    await asyncio.sleep(global_delay)
+            try:
+                async with self._parallel, self._global_lock:
+                    global_elapsed = monotonic() - self._last_global_sent
+                    if (
+                        global_delay := self._global_minimum_interval - global_elapsed
+                    ) > 0:
+                        await asyncio.sleep(global_delay)
+                    if self._desired.get(target) is not desired:
+                        continue
+                    context = Context()
+                    self._contexts[context.id] = monotonic()
+                    await self._hass.services.async_call(
+                        "light",
+                        service,
+                        data,
+                        blocking=True,
+                        context=context,
+                    )
+                    sent = monotonic()
+                    self._last_global_sent = sent
+                    self._last_sent[target] = sent
+                    self._last_signature[target] = signature
+                    self._force_send.discard(target)
+            except (HomeAssistantError, TimeoutError) as err:
                 if self._desired.get(target) is not desired:
                     continue
-                context = Context()
-                self._contexts[context.id] = monotonic()
-                await self._hass.services.async_call(
-                    "light",
-                    service,
-                    data,
-                    blocking=True,
-                    context=context,
+                failed_attempts += 1
+                attempt_limit = (
+                    self._max_recovery_attempts
+                    if self._recovery_generation.get(target) == desired.generation
+                    else 1
                 )
-                sent = monotonic()
-                self._last_global_sent = sent
-                self._last_sent[target] = sent
-                self._last_signature[target] = signature
+                if failed_attempts >= attempt_limit:
+                    attempt_label = "attempt" if failed_attempts == 1 else "attempts"
+                    detail = (
+                        f"send failed after {failed_attempts} {attempt_label}: "
+                        f"{type(err).__name__}: {err}"
+                    )
+                    _LOGGER.warning("Light command for %s %s", target, detail)
+                    return ApplyResult(target, ApplyStatus.OFFLINE, detail)
+                retry_delay = min(
+                    self._retry_base_delay * (2 ** (failed_attempts - 1)),
+                    self._retry_max_delay,
+                )
+                _LOGGER.warning(
+                    "Light command for %s failed on attempt %d/%d: %s; "
+                    "retrying current intent in %.2f seconds",
+                    target,
+                    failed_attempts,
+                    attempt_limit,
+                    err,
+                    retry_delay,
+                )
+                await asyncio.sleep(retry_delay)
+                continue
 
             if self._desired.get(target) is desired:
                 return ApplyResult(target, ApplyStatus.APPLIED)

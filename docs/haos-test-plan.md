@@ -10,12 +10,12 @@ de HAOS, Zigbee, GLEDOPTO, Alexa o Matter Hub.
 |---|---|
 | Fecha/hora y zona | Pendiente |
 | Commit y versión | Pendiente |
-| Home Assistant OS/Core | Pendiente |
+| Home Assistant OS/Core | HAOS; versión exacta pendiente |
 | Coordinador Zigbee y firmware | Pendiente |
-| Modelos/firmware de controladores LED | Pendiente |
-| Integraciones de luz | Pendiente |
-| Ejecutor | Pendiente |
-| Resultado general | **No ejecutado** |
+| Modelos/firmware de controladores LED | GLEDOPTO GL-C-007P; firmware pendiente |
+| Integraciones de luz | ZHA; `light.gledopto_gl_c_007p` |
+| Ejecutor | Propietario |
+| Resultado general | **En progreso — R-02 ejecutado con incidencia; repetición pendiente** |
 
 No cambies el resultado a “aprobado” sin conservar observaciones y evidencia
 por caso. Realiza una copia de seguridad y evita probar parpadeos con personas
@@ -52,7 +52,7 @@ fotosensibles presentes.
 | ID | Procedimiento | Resultado esperado | Resultado/observaciones |
 |---|---|---|---|
 | R-01 | Desconecta una tira con una solicitud persistente; cambia otra solicitud y reconecta. | Se aplica la ganadora actual, no el último snapshot enviado. | Pendiente |
-| R-02 | Desconecta durante un aviso corto y reconecta tras su vencimiento. | El aviso obsoleto no se reproduce. | Pendiente |
+| R-02 | Desconecta durante un aviso corto y reconecta tras su vencimiento. | El aviso obsoleto no se reproduce; cuando el dispositivo responda se aplica sólo la ganadora vigente. Los fallos transitorios se contienen y los intentos terminan de forma acotada, sin duplicar animaciones. | Incidencia observada con ZHA y GLEDOPTO GL-C-007P: tras un aviso naranja de 8 s vencido no se repitió el aviso y se recuperó el azul persistente, pero el primer envío ocurrió antes de que Zigbee respondiera y produjo `HomeAssistantError`/`TimeoutError` como “Task exception was never retrieved”. Corrección cubierta por pruebas automatizadas; repetición física pendiente. |
 | R-03 | Reinicia HAOS con solicitudes persistente y temporal. | Se recupera sólo lo válido; no hay temporizadores duplicados. | Pendiente |
 | R-04 | Recarga y después elimina la entrada. | No quedan listeners, animaciones u órdenes tardías. | Pendiente |
 | R-05 | Genera cambios rápidos de sensor y varias animaciones. | Deduplicación/rate limit evitan tormenta y HA sigue estable. | Pendiente |

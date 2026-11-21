@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 from time import monotonic
+from unittest.mock import AsyncMock, call, patch
 
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
@@ -12,8 +13,14 @@ from homeassistant.components.light import (
     ATTR_SUPPORTED_COLOR_MODES,
     ColorMode,
 )
-from homeassistant.const import ATTR_SUPPORTED_FEATURES, STATE_OFF, STATE_UNAVAILABLE
+from homeassistant.const import (
+    ATTR_SUPPORTED_FEATURES,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+)
 from homeassistant.core import State
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.smart_led_manager.controllers.base import (
     ApplyStatus,
@@ -32,8 +39,10 @@ class _States:
 
 
 class _Services:
-    def __init__(self) -> None:
+    def __init__(self, outcomes: list[Exception | None] | None = None) -> None:
         self.calls: list[tuple[str, str, dict[str, object]]] = []
+        self.outcomes = list(outcomes or [])
+        self.attempted = asyncio.Event()
 
     async def async_call(
         self,
@@ -45,6 +54,11 @@ class _Services:
         context,
     ) -> None:
         self.calls.append((domain, service, data))
+        self.attempted.set()
+        if self.outcomes:
+            outcome = self.outcomes.pop(0)
+            if outcome is not None:
+                raise outcome
 
 
 class _Hass:
@@ -95,6 +109,179 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.status, ApplyStatus.OFFLINE)
         self.assertEqual(retry.status, ApplyStatus.APPLIED)
         self.assertEqual(len(hass.services.calls), 1)
+        await controller.async_shutdown()
+
+    @patch(
+        "custom_components.smart_led_manager.controllers.rgb.asyncio.sleep",
+        new_callable=AsyncMock,
+    )
+    async def test_transient_send_failures_use_bounded_progressive_retry(
+        self, sleep: AsyncMock
+    ) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        hass.services = _Services(
+            [
+                TimeoutError("Zigbee timeout 1"),
+                HomeAssistantError("Zigbee timeout 2"),
+                None,
+            ]
+        )
+        controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=1,
+            retry_max_delay=4,
+        )
+        retained = await controller.async_apply(
+            "light.strip", LightCommand(color=(0, 0, 255))
+        )
+        hass.states.values["light.strip"] = _state()
+
+        result = await controller.async_retry("light.strip")
+
+        self.assertEqual(retained.status, ApplyStatus.OFFLINE)
+        self.assertEqual(result.status, ApplyStatus.APPLIED)
+        self.assertEqual(len(hass.services.calls), 3)
+        self.assertEqual(sleep.await_args_list, [call(1.0), call(2.0)])
+        await controller.async_shutdown()
+
+    @patch(
+        "custom_components.smart_led_manager.controllers.rgb.asyncio.sleep",
+        new_callable=AsyncMock,
+    )
+    async def test_retry_exhaustion_retains_current_intent(
+        self, sleep: AsyncMock
+    ) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        hass.services = _Services(
+            [HomeAssistantError("device did not respond") for _ in range(3)]
+        )
+        controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=1,
+            retry_max_delay=4,
+        )
+        await controller.async_apply("light.strip", LightCommand(color=(0, 0, 255)))
+        hass.states.values["light.strip"] = _state()
+
+        result = await controller.async_retry("light.strip")
+
+        self.assertEqual(result.status, ApplyStatus.OFFLINE)
+        self.assertIn("failed after 3 attempts", result.detail)
+        self.assertEqual(len(hass.services.calls), 3)
+        self.assertEqual(sleep.await_args_list, [call(1.0), call(2.0)])
+        self.assertIn("light.strip", controller.pending_targets)
+        await controller.async_shutdown()
+
+    async def test_cancel_during_retry_backoff_discards_current_intent(self) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        hass.services = _Services([HomeAssistantError("device did not respond")])
+        controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=60,
+            retry_max_delay=60,
+        )
+        await controller.async_apply("light.strip", LightCommand(color=(255, 128, 0)))
+        hass.states.values["light.strip"] = _state()
+        pending = asyncio.create_task(controller.async_retry("light.strip"))
+        await hass.services.attempted.wait()
+
+        await controller.async_cancel("light.strip")
+        result = await pending
+
+        self.assertEqual(result.status, ApplyStatus.SUPERSEDED)
+        self.assertEqual(len(hass.services.calls), 1)
+        self.assertNotIn("light.strip", controller.pending_targets)
+        await controller.async_shutdown()
+
+    async def test_new_intent_supersedes_command_waiting_in_retry_backoff(
+        self,
+    ) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        hass.services = _Services([HomeAssistantError("device did not respond"), None])
+        controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=1,
+            retry_max_delay=1,
+        )
+        backoff_started = asyncio.Event()
+        release_backoff = asyncio.Event()
+
+        async def _wait_for_release(delay: float) -> None:
+            self.assertEqual(delay, 1.0)
+            backoff_started.set()
+            await release_backoff.wait()
+
+        with patch(
+            "custom_components.smart_led_manager.controllers.rgb.asyncio.sleep",
+            side_effect=_wait_for_release,
+        ):
+            await controller.async_apply(
+                "light.strip", LightCommand(color=(255, 128, 0))
+            )
+            hass.states.values["light.strip"] = _state()
+            old = asyncio.create_task(controller.async_retry("light.strip"))
+            await backoff_started.wait()
+            new = asyncio.create_task(
+                controller.async_apply("light.strip", LightCommand(color=(0, 0, 255)))
+            )
+            release_backoff.set()
+            old_result, new_result = await asyncio.gather(old, new)
+
+        self.assertEqual(old_result.status, ApplyStatus.SUPERSEDED)
+        self.assertEqual(new_result.status, ApplyStatus.APPLIED)
+        self.assertEqual(
+            [item[2][ATTR_RGB_COLOR] for item in hass.services.calls],
+            [(255, 128, 0), (0, 0, 255)],
+        )
+        await controller.async_shutdown()
+
+    async def test_shutdown_during_retry_backoff_cancels_all_work(self) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        hass.services = _Services([HomeAssistantError("device did not respond")])
+        controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=60,
+            retry_max_delay=60,
+        )
+        await controller.async_apply("light.strip", LightCommand(color=(0, 0, 255)))
+        hass.states.values["light.strip"] = _state()
+        pending = asyncio.create_task(controller.async_retry("light.strip"))
+        await hass.services.attempted.wait()
+
+        await controller.async_shutdown()
+        result = await pending
+
+        self.assertEqual(result.status, ApplyStatus.SUPERSEDED)
+        self.assertEqual(len(hass.services.calls), 1)
+        self.assertEqual(controller.pending_targets, frozenset())
+        self.assertEqual(controller._workers, {})
+
+    async def test_invalidated_cached_state_forces_physical_resend(self) -> None:
+        hass = _Hass(_state())
+        controller = RGBLightController(hass, minimum_interval=0.1)
+        command = LightCommand(color=(0, 0, 255))
+        first = await controller.async_apply("light.strip", command)
+        hass.states.values["light.strip"] = State(
+            "light.strip",
+            STATE_ON,
+            {
+                ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+                ATTR_SUPPORTED_FEATURES: 0,
+                ATTR_RGB_COLOR: (0, 0, 255),
+            },
+        )
+        controller.invalidate_applied_state("light.strip")
+
+        recovered = await controller.async_retry("light.strip")
+
+        self.assertEqual(first.status, ApplyStatus.APPLIED)
+        self.assertEqual(recovered.status, ApplyStatus.APPLIED)
+        self.assertEqual(len(hass.services.calls), 2)
         await controller.async_shutdown()
 
     async def test_rejects_rgb_for_non_color_light(self) -> None:

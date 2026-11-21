@@ -93,6 +93,7 @@ class SmartLEDCoordinator:
         self._unsub_lights: Callable[[], None] | None = None
         self._manual_activated: dict[str, Any] = {}
         self._persisted_request_ids: set[str] = set()
+        self._recovery_tasks: dict[str, asyncio.Task[None]] = {}
         self._mutation_lock = asyncio.Lock()
         self._started = False
 
@@ -265,6 +266,7 @@ class SmartLEDCoordinator:
             self._unsub_lights()
             self._unsub_lights = None
         await self.expiry.async_shutdown()
+        await self._async_cancel_recoveries()
         await self.animations.async_shutdown()
         await self.controller.async_shutdown()
         await self._async_save()
@@ -319,6 +321,7 @@ class SmartLEDCoordinator:
         await asyncio.gather(*(self._async_apply_change(change) for change in changes))
 
     async def _async_apply_change(self, change: DecisionChange) -> None:
+        await self._async_cancel_recovery(change.target)
         await self.animations.async_cancel(change.target)
         await self.controller.async_cancel(change.target)
         current = change.current
@@ -345,10 +348,19 @@ class SmartLEDCoordinator:
                     _LOGGER.error("Unable to apply %s: %s", change.target, err)
                     return
                 if result.status is ApplyStatus.OFFLINE:
-                    _LOGGER.info(
-                        "Managed light %s is unavailable; intent retained",
-                        change.target,
-                    )
+                    if result.detail is not None:
+                        self.last_error = f"{change.target}: {result.detail}"
+                        self.status = "error"
+                        _LOGGER.warning(
+                            "Unable to apply current intent to %s: %s; intent retained",
+                            change.target,
+                            result.detail,
+                        )
+                    else:
+                        _LOGGER.info(
+                            "Managed light %s is unavailable; intent retained",
+                            change.target,
+                        )
 
             await self.animations.async_apply(change.target, current, _apply_frame)
             status = current.request_id
@@ -376,26 +388,129 @@ class SmartLEDCoordinator:
         if new_state.state not in {STATE_UNAVAILABLE, STATE_UNKNOWN} and (
             old_state is None or old_state.state in {STATE_UNAVAILABLE, STATE_UNKNOWN}
         ):
-            self.hass.async_create_task(
-                self.controller.async_retry(target),
-                f"smart_led_manager_resync_{target}",
-            )
+            self.controller.invalidate_applied_state(target)
+            self._schedule_recovery(target, "resync")
             return
         if new_state.state in {STATE_UNAVAILABLE, STATE_UNKNOWN}:
             return
         if self.controller.is_own_context(event.context):
             return
-        self.controller.invalidate_applied_state(target)
         if self.manual_policy == "service_only":
-            self.hass.async_create_task(
-                self.controller.async_retry(target),
-                f"smart_led_manager_reassert_{target}",
-            )
+            self.controller.invalidate_applied_state(target)
+            self._schedule_recovery(target, "reassert")
             return
         self.hass.async_create_task(
             self._async_detect_manual(target, new_state),
             f"smart_led_manager_manual_{target}",
         )
+
+    @callback
+    def _schedule_recovery(self, target: str, operation: str) -> None:
+        """Own one safe recovery task per target."""
+        existing = self._recovery_tasks.get(target)
+        if existing is not None and not existing.done():
+            _LOGGER.debug(
+                "Recovery for %s is already active; ignoring duplicate %s event",
+                target,
+                operation,
+            )
+            return
+        task = self.hass.async_create_task(
+            self._async_retry_target(target, operation),
+            f"smart_led_manager_{operation}_{target}",
+        )
+        self._recovery_tasks[target] = task
+        task.add_done_callback(
+            lambda completed, target=target: self._discard_recovery_task(
+                target, completed
+            )
+        )
+
+    async def _async_retry_target(self, target: str, operation: str) -> None:
+        """Retry retained intent and contain every recovery-task failure."""
+        try:
+            result = await self.controller.async_retry(target)
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:
+            self._record_recovery_error(
+                target,
+                operation,
+                f"{type(err).__name__}: {err}",
+            )
+            _LOGGER.exception(
+                "Unexpected %s recovery failure for %s", operation, target
+            )
+            return
+
+        if result is None or result.status is ApplyStatus.SUPERSEDED:
+            return
+        if result.status is ApplyStatus.OFFLINE:
+            if result.detail is None:
+                _LOGGER.info(
+                    "Managed light %s became unavailable during %s; "
+                    "current intent remains retained",
+                    target,
+                    operation,
+                )
+                return
+            self._record_recovery_error(target, operation, result.detail)
+            _LOGGER.warning(
+                "%s recovery for %s exhausted its bounded attempts: %s",
+                operation.capitalize(),
+                target,
+                result.detail,
+            )
+            return
+
+        error_prefix = f"{target}: recovery failed"
+        if self.last_error is not None and self.last_error.startswith(error_prefix):
+            self.last_error = None
+            self.status = "active" if self._winners else "idle"
+            self._notify_listeners()
+        _LOGGER.info(
+            "%s recovery for %s completed with %s",
+            operation.capitalize(),
+            target,
+            result.status,
+        )
+
+    def _record_recovery_error(self, target: str, operation: str, detail: str) -> None:
+        """Expose a contained recovery failure through runtime diagnostics."""
+        self.last_error = f"{target}: recovery failed during {operation}: {detail}"
+        self.status = "error"
+        self._notify_listeners()
+
+    async def _async_cancel_recovery(self, target: str) -> None:
+        """Cancel and await one target's recovery task."""
+        task = self._recovery_tasks.pop(target, None)
+        if task is None:
+            return
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+    async def _async_cancel_recoveries(self) -> None:
+        """Cancel and await all recovery tasks during unload."""
+        tasks = tuple(self._recovery_tasks.values())
+        self._recovery_tasks.clear()
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    def _discard_recovery_task(
+        self, target: str, completed: asyncio.Task[None]
+    ) -> None:
+        """Release task ownership and retrieve defensive-boundary failures."""
+        if self._recovery_tasks.get(target) is completed:
+            self._recovery_tasks.pop(target, None)
+        if not completed.cancelled() and (error := completed.exception()) is not None:
+            _LOGGER.error(
+                "Recovery task for %s failed unexpectedly: %s",
+                target,
+                error,
+                exc_info=error,
+            )
 
     async def _async_detect_manual(self, target: str, state) -> None:
         now = utc_now()

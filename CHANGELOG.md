@@ -37,16 +37,22 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
   ganador anterior en el límite real de expiración de cada luz. De este modo,
   una notificación temporal libera su animación y sus órdenes obsoletas antes
   de recuperar la solicitud válida de menor prioridad.
+- La resincronización tras volver de `unavailable` contiene los fallos
+  transitorios del servicio de luz y usa intentos acotados con espera
+  progresiva. Cada intento conserva sólo la intención vigente; reemplazarla o
+  cancelarla descarta trabajo obsoleto y los fallos quedan diagnosticados sin
+  excepciones de tareas no recuperadas.
 
 ### Validación automatizada
 
-- Ruff y la matriz pytest completaron 71 pruebas en Home Assistant `2026.11.0`
+- Ruff y la matriz pytest completaron 84 pruebas en Home Assistant `2026.11.0`
   y `2026.11.2`, con cobertura total de ramas igual o superior al `80 %`.
 - Hassfest y HACS/Marketplace Action superaron la validación del PR #1.
 
 ### Pendiente antes de publicar
 
-- Ejecutar y registrar el plan físico en HAOS con el hardware del propietario.
+- Repetir R-02 con ZHA y GLEDOPTO GL-C-007P después de la corrección y completar
+  el resto del plan físico en HAOS.
 - Recibir aprobación explícita antes de fusionar, etiquetar, crear la
   pre-release o enviar la integración al catálogo Marketplace.
 

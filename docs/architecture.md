@@ -51,7 +51,7 @@ El estilo es una intención portable: encendido/apagado, RGB opcional, brillo, t
 
 El controlador lee `supported_color_modes`, `supported_features`, disponibilidad y efectos de la entidad. Envía solo atributos representables. RGB se proyecta sobre modos RGB/RGBW/RGBWW compatibles; si una luz no puede representar color, el error queda diagnosticado sin un bucle de reintentos.
 
-Cada luz conserva intención deseada, firma del último comando y una sola tarea pendiente. El intervalo mínimo es configurable; una orden nueva sustituye trabajo obsoleto. Una luz `unavailable` conserva la intención y se resincroniza al reaparecer, siempre que la solicitud siga vigente.
+Cada luz conserva intención deseada, firma del último comando y una sola tarea pendiente. El intervalo mínimo es configurable; una orden nueva sustituye trabajo obsoleto. Una luz `unavailable` conserva la intención y se resincroniza al reaparecer, siempre que la solicitud siga vigente. Si la plataforma la marca disponible antes de que el dispositivo responda, el mismo worker realiza como máximo tres envíos con esperas progresivas de 1 y 2 segundos. Un cambio de ganadora cancela ese trabajo antes de aplicar la nueva intención.
 
 ## Persistencia y recuperación
 

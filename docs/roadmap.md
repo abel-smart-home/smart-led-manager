@@ -11,6 +11,8 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - [x] Persistencia versionada de solicitudes persistentes y recuperación.
 - [x] Animaciones iniciales fija, parpadeo y pulsación con cancelación.
 - [x] Diagnóstico, sensor de motor e historial acotado.
+- [x] Recuperación acotada tras indisponibilidad, con espera progresiva y
+  cancelación de intención obsoleta.
 - [x] Traducciones inglés/español, documentación, CI y validadores Marketplace.
 - [x] Pruebas automatizadas del criterio de aceptación de alpha.1.
 - [ ] Ejecución física documentada por el propietario en HAOS con GLEDOPTO/ZHA.
@@ -21,7 +23,7 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - Edición y duplicación de reglas; condiciones compuestas, horarios y duración mínima.
 - Histéresis numérica, unidades y políticas por debajo/encima/rango.
 - Botones, `event`, `input_button` y device triggers con semántica real de evento.
-- Reintentos con backoff y verificación física configurable.
+- Política de reintento y verificación física configurables.
 - Política temporal opcional de pausa/reanudación además del vencimiento en tiempo real.
 
 ## `0.1.0-beta.1` — módulos funcionales

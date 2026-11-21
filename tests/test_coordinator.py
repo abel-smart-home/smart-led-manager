@@ -10,14 +10,21 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from homeassistant.components.light import ATTR_SUPPORTED_COLOR_MODES, ColorMode
-from homeassistant.const import ATTR_SUPPORTED_FEATURES, STATE_OFF, STATE_ON
+from homeassistant.const import (
+    ATTR_SUPPORTED_FEATURES,
+    STATE_OFF,
+    STATE_ON,
+    STATE_UNAVAILABLE,
+)
 from homeassistant.core import Context, State
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.smart_led_manager.const import CONF_LIGHTS, MODULE_NOTIFICATION
 from custom_components.smart_led_manager.controllers.base import (
     ApplyResult,
     ApplyStatus,
 )
+from custom_components.smart_led_manager.controllers.rgb import RGBLightController
 from custom_components.smart_led_manager.coordinator import SmartLEDCoordinator
 from custom_components.smart_led_manager.core.engine import PriorityEngine
 from custom_components.smart_led_manager.core.scheduler import AnimationScheduler
@@ -89,7 +96,9 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         coordinator._mutation_lock = asyncio.Lock()
         coordinator._manual_activated = {}
         coordinator._persisted_request_ids = set()
+        coordinator._recovery_tasks = {}
         coordinator._winners = {}
+        coordinator._listeners = set()
         coordinator.history = deque(maxlen=20)
         coordinator.last_error = None
         coordinator.status = "idle"
@@ -153,12 +162,246 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("Ignored 2", coordinator.last_error)
         track_state.assert_called_once()
 
+    async def test_available_event_contains_recovery_task_exception(self) -> None:
+        """A premature ZHA availability event cannot leak its send failure."""
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        coordinator._started = True
+        coordinator.targets = TargetResolver(["light.strip"])
+        coordinator.controller = SimpleNamespace(
+            async_retry=AsyncMock(
+                side_effect=HomeAssistantError(
+                    "Failed to send request: device did not respond"
+                )
+            ),
+            invalidate_applied_state=Mock(),
+        )
+        coordinator._recovery_tasks = {}
+        coordinator._winners = {"light.strip": "scene:blue"}
+        coordinator._listeners = set()
+        coordinator.last_error = None
+        coordinator.status = "active"
+        tasks: list[asyncio.Task[None]] = []
+
+        def _create_task(coroutine, name: str) -> asyncio.Task[None]:
+            task = asyncio.create_task(coroutine, name=name)
+            tasks.append(task)
+            return task
+
+        coordinator.hass = SimpleNamespace(async_create_task=_create_task)
+        attributes = {
+            ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+            ATTR_SUPPORTED_FEATURES: 0,
+        }
+        event = SimpleNamespace(
+            data={
+                "entity_id": "light.strip",
+                "old_state": State("light.strip", STATE_UNAVAILABLE, attributes),
+                "new_state": State("light.strip", STATE_ON, attributes),
+            },
+            context=Context(),
+        )
+
+        coordinator._async_light_state_changed(event)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        self.assertEqual(results, [None])
+        self.assertIn("device did not respond", coordinator.last_error)
+        coordinator.controller.invalidate_applied_state.assert_called_once_with(
+            "light.strip"
+        )
+
+    async def test_reassert_event_contains_recovery_task_exception(self) -> None:
+        """A failed service-only reassertion is diagnostic, not an orphan task."""
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        coordinator._started = True
+        coordinator.targets = TargetResolver(["light.strip"])
+        coordinator.manual_policy = "service_only"
+        coordinator.controller = SimpleNamespace(
+            is_own_context=Mock(return_value=False),
+            invalidate_applied_state=Mock(),
+            async_retry=AsyncMock(side_effect=HomeAssistantError("ZHA did not answer")),
+        )
+        coordinator._recovery_tasks = {}
+        coordinator._winners = {"light.strip": "scene:blue"}
+        coordinator._listeners = set()
+        coordinator.last_error = None
+        coordinator.status = "active"
+        tasks: list[asyncio.Task[None]] = []
+
+        def _create_task(coroutine, name: str) -> asyncio.Task[None]:
+            task = asyncio.create_task(coroutine, name=name)
+            tasks.append(task)
+            return task
+
+        coordinator.hass = SimpleNamespace(async_create_task=_create_task)
+        attributes = {
+            ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+            ATTR_SUPPORTED_FEATURES: 0,
+        }
+        event = SimpleNamespace(
+            data={
+                "entity_id": "light.strip",
+                "old_state": State("light.strip", STATE_OFF, attributes),
+                "new_state": State("light.strip", STATE_ON, attributes),
+            },
+            context=Context(),
+        )
+
+        coordinator._async_light_state_changed(event)
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        self.assertEqual(results, [None])
+        self.assertIn("ZHA did not answer", coordinator.last_error)
+        coordinator.controller.invalidate_applied_state.assert_called_once_with(
+            "light.strip"
+        )
+
+    async def test_duplicate_recovery_events_share_one_task_without_new_animation(
+        self,
+    ) -> None:
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        coordinator._recovery_tasks = {}
+        coordinator._winners = {"light.strip": "notice:active"}
+        coordinator._listeners = set()
+        coordinator.last_error = None
+        coordinator.status = "active"
+        retry_started = asyncio.Event()
+        release_retry = asyncio.Event()
+        tasks: list[asyncio.Task[None]] = []
+
+        async def _retry(target: str) -> ApplyResult:
+            retry_started.set()
+            await release_retry.wait()
+            return ApplyResult(target, ApplyStatus.APPLIED)
+
+        def _create_task(coroutine, name: str) -> asyncio.Task[None]:
+            task = asyncio.create_task(coroutine, name=name)
+            tasks.append(task)
+            return task
+
+        coordinator.controller = SimpleNamespace(
+            async_retry=AsyncMock(side_effect=_retry)
+        )
+        coordinator.animations = SimpleNamespace(
+            active_targets=frozenset({"light.strip"})
+        )
+        coordinator.hass = SimpleNamespace(async_create_task=_create_task)
+
+        coordinator._schedule_recovery("light.strip", "resync")
+        coordinator._schedule_recovery("light.strip", "reassert")
+        await retry_started.wait()
+
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(coordinator.controller.async_retry.await_count, 1)
+        self.assertEqual(
+            coordinator.animations.active_targets, frozenset({"light.strip"})
+        )
+
+        release_retry.set()
+        await tasks[0]
+        await asyncio.sleep(0)
+        self.assertNotIn("light.strip", coordinator._recovery_tasks)
+
+    async def test_exhausted_recovery_is_diagnostic_and_later_success_clears_it(
+        self,
+    ) -> None:
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        coordinator._winners = {"light.strip": "scene:blue"}
+        coordinator._listeners = set()
+        coordinator.last_error = None
+        coordinator.status = "active"
+        coordinator.controller = SimpleNamespace(
+            async_retry=AsyncMock(
+                return_value=ApplyResult(
+                    "light.strip",
+                    ApplyStatus.OFFLINE,
+                    "send failed after 3 attempts: device did not respond",
+                )
+            )
+        )
+
+        await coordinator._async_retry_target("light.strip", "resync")
+
+        self.assertEqual(coordinator.status, "error")
+        self.assertIn("failed after 3 attempts", coordinator.last_error)
+
+        coordinator.controller.async_retry.return_value = ApplyResult(
+            "light.strip", ApplyStatus.APPLIED
+        )
+        await coordinator._async_retry_target("light.strip", "resync")
+
+        self.assertEqual(coordinator.status, "active")
+        self.assertIsNone(coordinator.last_error)
+
+    async def test_winner_change_cancels_owned_recovery_task(self) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        recovery_started = asyncio.Event()
+        never_release = asyncio.Event()
+
+        async def _wait_for_recovery() -> None:
+            recovery_started.set()
+            await never_release.wait()
+
+        recovery = asyncio.create_task(_wait_for_recovery())
+        coordinator._recovery_tasks["light.strip"] = recovery
+        await recovery_started.wait()
+        winner = Request(
+            request_id="scene:blue",
+            source="test",
+            name="Blue",
+            module="scene",
+            targets=frozenset({"light.strip"}),
+            priority=20,
+            command=LightCommand(color=(0, 0, 255)),
+            activated_at=now,
+            updated_at=now,
+        )
+
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(winner)
+        )
+
+        self.assertTrue(recovery.cancelled())
+        self.assertNotIn("light.strip", coordinator._recovery_tasks)
+        self.assertEqual(coordinator.controller.desired["light.strip"], winner.command)
+
+    async def test_exhausted_normal_send_remains_diagnostic(self) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        coordinator.controller.async_apply = AsyncMock(
+            return_value=ApplyResult(
+                "light.strip",
+                ApplyStatus.OFFLINE,
+                "send failed after 1 attempt: device did not respond",
+            )
+        )
+        winner = Request(
+            request_id="scene:blue",
+            source="test",
+            name="Blue",
+            module="scene",
+            targets=frozenset({"light.strip"}),
+            priority=20,
+            command=LightCommand(color=(0, 0, 255)),
+            activated_at=now,
+            updated_at=now,
+        )
+
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(winner)
+        )
+
+        self.assertEqual(coordinator.status, "error")
+        self.assertIn("device did not respond", coordinator.last_error)
+
     def test_service_only_external_change_invalidates_and_reasserts(self) -> None:
         """Opting out of manual intent cannot preserve stale dedupe state."""
         coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
         coordinator._started = True
         coordinator.targets = TargetResolver(["light.strip"])
         coordinator.manual_policy = "service_only"
+        coordinator._recovery_tasks = {}
         coordinator.controller = SimpleNamespace(
             is_own_context=Mock(return_value=False),
             invalidate_applied_state=Mock(),
@@ -230,6 +473,125 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(controller.desired["light.strip"], lower.command)
         self.assertEqual(controller.applied[-1], ("light.strip", lower.command))
         self.assertEqual(await coordinator.engine.async_winner("light.strip"), lower)
+
+    async def test_r02_reconnect_retries_only_current_blue_winner(self) -> None:
+        now = utc_now()
+        clock = SimpleNamespace(value=now)
+        attributes = {
+            ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+            ATTR_SUPPORTED_FEATURES: 0,
+        }
+        state = SimpleNamespace(
+            value=State("light.strip", STATE_UNAVAILABLE, attributes)
+        )
+        services = SimpleNamespace(
+            async_call=AsyncMock(
+                side_effect=[
+                    HomeAssistantError("device did not respond"),
+                    None,
+                ]
+            )
+        )
+        recovery_tasks: list[asyncio.Task[None]] = []
+
+        def _create_task(coroutine, name: str) -> asyncio.Task[None]:
+            task = asyncio.create_task(coroutine, name=name)
+            recovery_tasks.append(task)
+            return task
+
+        hass = SimpleNamespace(
+            states=SimpleNamespace(get=lambda target: state.value),
+            services=services,
+            bus=SimpleNamespace(async_fire=Mock()),
+            async_create_task=_create_task,
+        )
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        coordinator.hass = hass
+        coordinator.targets = TargetResolver(["light.strip"])
+        coordinator.manual_policy = "service_only"
+        coordinator.engine = PriorityEngine(clock=lambda: clock.value)
+        coordinator.controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=0,
+            retry_max_delay=0,
+        )
+        coordinator.animations = AnimationScheduler()
+        coordinator._mutation_lock = asyncio.Lock()
+        coordinator._manual_activated = {}
+        coordinator._persisted_request_ids = set()
+        coordinator._recovery_tasks = {}
+        coordinator._winners = {}
+        coordinator._listeners = set()
+        coordinator.history = deque(maxlen=20)
+        coordinator.last_error = None
+        coordinator.status = "idle"
+        coordinator._started = True
+        coordinator._async_after_mutation = AsyncMock()
+        self.addAsyncCleanup(coordinator.animations.async_shutdown)
+        self.addAsyncCleanup(coordinator.controller.async_shutdown)
+
+        lower = Request(
+            request_id="scene:blue",
+            source="test",
+            name="Blue",
+            module="scene",
+            targets=frozenset({"light.strip"}),
+            priority=20,
+            command=LightCommand(color=(0, 0, 255)),
+            activated_at=now,
+            updated_at=now,
+        )
+        expires_at = now + timedelta(seconds=8)
+        notification = Request(
+            request_id="notice:r02",
+            source="test",
+            name="R-02 orange",
+            module=MODULE_NOTIFICATION,
+            targets=frozenset({"light.strip"}),
+            priority=70,
+            command=LightCommand(
+                color=(255, 128, 0),
+                animation=AnimationSpec(kind=AnimationKind.BLINK, interval=0.2),
+            ),
+            activated_at=now,
+            updated_at=now,
+            expires_at=expires_at,
+        )
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(lower)
+        )
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(notification)
+        )
+        await asyncio.sleep(0)
+        self.assertIn("light.strip", coordinator.animations.active_targets)
+
+        clock.value = expires_at + timedelta(seconds=1)
+        await coordinator._async_expire()
+        self.assertNotIn("light.strip", coordinator.animations.active_targets)
+        self.assertEqual(await coordinator.engine.async_winner("light.strip"), lower)
+
+        state.value = State("light.strip", STATE_ON, attributes)
+        coordinator._async_light_state_changed(
+            SimpleNamespace(
+                data={
+                    "entity_id": "light.strip",
+                    "old_state": State("light.strip", STATE_UNAVAILABLE, attributes),
+                    "new_state": state.value,
+                },
+                context=Context(),
+            )
+        )
+        await asyncio.gather(*recovery_tasks)
+
+        colors = [
+            item.args[2]["rgb_color"] for item in services.async_call.await_args_list
+        ]
+        self.assertEqual(colors, [(0, 0, 255), (0, 0, 255)])
+        self.assertNotIn((255, 128, 0), colors)
+        self.assertNotIn("light.strip", coordinator.animations.active_targets)
+        self.assertIsNone(coordinator.last_error)
 
     async def test_late_cancel_clears_animation_and_pending_command_without_fallback(
         self,

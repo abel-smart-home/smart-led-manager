@@ -42,6 +42,7 @@ La pre-release solo puede considerarse lista cuando:
 | Dos reglas P40 en una tira y una sola en otra | Cada tira resuelve su propio conjunto; el empate configurado solo afecta a la primera |
 | Misma solicitud llega por destinos superpuestos | Se emite como máximo un comando por entidad física |
 | Ganadora temporal vence mientras la luz está offline | No se reproduce al reconectar; se aplica el ganador que esté vigente entonces |
+| ZHA marca disponible antes de que el dispositivo responda | Se conserva la ganadora vigente; los envíos usan un límite y espera progresiva, sin excepciones de tareas huérfanas |
 | RGB solicitado a luz sin modo de color | Se diagnostica como no representable; no se envían atributos inválidos ni bucles |
 | Cambio emitido por Smart LED Manager | No crea control manual externo |
 | `unknown` en regla numérica | No se convierte a cero ni activa un umbral |
