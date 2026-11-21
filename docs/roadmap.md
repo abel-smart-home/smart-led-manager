@@ -1,0 +1,55 @@
+# Hoja de ruta
+
+La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en incrementos no lo elimina. Una casilla solo se marca cuando existe implementación y evidencia de prueba.
+
+## `0.1.0-alpha.1` — base utilizable
+
+- [ ] Motor puro: prioridades, desempates, actualización enmascarada, vencimiento y cancelación por destino.
+- [ ] Adaptador RGB según capacidades, deduplicación y rate limit por entidad.
+- [ ] Config flow para luces autorizadas y options flow para reglas de estado/numéricas.
+- [ ] Acciones de activación, cancelación, notificación, escena y control manual explícito.
+- [ ] Persistencia versionada de solicitudes persistentes y recuperación.
+- [ ] Animaciones iniciales fija, parpadeo y pulsación con cancelación.
+- [ ] Diagnóstico, sensor de motor e historial acotado.
+- [ ] Traducciones inglés/español, documentación, CI y validadores Marketplace.
+- [ ] Pruebas automatizadas del criterio de aceptación de alpha.1.
+- [ ] Ejecución física documentada por el propietario en HAOS con GLEDOPTO/ZHA.
+
+## `0.1.0-alpha.2` — destinos y disparadores completos
+
+- Áreas, etiquetas, grupos compatibles y “todas las administradas”, con expansión acíclica y deduplicación.
+- Edición y duplicación de reglas; condiciones compuestas, horarios y duración mínima.
+- Histéresis numérica, unidades y políticas por debajo/encima/rango.
+- Botones, `event`, `input_button` y device triggers con semántica real de evento.
+- Reintentos con backoff y verificación física configurable.
+- Política temporal opcional de pausa/reanudación además del vencimiento en tiempo real.
+
+## `0.1.0-beta.1` — módulos funcionales
+
+- Módulos gráficos para temperatura, humedad, energía, seguridad, presencia, escenas/ambientes y horarios reutilizando reglas genéricas.
+- Alternancia multicolor, respiración, transiciones graduales y secuencias personalizadas accesibles.
+- Entidades virtuales necesarias para control manual, dashboard y exposición opcional a Matter Hub/Alexa.
+- Detección conservadora de cambios directos mediante `Context`, tolerancias y ventana anti-eco; políticas temporal/permanente/retorno automático.
+- Iluminación adaptativa local sin dependencia obligatoria de otra integración.
+- Rate limit global y estrategia explícita para grupos Zigbee/multicast.
+
+## `0.1.0-rc.1` — estabilización
+
+- Migraciones reales desde todas las pre-releases.
+- Pruebas de carga, carreras, reinicio, descarga, actualización y datos corruptos.
+- Matriz de versiones de Home Assistant compatible y mínimo revisado según API/pruebas.
+- Plan HAOS ejecutado en varias tiras, habitaciones y desconexiones Zigbee.
+- Revisión de accesibilidad, traducciones, seguridad, privacidad y documentación.
+- Hassfest, HACS/Marketplace Action, Ruff, pytest y cobertura en verde.
+
+## `0.1.0` — versión regular
+
+Se publica únicamente tras cerrar los requisitos aprobados de la versión regular, registrar la prueba física y recibir autorización expresa para fusionar, etiquetar y crear la release.
+
+## Después de `0.1.0`
+
+- Controladores WLED y ESPHome Addressable Light.
+- WS2812B, WS2815, SK6812 y otras tiras direccionables.
+- Segmentos, píxeles individuales y señales simultáneas por segmento.
+- Panel visual dedicado solo si los flujos y dashboards nativos dejan necesidades justificadas.
+
