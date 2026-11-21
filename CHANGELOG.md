@@ -54,10 +54,25 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
   y `2026.11.2`, con cobertura total de ramas igual o superior al `80 %`.
 - Hassfest y HACS/Marketplace Action superaron la validación del PR #1.
 
+### Validación física
+
+- El propietario validó `f283d36` en HAOS con ZHA, un coordinador Sonoff
+  Dongle-P MG24 Plus y un GLEDOPTO GL-C-007P instalado manualmente. Se aprobaron
+  F-01, F-03 a F-07, los escenarios ejecutados de F-08, F-09, F-10, R-01,
+  R-02, cancelación durante recuperación y R-03.
+- La recarga de R-04 detuvo una animación activa y recuperó la solicitud
+  persistente sin trabajo tardío. R-05 aprobó cambios secuenciales rápidos del
+  mismo `request_id`; ambos resultados se limitan al alcance ejecutado.
+- Se repitieron satisfactoriamente los dos fallos encontrados durante la
+  validación: la excepción Zigbee sin manejar corregida en `cf57d64` y la falta
+  de recuperación con estado ZHA obsoleto corregida en `f283d36`. Los fallos de
+  comunicación aún producen advertencias controladas y útiles en el registro.
+
 ### Pendiente antes de publicar
 
-- Repetir R-01 y R-02 con ZHA y GLEDOPTO GL-C-007P después de las correcciones
-  y completar el resto del plan físico en HAOS.
+- Completar F-02, la variante `unknown` de F-08, la eliminación de entrada de
+  R-04, una carga más intensa de R-05, R-06, Alexa/Matter y diversidad de
+  controladores; registrar versiones, firmware y fecha que siguen pendientes.
 - Recibir aprobación explícita antes de fusionar, etiquetar, crear la
   pre-release o enviar la integración al catálogo Marketplace.
 

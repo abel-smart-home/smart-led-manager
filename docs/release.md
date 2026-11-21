@@ -19,21 +19,41 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 
 ## Puertas del candidato
 
-- [ ] El diff contiene sólo cambios revisados y preserva trabajo ajeno.
-- [ ] `ruff format --check .` y `ruff check .` pasan.
-- [ ] `pytest --cov` pasa con cobertura de ramas configurada.
-- [ ] La matriz prueba Home Assistant `2026.11.0` y el parche fijado.
-- [ ] hassfest y HACS Action pasan sin `ignore` ni supresiones engañosas.
-- [ ] Manifest, `hacs.json`, Python, changelog y notas coinciden.
-- [ ] Traducciones inglesa y española cubren flujos, entidades, acciones y
+- [x] El diff contiene sólo cambios revisados y preserva trabajo ajeno.
+- [x] `ruff format --check .` y `ruff check .` pasan.
+- [x] `pytest --cov` pasa con cobertura de ramas configurada.
+- [x] La matriz prueba Home Assistant `2026.11.0` y `2026.11.2`.
+- [x] hassfest y HACS Action pasan sin `ignore` ni supresiones engañosas.
+- [x] Manifest, `hacs.json`, Python, changelog y notas coinciden.
+- [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
       excepciones.
 - [ ] Instalación, actualización, recarga, descarga y recuperación se prueban.
-- [ ] El propietario ejecuta y registra `docs/haos-test-plan.md`.
+      La instalación manual, recarga, reinicio de Core y recuperación están
+      registradas; eliminar la entrada y verificar su limpieza sigue pendiente.
+- [ ] El propietario ejecuta y registra `docs/haos-test-plan.md`. La ejecución
+      es parcial: conserva casos pendientes en el propio plan.
 - [ ] Se revisan licencia, `THIRD_PARTY_NOTICES.md`, seguridad y privacidad.
 - [ ] El propietario aprueba explícitamente la fusión y publicación.
 
 Una comprobación que no pueda ejecutarse se registra como pendiente con su
 motivo; no se sustituye por una afirmación de éxito.
+
+## Evaluación del candidato `f283d36`
+
+No se conoce un defecto bloqueante en los recorridos automatizados y físicos
+ejecutados. R-01, R-02 y sus antecedentes de recuperación Zigbee quedaron
+corregidos y repetidos satisfactoriamente; las advertencias controladas por
+dispositivo sin respuesta siguen siendo normales y deben permanecer visibles.
+
+El candidato es técnicamente apto para una **pre-release experimental y
+limitada** si sus notas enumeran los escenarios pendientes. No está validado
+como versión regular, no está listo para afirmar compatibilidad amplia de
+hardware y este estado no autoriza Marketplace. F-02, `unknown`, eliminación de
+entrada, estrés intensivo, grupos Zigbee, Alexa/Matter y otros controladores
+siguen siendo riesgos de cobertura, no resultados aprobados.
+
+La publicación continúa bloqueada administrativamente hasta que el propietario
+la autorice de forma explícita; este documento no concede esa autorización.
 
 ## Preparación del pull request
 
