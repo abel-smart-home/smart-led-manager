@@ -50,7 +50,7 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
 
 ### Validación automatizada
 
-- Ruff y la matriz pytest completaron 89 pruebas en Home Assistant `2026.11.0`
+- Ruff y la matriz pytest completaron 93 pruebas en Home Assistant `2026.11.0`
   y `2026.11.2`, con cobertura total de ramas igual o superior al `80 %`.
 - Hassfest y HACS/Marketplace Action superaron la validación del PR #1.
 
@@ -61,8 +61,9 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
   F-01, F-03 a F-07, los escenarios ejecutados de F-08, F-09, F-10, R-01,
   R-02, cancelación durante recuperación y R-03.
 - La recarga de R-04 detuvo una animación activa y recuperó la solicitud
-  persistente sin trabajo tardío. R-05 aprobó cambios secuenciales rápidos del
-  mismo `request_id`; ambos resultados se limitan al alcance ejecutado.
+  persistente sin trabajo tardío. R-05 aprobó una carga mixta de 20 cambios
+  numéricos con avisos `pulse` P95 y `blink` P98, recuperación del control
+  numérico y estado final correcto; no fue estrés extremo multidispositivo.
 - Se repitieron satisfactoriamente los dos fallos encontrados durante la
   validación: la excepción Zigbee sin manejar corregida en `cf57d64` y la falta
   de recuperación con estado ZHA obsoleto corregida en `f283d36`. Los fallos de
@@ -71,8 +72,8 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
 ### Pendiente antes de publicar
 
 - Completar F-02, la variante `unknown` de F-08, la eliminación de entrada de
-  R-04, una carga más intensa de R-05, R-06, Alexa/Matter y diversidad de
-  controladores; registrar versiones, firmware y fecha que siguen pendientes.
+  R-04, estrés extremo multidispositivo, R-06, Alexa/Matter y diversidad de
+  controladores; registrar firmware y fecha que siguen pendientes.
 - Recibir aprobación explícita antes de fusionar, etiquetar, crear la
   pre-release o enviar la integración al catálogo Marketplace.
 

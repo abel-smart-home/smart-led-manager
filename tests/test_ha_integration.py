@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 
 import pytest
@@ -10,7 +11,12 @@ from homeassistant.components.light import (
     ColorMode,
 )
 from homeassistant.config_entries import SOURCE_USER
-from homeassistant.const import ATTR_SUPPORTED_FEATURES, SERVICE_TURN_ON, STATE_OFF
+from homeassistant.const import (
+    ATTR_SUPPORTED_FEATURES,
+    SERVICE_TURN_OFF,
+    SERVICE_TURN_ON,
+    STATE_OFF,
+)
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant.common import MockConfigEntry
 
@@ -123,6 +129,76 @@ async def test_setup_action_and_unload_lifecycle(hass) -> None:
     )
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert entry.entry_id not in hass.data[DOMAIN]["entries"]
+
+
+async def test_unload_cancels_animation_listeners_and_late_commands(hass) -> None:
+    """An active animation cannot outlive entry unload."""
+    light_calls = []
+    first_frame = asyncio.Event()
+
+    async def _record_light_call(call) -> None:
+        light_calls.append(call)
+        first_frame.set()
+
+    hass.services.async_register("light", SERVICE_TURN_ON, _record_light_call)
+    hass.services.async_register("light", SERVICE_TURN_OFF, _record_light_call)
+    hass.states.async_set(
+        "light.strip",
+        STATE_OFF,
+        {
+            ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+            ATTR_SUPPORTED_FEATURES: 0,
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-unload",
+        data={CONF_LIGHTS: ["light.strip"]},
+        options={
+            CONF_RULES: [],
+            CONF_TIE_BREAKER: "newest",
+            CONF_MIN_COMMAND_INTERVAL: 0,
+            CONF_MANUAL_POLICY: "service_only",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    assert coordinator._unsub_lights is not None
+    assert coordinator._listeners
+
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_NOTIFY,
+        {
+            "request_id": "notice:unload",
+            "targets": ["light.strip"],
+            "rgb_color": [255, 128, 0],
+            "animation": "blink",
+            "period": 0.5,
+            "duration": 60,
+        },
+        blocking=True,
+        return_response=True,
+    )
+    await asyncio.wait_for(first_frame.wait(), timeout=1)
+    assert "light.strip" in coordinator.animations.active_targets
+    assert coordinator.expiry.deadline is not None
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    calls_after_unload = len(light_calls)
+    await asyncio.sleep(0.3)
+
+    assert len(light_calls) == calls_after_unload
+    assert coordinator.animations.active_targets == frozenset()
+    assert coordinator.controller.pending_targets == frozenset()
+    assert coordinator.expiry.deadline is None
+    assert coordinator._recovery_tasks == {}
+    assert coordinator._unsub_lights is None
+    assert coordinator._listeners == set()
+    assert coordinator.status == "stopped"
 
 
 async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:

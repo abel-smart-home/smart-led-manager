@@ -485,10 +485,11 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
             await never_release.wait()
 
         recovery = asyncio.create_task(_recovery())
+        light_unsubscribe = Mock()
         coordinator._recovery_tasks = {"light.strip": recovery}
         coordinator._started = True
         coordinator.rules = SimpleNamespace(async_shutdown=AsyncMock())
-        coordinator._unsub_lights = None
+        coordinator._unsub_lights = light_unsubscribe
         coordinator.expiry = SimpleNamespace(async_shutdown=AsyncMock())
         coordinator.animations = SimpleNamespace(async_shutdown=AsyncMock())
         coordinator.controller = SimpleNamespace(async_shutdown=AsyncMock())
@@ -501,7 +502,13 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(recovery.cancelled())
         self.assertEqual(coordinator._recovery_tasks, {})
+        light_unsubscribe.assert_called_once_with()
+        self.assertIsNone(coordinator._unsub_lights)
+        coordinator.rules.async_shutdown.assert_awaited_once_with()
+        coordinator.expiry.async_shutdown.assert_awaited_once_with()
+        coordinator.animations.async_shutdown.assert_awaited_once_with()
         coordinator.controller.async_shutdown.assert_awaited_once_with()
+        coordinator._async_save.assert_awaited_once_with()
         self.assertEqual(coordinator.status, "stopped")
 
     def test_service_only_external_change_invalidates_and_reasserts(self) -> None:

@@ -3,13 +3,39 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from typing import ClassVar
 from unittest.mock import AsyncMock, patch
 
+from custom_components.smart_led_manager import async_remove_entry
 from custom_components.smart_led_manager.const import (
     STORAGE_MINOR_VERSION,
     STORAGE_VERSION,
 )
 from custom_components.smart_led_manager.storage import SmartLEDStorage
+
+
+class _MemoryStore:
+    """Small Store double that persists data across wrapper instances."""
+
+    records: ClassVar[dict[str, dict[str, object]]] = {}
+
+    def __class_getitem__(cls, item):
+        del item
+        return cls
+
+    def __init__(self, hass, version, key, *, minor_version) -> None:
+        del hass, version, minor_version
+        self.key = key
+
+    async def async_load(self):
+        return self.records.get(self.key)
+
+    async def async_save(self, data) -> None:
+        self.records[self.key] = data
+
+    async def async_remove(self) -> None:
+        self.records.pop(self.key, None)
 
 
 class StorageTests(unittest.IsolatedAsyncioTestCase):
@@ -58,6 +84,24 @@ class StorageTests(unittest.IsolatedAsyncioTestCase):
 
         self.store.async_save.assert_awaited_once_with({"requests": requests})
         self.store.async_remove.assert_awaited_once_with()
+
+    async def test_entry_removal_leaves_fresh_install_without_old_requests(
+        self,
+    ) -> None:
+        _MemoryStore.records.clear()
+        hass = object()
+        entry = SimpleNamespace(entry_id="entry-reinstalled")
+        old_request = {"request_id": "scene:old"}
+
+        with patch("custom_components.smart_led_manager.storage.Store", _MemoryStore):
+            installed = SmartLEDStorage(hass, entry.entry_id)
+            await installed.async_save([old_request])
+            self.assertEqual(await installed.async_load(), [old_request])
+
+            await async_remove_entry(hass, entry)
+            reinstalled = SmartLEDStorage(hass, entry.entry_id)
+
+            self.assertEqual(await reinstalled.async_load(), [])
 
 
 if __name__ == "__main__":

@@ -65,8 +65,24 @@ fotosensibles presentes.
 | R-02-C | Cancela una solicitud durante la recuperación Zigbee y reconecta. | La solicitud cancelada no se reproduce; se aplica la ganadora vigente. | **Aprobada, 7/7.** Rojo P100 se canceló tras fallar desconectado; al reconectar regresó azul P80 y el rojo nunca apareció. Sin excepciones sin manejar. |
 | R-03 | Reinicia Home Assistant Core con solicitudes persistente y temporal. | Se recupera sólo lo válido; no hay temporizadores duplicados. | **Aprobada con `f283d36`, 7/7, para reinicio de Core.** Violeta persistente P95 sobrevivió; verde P70 quedó en espera y apareció al cancelar violeta. Limpieza correcta y sin errores. No se reinició todo HAOS. |
 | R-04 | Recarga y después elimina la entrada. | No quedan listeners, animaciones u órdenes tardías. | **Recarga aprobada en el alcance ejecutado, 8/8.** `homeassistant.reload_config_entry` detuvo `blink` naranja, recuperó azul persistente y no reapareció la animación en 30 s. La eliminación completa de la entrada y su limpieza posterior quedan pendientes. |
-| R-05 | Genera cambios rápidos de sensor y varias animaciones. | Deduplicación/rate limit evitan tormenta y HA sigue estable. | **Escenario secuencial aprobado, 6/6.** El mismo `request_id` cambió azul → rojo → verde y permaneció verde tras 30 s, sin colores tardíos ni excepciones. No fue una prueba de estrés con simultaneidad intensa o múltiples tiras. |
+| R-05 | Genera cambios rápidos de sensor y varias animaciones. | Deduplicación/rate limit evitan tormenta y HA sigue estable. | **Carga mixta aprobada con `f283d36`, 9/9.** Se ejecutaron 20 cambios sucesivos de un sensor numérico, una notificación `pulse` P95 y su interrupción por `blink` P98. Al finalizar los avisos se recuperó el control numérico y el estado final fue verde, correspondiente al último valor 25. No hubo colores atrasados, excepciones ni errores inesperados; los elementos temporales se eliminaron correctamente. No fue una prueba de estrés extremo con múltiples dispositivos. |
 | R-06 | Usa grupos Zigbee si están disponibles y observa multicast/unicast. | Sin duplicados inesperados; registrar comportamiento real. | Pendiente |
+
+### Cobertura automatizada complementaria de R-04
+
+- `async_unload_entry` cubre descarga exitosa, fallo al descargar plataformas y
+  retirada del runtime sólo tras un cierre correcto.
+- `async_shutdown` cubre la cancelación y espera de recuperación, expiración,
+  animación y controlador, además de liberar listeners de luces, listeners de
+  reglas y evaluaciones diferidas.
+- Una prueba de integración descarga con `blink` activo y verifica que no haya
+  cuadros tardíos, comandos pendientes ni tareas de recuperación restantes.
+- `async_remove_entry` y `SmartLEDStorage` cubren eliminación del Store; una
+  instancia nueva con la misma clave carga una lista vacía y no recupera
+  solicitudes antiguas.
+
+Esta cobertura automatizada no sustituye la eliminación física de la entrada
+en una instancia aislada, que continúa pendiente para cerrar R-04.
 
 ## Incidencias encontradas y corregidas
 
@@ -89,8 +105,8 @@ de una comunicación Zigbee fallida y no deben ocultarse.
 - F-02: dos tiras independientes y resolución simultánea por destino.
 - F-08: estado `unknown` probado de forma específica, además de `unavailable`.
 - R-04: eliminación de la entrada y verificación de limpieza posterior.
-- R-05: estrés más intenso con sensores, animaciones, simultaneidad y varias
-  tiras.
+- Estrés extremo adicional con simultaneidad intensa, múltiples dispositivos y
+  varias tiras; no forma parte de la carga mixta aprobada en R-05.
 - R-06: grupos Zigbee y comportamiento multicast/unicast.
 - Validación formal específica de Alexa y Matter Hub.
 - Otros modelos GLEDOPTO y combinaciones RGB, RGBW y RGB+CCT.

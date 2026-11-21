@@ -48,9 +48,10 @@ dispositivo sin respuesta siguen siendo normales y deben permanecer visibles.
 El candidato es técnicamente apto para una **pre-release experimental y
 limitada** si sus notas enumeran los escenarios pendientes. No está validado
 como versión regular, no está listo para afirmar compatibilidad amplia de
-hardware y este estado no autoriza Marketplace. F-02, `unknown`, eliminación de
-entrada, estrés intensivo, grupos Zigbee, Alexa/Matter y otros controladores
-siguen siendo riesgos de cobertura, no resultados aprobados.
+hardware y este estado no autoriza Marketplace. R-05 ya cubre carga mixta, pero
+F-02, `unknown`, eliminación de entrada, estrés extremo multidispositivo, grupos
+Zigbee, Alexa/Matter y otros controladores siguen siendo riesgos de cobertura,
+no resultados aprobados.
 
 La publicación continúa bloqueada administrativamente hasta que el propietario
 la autorice de forma explícita; este documento no concede esa autorización.

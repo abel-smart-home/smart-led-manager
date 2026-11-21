@@ -95,6 +95,29 @@ class SchedulerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(frames[-1].brightness, 200)
         self.assertNotIn("light.strip", scheduler.active_targets)
 
+    async def test_shutdown_cancels_animation_without_late_frames(self) -> None:
+        scheduler = AnimationScheduler()
+        frames: list[LightCommand] = []
+        first_frame = asyncio.Event()
+
+        async def apply(command: LightCommand) -> None:
+            frames.append(command)
+            first_frame.set()
+
+        await scheduler.async_apply(
+            "light.strip",
+            _request(AnimationSpec(kind=AnimationKind.BLINK, interval=0.2)),
+            apply,
+        )
+        await asyncio.wait_for(first_frame.wait(), timeout=1)
+
+        await scheduler.async_shutdown()
+        count_after_shutdown = len(frames)
+        await asyncio.sleep(0.15)
+
+        self.assertEqual(len(frames), count_after_shutdown)
+        self.assertEqual(scheduler.active_targets, frozenset())
+
 
 if __name__ == "__main__":
     unittest.main()
