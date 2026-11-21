@@ -52,7 +52,7 @@ fotosensibles presentes.
 | F-05 | Envía `notify` P70 y una alarma de prueba P100. | Gana P100; después se reevalúa el aviso sólo si sigue vigente. | **Aprobada, 7/7.** Secuencia física: azul P60 → naranja P70 → violeta P100 → naranja P70 → azul P60. La alerta venció a los 8 s y el aviso a los 30 s; no quedaron solicitudes temporales obsoletas ni hubo excepciones. |
 | F-06 | Ejecuta `blink` y `pulse`, después reemplaza/cancela. | La tarea anterior se detiene sin cuadros tardíos. | **Aprobada en el escenario ejecutado, 8/8.** Un `pulse` violeta P90 se canceló durante su ejecución y regresó azul fijo P60; no reapareció durante 30 s. `blink` también funcionó durante notificaciones y recarga. Sin excepciones. |
 | F-07 | Crea regla de estado y cambia la fuente. | Activa/libera sin sondeo perceptible. | **Aprobada, 7/7.** Una regla temporal sobre `input_boolean` activó naranja y, al desactivarse, devolvió el color de la regla de temperatura. Se repitió la secuencia y se eliminaron regla y ayudante; sin errores. |
-| F-08 | Recorre una regla numérica y después usa `unknown`/`unavailable`. | Colores correctos; valores inválidos nunca se vuelven cero. | **Aprobada en los escenarios ejecutados, 9/9.** La interpolación `20:0,0,255;25:0,255,0;30:255,0,0` produjo azul, verde, rojo y un intermedio a 27.5 °C. `unavailable` liberó la regla y un valor válido la reactivó. `unknown` por separado queda pendiente. |
+| F-08 | Recorre una regla numérica y después usa `unknown`/`unavailable`. | Colores correctos; valores inválidos nunca se vuelven cero. | **Completamente aprobada.** Interpolación y `unavailable`: 9/9; la tabla `20:0,0,255;25:0,255,0;30:255,0,0` produjo azul, verde, rojo y un intermedio a 27.5 °C, y `unavailable` liberó la regla antes de reactivarse con un valor válido. Variante `unknown`: 7/7 con `f283d36`; valor 25 mostró magenta, `unknown` liberó la regla y devolvió el control habitual sin interpretarse como cero, y valor 26 recuperó el magenta. Regla y ayudante se eliminaron sin errores. |
 | F-09 | Apaga una tira y prueba `allow_turn_on` falso/verdadero. | Sólo la solicitud autorizada puede encenderla. | **Aprobada, 6/6.** Rojo P100 con `allow_turn_on: false` permaneció apagado 10 s; al actualizar la misma solicitud con `true`, se encendió rojo. Cancelación y retorno habitual correctos; sin errores. |
 | F-10 | Cambia manualmente la luz con `service_only`. | No se crea una solicitud externa implícita. | **Aprobada, 7/7.** Con la política **Only explicit manual action**, un cambio directo a rojo fue reafirmado automáticamente al azul P100 vigente y permaneció azul tras 15 s. Cancelación correcta; sin errores. |
 
@@ -103,7 +103,6 @@ de una comunicación Zigbee fallida y no deben ocultarse.
 ## Escenarios pendientes
 
 - F-02: dos tiras independientes y resolución simultánea por destino.
-- F-08: estado `unknown` probado de forma específica, además de `unavailable`.
 - R-04: eliminación de la entrada y verificación de limpieza posterior.
 - Estrés extremo adicional con simultaneidad intensa, múltiples dispositivos y
   varias tiras; no forma parte de la carga mixta aprobada en R-05.
