@@ -8,13 +8,21 @@ de HAOS, Zigbee, GLEDOPTO, Alexa o Matter Hub.
 
 | Campo | Valor |
 |---|---|
-| Fecha/hora y zona | Pendiente |
+| Fecha/hora | Pendiente |
+| Zona horaria | `America/Tijuana` |
 | Commit y versión | `f283d36a4a11834fa812043697a0dead33de3110`, `0.1.0-alpha.1` |
-| Home Assistant OS/Core | HAOS; versión exacta pendiente |
-| Instalación | Manual en `/config/custom_components/smart_led_manager/` |
+| Home Assistant Core | `2026.11.2` |
+| Home Assistant OS | `18.5` |
+| Supervisor | `2026.11.0` |
+| Python | `3.14.10` |
+| Hardware y plataforma | Raspberry Pi 5; `aarch64` |
+| Tipo de instalación | Home Assistant OS |
+| Estado del sistema | `healthy`; `supported` |
+| Instalación de Smart LED Manager | Manual en `/config/custom_components/smart_led_manager/` |
 | Coordinador Zigbee y firmware | Sonoff Dongle-P MG24 Plus; firmware pendiente |
 | Modelos/firmware de controladores LED | GLEDOPTO GL-C-007P; firmware pendiente |
 | Integraciones de luz | ZHA; `light.gledopto_gl_c_007p` |
+| Home-Assistant-Matter-Hub | Instalado, versión `2.0.60`; validación funcional pendiente |
 | Ejecutor | Propietario |
 | Resultado general | **Validación física parcial completada — casos aprobados y pendientes detallados abajo** |
 
@@ -86,8 +94,8 @@ de una comunicación Zigbee fallida y no deben ocultarse.
 - R-06: grupos Zigbee y comportamiento multicast/unicast.
 - Validación formal específica de Alexa y Matter Hub.
 - Otros modelos GLEDOPTO y combinaciones RGB, RGBW y RGB+CCT.
-- Versión exacta de Home Assistant Core, firmware del coordinador, firmware del
-  controlador y fecha/hora exacta de ejecución.
+- Firmware del coordinador, firmware del controlador y fecha/hora exacta de
+  ejecución.
 
 ## Alexa y Matter Hub
 
@@ -96,7 +104,8 @@ propietario ya expone las entidades `light` subyacentes, comprueba que una orden
 de Alexa/Matter y una solicitud del motor produzcan un resultado comprensible,
 pero registra la atribución exacta. No marques integración nativa con Alexa o
 Matter como validada sólo porque la luz física responde. Esta validación formal
-permanece pendiente.
+permanece pendiente. Home-Assistant-Matter-Hub `2.0.60` está instalado en el
+entorno, pero esa presencia no constituye evidencia de interoperabilidad.
 
 ## Cierre
 
