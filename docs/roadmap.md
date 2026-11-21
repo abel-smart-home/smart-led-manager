@@ -4,15 +4,15 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 
 ## `0.1.0-alpha.1` — base utilizable
 
-- [ ] Motor puro: prioridades, desempates, actualización enmascarada, vencimiento y cancelación por destino.
-- [ ] Adaptador RGB según capacidades, deduplicación y rate limit por entidad.
-- [ ] Config flow para luces autorizadas y options flow para reglas de estado/numéricas.
-- [ ] Acciones de activación, cancelación, notificación, escena y control manual explícito.
-- [ ] Persistencia versionada de solicitudes persistentes y recuperación.
-- [ ] Animaciones iniciales fija, parpadeo y pulsación con cancelación.
-- [ ] Diagnóstico, sensor de motor e historial acotado.
-- [ ] Traducciones inglés/español, documentación, CI y validadores Marketplace.
-- [ ] Pruebas automatizadas del criterio de aceptación de alpha.1.
+- [x] Motor puro: prioridades, desempates, actualización enmascarada, vencimiento y cancelación por destino.
+- [x] Adaptador RGB según capacidades, deduplicación y rate limit por entidad.
+- [x] Config flow para luces autorizadas y options flow para reglas de estado/numéricas.
+- [x] Acciones de activación, cancelación, notificación, escena y control manual explícito.
+- [x] Persistencia versionada de solicitudes persistentes y recuperación.
+- [x] Animaciones iniciales fija, parpadeo y pulsación con cancelación.
+- [x] Diagnóstico, sensor de motor e historial acotado.
+- [x] Traducciones inglés/español, documentación, CI y validadores Marketplace.
+- [x] Pruebas automatizadas del criterio de aceptación de alpha.1.
 - [ ] Ejecución física documentada por el propietario en HAOS con GLEDOPTO/ZHA.
 
 ## `0.1.0-alpha.2` — destinos y disparadores completos

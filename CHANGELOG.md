@@ -20,7 +20,7 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
 - Persistencia versionada de solicitudes persistentes, recuperación, historial
   acotado, diagnóstico y sensor de estado del motor.
 - Animaciones fija, parpadeo y pulsación con propiedad y cancelación por luz.
-- Traducciones previstas en inglés y español, documentación de uso, CI,
+- Traducciones en inglés y español, documentación de uso, CI,
   hassfest y validación HACS/Marketplace.
 - Auditoría de proyectos comunitarios sin reutilización de código de terceros.
 
@@ -31,12 +31,16 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
 - Las órdenes internas conservan contexto para no tratarse como control manual
   externo y la detección directa permanece conservadora y optativa.
 
-### Validación pendiente antes de publicar
+### Validación automatizada
 
-- Obtener resultados correctos de Ruff, pytest con cobertura, hassfest y HACS
-  Action en el commit candidato.
+- Ruff y la matriz pytest completaron 62 pruebas en Home Assistant `2026.11.0`
+  y `2026.11.2`, con cobertura total de ramas de `80.39 %`.
+- Hassfest y HACS/Marketplace Action superaron la validación del PR #1.
+
+### Pendiente antes de publicar
+
 - Ejecutar y registrar el plan físico en HAOS con el hardware del propietario.
-- Recibir aprobación explícita antes de fusionar, etiquetar o crear la
-  pre-release.
+- Recibir aprobación explícita antes de fusionar, etiquetar, crear la
+  pre-release o enviar la integración al catálogo Marketplace.
 
 [0.1.0-alpha.1]: https://github.com/abel-smart-home/smart-led-manager/compare/main...feat/v0.1.0-alpha.1
