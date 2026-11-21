@@ -42,17 +42,22 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
   progresiva. Cada intento conserva sólo la intención vigente; reemplazarla o
   cancelarla descarta trabajo obsoleto y los fallos quedan diagnosticados sin
   excepciones de tareas no recuperadas.
+- Un fallo de envío mientras ZHA conserva la entidad como `on` u `off` agenda
+  una recuperación automática de fondo, sin depender de un evento
+  `unavailable`. La caché de deduplicación se invalida tras cada fallo y sólo
+  la ganadora vigente puede reintentarse; cancelaciones, vencimientos, cambios
+  de prioridad y descargas eliminan inmediatamente el trabajo anterior.
 
 ### Validación automatizada
 
-- Ruff y la matriz pytest completaron 84 pruebas en Home Assistant `2026.11.0`
+- Ruff y la matriz pytest completaron 89 pruebas en Home Assistant `2026.11.0`
   y `2026.11.2`, con cobertura total de ramas igual o superior al `80 %`.
 - Hassfest y HACS/Marketplace Action superaron la validación del PR #1.
 
 ### Pendiente antes de publicar
 
-- Repetir R-02 con ZHA y GLEDOPTO GL-C-007P después de la corrección y completar
-  el resto del plan físico en HAOS.
+- Repetir R-01 y R-02 con ZHA y GLEDOPTO GL-C-007P después de las correcciones
+  y completar el resto del plan físico en HAOS.
 - Recibir aprobación explícita antes de fusionar, etiquetar, crear la
   pre-release o enviar la integración al catálogo Marketplace.
 

@@ -84,6 +84,11 @@ class _TrackingController:
         self.cancelled.append(target)
         self.desired.pop(target, None)
 
+    def invalidate_applied_state(self, target: str) -> None:
+        """Mirror the production cache invalidation boundary."""
+
+        del target
+
 
 class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
     """Cover safe recovery and external-state attribution boundaries."""
@@ -97,13 +102,20 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         coordinator._manual_activated = {}
         coordinator._persisted_request_ids = set()
         coordinator._recovery_tasks = {}
+        coordinator._failed_send_recovery_delay = 60
         coordinator._winners = {}
         coordinator._listeners = set()
         coordinator.history = deque(maxlen=20)
         coordinator.last_error = None
         coordinator.status = "idle"
-        coordinator.hass = SimpleNamespace(bus=SimpleNamespace(async_fire=Mock()))
+        coordinator.hass = SimpleNamespace(
+            bus=SimpleNamespace(async_fire=Mock()),
+            async_create_task=lambda coroutine, name: asyncio.create_task(
+                coroutine, name=name
+            ),
+        )
         coordinator._async_after_mutation = AsyncMock()
+        self.addAsyncCleanup(coordinator._async_cancel_recoveries)
         self.addAsyncCleanup(coordinator.animations.async_shutdown)
         return coordinator
 
@@ -395,6 +407,103 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(coordinator.status, "error")
         self.assertIn("device did not respond", coordinator.last_error)
 
+    async def test_cancel_stops_scheduled_failure_recovery(self) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        coordinator.controller.async_apply = AsyncMock(
+            return_value=ApplyResult(
+                "light.strip",
+                ApplyStatus.OFFLINE,
+                "send failed after 1 attempt: device did not respond",
+            )
+        )
+        coordinator.controller.async_retry = AsyncMock()
+        request = _request("scene:offline", "light.strip")
+
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(request)
+        )
+        recovery = coordinator._recovery_tasks["light.strip"]
+
+        await coordinator.async_cancel(request.request_id)
+
+        self.assertTrue(recovery.cancelled())
+        self.assertNotIn("light.strip", coordinator._recovery_tasks)
+        coordinator.controller.async_retry.assert_not_awaited()
+        self.assertIsNone(await coordinator.engine.async_winner("light.strip"))
+
+    async def test_higher_priority_replaces_scheduled_failure_recovery(self) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        coordinator.controller.async_apply = AsyncMock(
+            side_effect=[
+                ApplyResult(
+                    "light.strip",
+                    ApplyStatus.OFFLINE,
+                    "send failed after 1 attempt: device did not respond",
+                ),
+                ApplyResult("light.strip", ApplyStatus.APPLIED),
+            ]
+        )
+        coordinator.controller.async_retry = AsyncMock()
+        lower = _request("scene:lower", "light.strip")
+        higher = Request(
+            request_id="alarm:higher",
+            source="test",
+            name="Higher",
+            module="scene",
+            targets=frozenset({"light.strip"}),
+            priority=100,
+            command=LightCommand(color=(255, 0, 0)),
+            activated_at=now,
+            updated_at=now,
+        )
+
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(lower)
+        )
+        stale_recovery = coordinator._recovery_tasks["light.strip"]
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(higher)
+        )
+
+        self.assertTrue(stale_recovery.cancelled())
+        self.assertNotIn("light.strip", coordinator._recovery_tasks)
+        coordinator.controller.async_retry.assert_not_awaited()
+        self.assertEqual(await coordinator.engine.async_winner("light.strip"), higher)
+        self.assertEqual(
+            coordinator.controller.async_apply.await_args.args[1], higher.command
+        )
+
+    async def test_shutdown_cancels_scheduled_failure_recovery(self) -> None:
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        recovery_started = asyncio.Event()
+        never_release = asyncio.Event()
+
+        async def _recovery() -> None:
+            recovery_started.set()
+            await never_release.wait()
+
+        recovery = asyncio.create_task(_recovery())
+        coordinator._recovery_tasks = {"light.strip": recovery}
+        coordinator._started = True
+        coordinator.rules = SimpleNamespace(async_shutdown=AsyncMock())
+        coordinator._unsub_lights = None
+        coordinator.expiry = SimpleNamespace(async_shutdown=AsyncMock())
+        coordinator.animations = SimpleNamespace(async_shutdown=AsyncMock())
+        coordinator.controller = SimpleNamespace(async_shutdown=AsyncMock())
+        coordinator._async_save = AsyncMock()
+        coordinator._listeners = set()
+        coordinator.status = "active"
+        await recovery_started.wait()
+
+        await coordinator.async_shutdown()
+
+        self.assertTrue(recovery.cancelled())
+        self.assertEqual(coordinator._recovery_tasks, {})
+        coordinator.controller.async_shutdown.assert_awaited_once_with()
+        self.assertEqual(coordinator.status, "stopped")
+
     def test_service_only_external_change_invalidates_and_reasserts(self) -> None:
         """Opting out of manual intent cannot preserve stale dedupe state."""
         coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
@@ -591,6 +700,128 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(colors, [(0, 0, 255), (0, 0, 255)])
         self.assertNotIn((255, 128, 0), colors)
         self.assertNotIn("light.strip", coordinator.animations.active_targets)
+        self.assertIsNone(coordinator.last_error)
+
+    async def test_r01_stale_available_state_recovers_current_red_without_event(
+        self,
+    ) -> None:
+        now = utc_now()
+        attributes = {
+            ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+            ATTR_SUPPORTED_FEATURES: 0,
+        }
+        state = SimpleNamespace(value=State("light.strip", STATE_ON, attributes))
+        device = SimpleNamespace(responding=True)
+
+        async def _send_command(*args, **kwargs) -> None:
+            del args, kwargs
+            if not device.responding:
+                raise HomeAssistantError(
+                    "Failed to send request: device did not respond"
+                )
+
+        services = SimpleNamespace(async_call=AsyncMock(side_effect=_send_command))
+        recovery_tasks: list[asyncio.Task[None]] = []
+
+        def _create_task(coroutine, name: str) -> asyncio.Task[None]:
+            task = asyncio.create_task(coroutine, name=name)
+            recovery_tasks.append(task)
+            return task
+
+        hass = SimpleNamespace(
+            states=SimpleNamespace(get=lambda target: state.value),
+            services=services,
+            bus=SimpleNamespace(async_fire=Mock()),
+            async_create_task=_create_task,
+        )
+        coordinator = SmartLEDCoordinator.__new__(SmartLEDCoordinator)
+        coordinator.hass = hass
+        coordinator.engine = PriorityEngine()
+        coordinator.controller = RGBLightController(
+            hass,
+            minimum_interval=0.1,
+            retry_base_delay=0,
+            retry_max_delay=0,
+        )
+        coordinator.animations = AnimationScheduler()
+        coordinator._mutation_lock = asyncio.Lock()
+        coordinator._manual_activated = {}
+        coordinator._persisted_request_ids = set()
+        coordinator._recovery_tasks = {}
+        coordinator._winners = {}
+        coordinator._listeners = set()
+        coordinator.history = deque(maxlen=20)
+        coordinator.last_error = None
+        coordinator.status = "idle"
+        coordinator._failed_send_recovery_delay = 0.05
+        coordinator._async_after_mutation = AsyncMock()
+        self.addAsyncCleanup(coordinator.animations.async_shutdown)
+        self.addAsyncCleanup(coordinator.controller.async_shutdown)
+
+        blue = Request(
+            request_id="persistent:main",
+            source="test",
+            name="Persistent",
+            module="scene",
+            targets=frozenset({"light.strip"}),
+            priority=95,
+            command=LightCommand(color=(0, 0, 255)),
+            activated_at=now,
+            updated_at=now,
+            persistent=True,
+        )
+        red = Request(
+            request_id=blue.request_id,
+            source=blue.source,
+            name=blue.name,
+            module=blue.module,
+            targets=blue.targets,
+            priority=blue.priority,
+            command=LightCommand(color=(255, 0, 0)),
+            activated_at=blue.activated_at,
+            updated_at=now + timedelta(seconds=1),
+            persistent=True,
+        )
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(blue)
+        )
+        state.value = State(
+            "light.strip",
+            STATE_ON,
+            {
+                **attributes,
+                "rgb_color": (0, 0, 255),
+            },
+        )
+        device.responding = False
+
+        await coordinator._async_apply_changes(
+            await coordinator.engine.async_submit(red)
+        )
+
+        self.assertEqual(len(recovery_tasks), 1)
+        self.assertIn("device did not respond", coordinator.last_error)
+        # ZHA may optimistically cache the requested red even though the
+        # physical controller never received it. Recovery must still resend.
+        state.value = State(
+            "light.strip",
+            STATE_ON,
+            {
+                **attributes,
+                "rgb_color": (255, 0, 0),
+            },
+        )
+        device.responding = True
+        await asyncio.gather(*recovery_tasks)
+
+        colors = [
+            item.args[2]["rgb_color"] for item in services.async_call.await_args_list
+        ]
+        self.assertEqual(
+            colors,
+            [(0, 0, 255), (255, 0, 0), (255, 0, 0)],
+        )
+        self.assertEqual(await coordinator.engine.async_winner("light.strip"), red)
         self.assertIsNone(coordinator.last_error)
 
     async def test_late_cancel_clears_animation_and_pending_command_without_fallback(

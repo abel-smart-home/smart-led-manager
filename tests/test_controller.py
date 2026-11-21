@@ -129,6 +129,7 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         controller = RGBLightController(
             hass,
             minimum_interval=0.1,
+            max_recovery_attempts=3,
             retry_base_delay=1,
             retry_max_delay=4,
         )
@@ -159,6 +160,7 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         controller = RGBLightController(
             hass,
             minimum_interval=0.1,
+            max_recovery_attempts=3,
             retry_base_delay=1,
             retry_max_delay=4,
         )
@@ -171,6 +173,33 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("failed after 3 attempts", result.detail)
         self.assertEqual(len(hass.services.calls), 3)
         self.assertEqual(sleep.await_args_list, [call(1.0), call(2.0)])
+        self.assertIn("light.strip", controller.pending_targets)
+        await controller.async_shutdown()
+
+    @patch(
+        "custom_components.smart_led_manager.controllers.rgb.asyncio.sleep",
+        new_callable=AsyncMock,
+    )
+    async def test_default_recovery_window_is_bounded_and_progressive(
+        self, sleep: AsyncMock
+    ) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        hass.services = _Services(
+            [HomeAssistantError("device did not respond") for _ in range(8)]
+        )
+        controller = RGBLightController(hass, minimum_interval=0.1)
+        await controller.async_apply("light.strip", LightCommand(color=(255, 0, 0)))
+        hass.states.values["light.strip"] = _state(STATE_ON)
+
+        result = await controller.async_retry("light.strip")
+
+        self.assertEqual(result.status, ApplyStatus.OFFLINE)
+        self.assertIn("failed after 8 attempts", result.detail)
+        self.assertEqual(len(hass.services.calls), 8)
+        self.assertEqual(
+            sleep.await_args_list,
+            [call(5.0), call(10.0), call(20.0), call(40.0)] + [call(60.0)] * 3,
+        )
         self.assertIn("light.strip", controller.pending_targets)
         await controller.async_shutdown()
 

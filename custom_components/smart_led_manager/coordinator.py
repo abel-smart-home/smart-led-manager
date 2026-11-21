@@ -52,6 +52,8 @@ from .storage import SmartLEDStorage
 
 _LOGGER = logging.getLogger(__name__)
 
+_FAILED_SEND_RECOVERY_DELAY = 5.0
+
 CoordinatorListener = Callable[[], None]
 
 
@@ -94,6 +96,7 @@ class SmartLEDCoordinator:
         self._manual_activated: dict[str, Any] = {}
         self._persisted_request_ids: set[str] = set()
         self._recovery_tasks: dict[str, asyncio.Task[None]] = {}
+        self._failed_send_recovery_delay = _FAILED_SEND_RECOVERY_DELAY
         self._mutation_lock = asyncio.Lock()
         self._started = False
 
@@ -338,11 +341,25 @@ class SmartLEDCoordinator:
                         command,
                         allow_turn_on=current.allow_turn_on,
                     )
-                except (
-                    HomeAssistantError,
-                    UnsupportedLightCommandError,
-                    ValueError,
-                ) as err:
+                except (HomeAssistantError, TimeoutError) as err:
+                    self.controller.invalidate_applied_state(change.target)
+                    self.last_error = (
+                        f"{change.target}: send failed: {type(err).__name__}: {err}"
+                    )
+                    self.status = "error"
+                    _LOGGER.warning(
+                        "Unable to apply current intent to %s: %s; "
+                        "intent retained and recovery scheduled",
+                        change.target,
+                        err,
+                    )
+                    self._schedule_recovery(
+                        change.target,
+                        "send_failure",
+                        delay=self._failed_send_recovery_delay,
+                    )
+                    return
+                except (UnsupportedLightCommandError, ValueError) as err:
                     self.last_error = f"{change.target}: {err}"
                     self.status = "error"
                     _LOGGER.error("Unable to apply %s: %s", change.target, err)
@@ -355,6 +372,11 @@ class SmartLEDCoordinator:
                             "Unable to apply current intent to %s: %s; intent retained",
                             change.target,
                             result.detail,
+                        )
+                        self._schedule_recovery(
+                            change.target,
+                            "send_failure",
+                            delay=self._failed_send_recovery_delay,
                         )
                     else:
                         _LOGGER.info(
@@ -405,7 +427,9 @@ class SmartLEDCoordinator:
         )
 
     @callback
-    def _schedule_recovery(self, target: str, operation: str) -> None:
+    def _schedule_recovery(
+        self, target: str, operation: str, *, delay: float = 0.0
+    ) -> None:
         """Own one safe recovery task per target."""
         existing = self._recovery_tasks.get(target)
         if existing is not None and not existing.done():
@@ -416,19 +440,29 @@ class SmartLEDCoordinator:
             )
             return
         task = self.hass.async_create_task(
-            self._async_retry_target(target, operation),
+            self._async_retry_target(target, operation, delay=delay),
             f"smart_led_manager_{operation}_{target}",
         )
         self._recovery_tasks[target] = task
+        _LOGGER.info(
+            "Scheduled %s recovery for %s in %.2f seconds",
+            operation,
+            target,
+            delay,
+        )
         task.add_done_callback(
             lambda completed, target=target: self._discard_recovery_task(
                 target, completed
             )
         )
 
-    async def _async_retry_target(self, target: str, operation: str) -> None:
+    async def _async_retry_target(
+        self, target: str, operation: str, *, delay: float = 0.0
+    ) -> None:
         """Retry retained intent and contain every recovery-task failure."""
         try:
+            if delay > 0:
+                await asyncio.sleep(delay)
             result = await self.controller.async_retry(target)
         except asyncio.CancelledError:
             raise
@@ -463,8 +497,11 @@ class SmartLEDCoordinator:
             )
             return
 
-        error_prefix = f"{target}: recovery failed"
-        if self.last_error is not None and self.last_error.startswith(error_prefix):
+        error_prefixes = (
+            f"{target}: recovery failed",
+            f"{target}: send failed",
+        )
+        if self.last_error is not None and self.last_error.startswith(error_prefixes):
             self.last_error = None
             self.status = "active" if self._winners else "idle"
             self._notify_listeners()

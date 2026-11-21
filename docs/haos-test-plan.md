@@ -9,13 +9,13 @@ de HAOS, Zigbee, GLEDOPTO, Alexa o Matter Hub.
 | Campo | Valor |
 |---|---|
 | Fecha/hora y zona | Pendiente |
-| Commit y versión | Pendiente |
+| Commit y versión | `cf57d64`, `0.1.0-alpha.1` (incidencias observadas; corrección posterior pendiente de repetición física) |
 | Home Assistant OS/Core | HAOS; versión exacta pendiente |
 | Coordinador Zigbee y firmware | Pendiente |
 | Modelos/firmware de controladores LED | GLEDOPTO GL-C-007P; firmware pendiente |
 | Integraciones de luz | ZHA; `light.gledopto_gl_c_007p` |
 | Ejecutor | Propietario |
-| Resultado general | **En progreso — R-02 ejecutado con incidencia; repetición pendiente** |
+| Resultado general | **En progreso — R-01 y R-02 ejecutados con incidencias; repeticiones pendientes** |
 
 No cambies el resultado a “aprobado” sin conservar observaciones y evidencia
 por caso. Realiza una copia de seguridad y evita probar parpadeos con personas
@@ -51,7 +51,7 @@ fotosensibles presentes.
 
 | ID | Procedimiento | Resultado esperado | Resultado/observaciones |
 |---|---|---|---|
-| R-01 | Desconecta una tira con una solicitud persistente; cambia otra solicitud y reconecta. | Se aplica la ganadora actual, no el último snapshot enviado. | Pendiente |
+| R-01 | Activa azul persistente P95; desconecta la alimentación; mantén el estado ZHA en `on`/`off`; actualiza el mismo `request_id` a rojo y reconecta sin provocar un evento `unavailable`. | El fallo conserva la intención, invalida la caché y agenda recuperación acotada. Al responder de nuevo se aplica automáticamente el rojo vigente, sin acción adicional, comandos obsoletos ni tareas huérfanas. | Incidencia observada en `cf57d64` con ZHA y GLEDOPTO GL-C-007P: ZHA permaneció disponible, el envío rojo falló con `HomeAssistantError` y quedó retenido, pero al reconectar no se reenvió automáticamente. No apareció `Task exception was never retrieved`. Corrección cubierta por pruebas automatizadas; repetición física pendiente. |
 | R-02 | Desconecta durante un aviso corto y reconecta tras su vencimiento. | El aviso obsoleto no se reproduce; cuando el dispositivo responda se aplica sólo la ganadora vigente. Los fallos transitorios se contienen y los intentos terminan de forma acotada, sin duplicar animaciones. | Incidencia observada con ZHA y GLEDOPTO GL-C-007P: tras un aviso naranja de 8 s vencido no se repitió el aviso y se recuperó el azul persistente, pero el primer envío ocurrió antes de que Zigbee respondiera y produjo `HomeAssistantError`/`TimeoutError` como “Task exception was never retrieved”. Corrección cubierta por pruebas automatizadas; repetición física pendiente. |
 | R-03 | Reinicia HAOS con solicitudes persistente y temporal. | Se recupera sólo lo válido; no hay temporizadores duplicados. | Pendiente |
 | R-04 | Recarga y después elimina la entrada. | No quedan listeners, animaciones u órdenes tardías. | Pendiente |

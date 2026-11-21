@@ -51,7 +51,9 @@ El estilo es una intención portable: encendido/apagado, RGB opcional, brillo, t
 
 El controlador lee `supported_color_modes`, `supported_features`, disponibilidad y efectos de la entidad. Envía solo atributos representables. RGB se proyecta sobre modos RGB/RGBW/RGBWW compatibles; si una luz no puede representar color, el error queda diagnosticado sin un bucle de reintentos.
 
-Cada luz conserva intención deseada, firma del último comando y una sola tarea pendiente. El intervalo mínimo es configurable; una orden nueva sustituye trabajo obsoleto. Una luz `unavailable` conserva la intención y se resincroniza al reaparecer, siempre que la solicitud siga vigente. Si la plataforma la marca disponible antes de que el dispositivo responda, el mismo worker realiza como máximo tres envíos con esperas progresivas de 1 y 2 segundos. Un cambio de ganadora cancela ese trabajo antes de aplicar la nueva intención.
+Cada luz conserva intención deseada, firma del último comando y una sola tarea pendiente. El intervalo mínimo es configurable; una orden nueva sustituye trabajo obsoleto. Una luz `unavailable` conserva la intención y se resincroniza al reaparecer, siempre que la solicitud siga vigente.
+
+Si un envío falla aunque Home Assistant todavía publique `on` u `off`, el controlador invalida tanto su firma como el estado aplicado en caché y el coordinador agenda una única recuperación de fondo. Tras una espera inicial de 5 segundos, esa recuperación realiza como máximo ocho envíos de la intención vigente, con pausas de 5, 10, 20, 40 y después 60 segundos hasta el límite. El último intento ocurre tras un máximo de 260 segundos de espera programada desde el fallo inicial, sin contar la latencia o timeout propio del servicio de luz. Un cambio de ganadora, cancelación, vencimiento o descarga cancela y espera ese trabajo antes de aplicar o liberar la intención; nunca se conserva un comando histórico para reproducirlo después.
 
 ## Persistencia y recuperación
 

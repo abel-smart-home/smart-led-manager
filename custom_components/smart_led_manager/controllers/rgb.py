@@ -64,9 +64,9 @@ class RGBLightController:
         minimum_interval: float = 0.75,
         global_minimum_interval: float = 0.05,
         max_parallel_commands: int = 4,
-        max_recovery_attempts: int = 3,
-        retry_base_delay: float = 1.0,
-        retry_max_delay: float = 4.0,
+        max_recovery_attempts: int = 8,
+        retry_base_delay: float = 5.0,
+        retry_max_delay: float = 60.0,
     ) -> None:
         self._hass = hass
         self._minimum_interval = max(0.1, float(minimum_interval))
@@ -261,6 +261,12 @@ class RGBLightController:
                     self._last_signature[target] = signature
                     self._force_send.discard(target)
             except (HomeAssistantError, TimeoutError) as err:
+                # A service call may fail while ZHA keeps reporting the cached
+                # entity state as available and already matching. Never let
+                # that stale state or our own last signature suppress the
+                # next physical recovery send.
+                self._last_signature.pop(target, None)
+                self._force_send.add(target)
                 if self._desired.get(target) is not desired:
                     continue
                 failed_attempts += 1

@@ -11,8 +11,9 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - [x] Persistencia versionada de solicitudes persistentes y recuperación.
 - [x] Animaciones iniciales fija, parpadeo y pulsación con cancelación.
 - [x] Diagnóstico, sensor de motor e historial acotado.
-- [x] Recuperación acotada tras indisponibilidad, con espera progresiva y
-  cancelación de intención obsoleta.
+- [x] Recuperación acotada tras indisponibilidad o fallo de envío con estado
+  ZHA obsoleto, con espera progresiva, invalidación de caché y cancelación de
+  intención obsoleta.
 - [x] Traducciones inglés/español, documentación, CI y validadores Marketplace.
 - [x] Pruebas automatizadas del criterio de aceptación de alpha.1.
 - [ ] Ejecución física documentada por el propietario en HAOS con GLEDOPTO/ZHA.
