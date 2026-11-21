@@ -10,7 +10,8 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
-addopts = "--strict-markers --strict-config"
+# Home Assistant must install its httpx2 alias before respx can import httpx.
+addopts = "-p no:respx --strict-markers --strict-config"
 
 [tool.coverage.run]
 branch = true
