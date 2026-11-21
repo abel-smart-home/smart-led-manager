@@ -86,7 +86,7 @@ class PriorityEngine:
                 return ()
             now = self._now()
             changed_at = ensure_utc(updated_at or now, field_name="updated_at")
-            previous = self._winners(current.targets, now)
+            previous = self._winners_before_removal((current,), current.targets, now)
             self._requests[request_id] = replace(
                 current, active=False, updated_at=changed_at
             )
@@ -100,7 +100,7 @@ class PriorityEngine:
             if current is None:
                 return ()
             now = self._now()
-            previous = self._winners(current.targets, now)
+            previous = self._winners_before_removal((current,), current.targets, now)
             del self._requests[request_id]
             return self._changes(previous, current.targets, now, "cancel")
 
@@ -117,7 +117,7 @@ class PriorityEngine:
                 return ()
             now = self._now()
             targets = {target for request in matching for target in request.targets}
-            previous = self._winners(targets, now)
+            previous = self._winners_before_removal(matching, targets, now)
             for request in matching:
                 del self._requests[request.request_id]
             return self._changes(previous, targets, now, "cancel_matching")
@@ -137,14 +137,7 @@ class PriorityEngine:
             if not expired:
                 return ()
             targets = {target for request in expired for target in request.targets}
-            # Capture the decision immediately before the expiry boundary.  The
-            # normal resolver correctly treats expires_at == now as invalid, so
-            # this snapshot deliberately ranks active requests whose expiry is at
-            # or after the boundary without calling Request.is_valid().
-            previous = {
-                target: self._winner_before_expiry(target, reference)
-                for target in targets
-            }
+            previous = self._winners_before_removal(expired, targets, reference)
             for request in expired:
                 del self._requests[request.request_id]
             return self._changes(previous, targets, reference, "expire")
@@ -286,3 +279,41 @@ class PriorityEngine:
         return min(
             candidates, key=lambda request: ranking_key(request, self._tie_breaker)
         )
+
+    def _winners_before_removal(
+        self,
+        requests: Iterable[Request],
+        targets: Iterable[str],
+        reference: datetime,
+    ) -> dict[str, Request | None]:
+        """Resolve physical winners before intent is removed or disabled."""
+
+        # A timer or terminal action can run after a wall-clock deadline.
+        # Reconstruct each affected target at its earliest active expiry boundary,
+        # not at the later processing time, so a still-visible expired winner is
+        # included in the previous decision. Inactive records never define a
+        # physical decision boundary.
+        boundaries: dict[str, datetime] = {}
+        for request in requests:
+            expires_at = request.expires_at
+            if not request.active or expires_at is None or expires_at > reference:
+                continue
+            for target in request.targets:
+                boundary = boundaries.get(target)
+                if boundary is None or expires_at < boundary:
+                    boundaries[target] = expires_at
+
+        previous: dict[str, Request | None] = {}
+        for target in targets:
+            boundary = boundaries.get(target)
+            previous[target] = (
+                self._winner_before_expiry(target, boundary)
+                if boundary is not None
+                else choose_winner(
+                    self._requests.values(),
+                    target,
+                    self._tie_breaker,
+                    now=reference,
+                )
+            )
+        return previous

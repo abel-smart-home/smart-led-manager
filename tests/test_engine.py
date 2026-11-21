@@ -142,9 +142,146 @@ class EngineTests(unittest.IsolatedAsyncioTestCase):
 
         changes = await self.engine.async_expire()
 
+        self.assertEqual(len(changes), 1)
         self.assertEqual(changes[0].previous, temporary)
         self.assertEqual(changes[0].current, low)
+        self.assertEqual(changes[0].reason, "expire")
         self.assertNotIn(temporary, await self.engine.async_requests())
+
+    async def test_expiration_one_millisecond_late_recovers_lower(self) -> None:
+        await self._assert_delayed_expiration_recovers_lower(timedelta(milliseconds=1))
+
+    async def test_expiration_one_second_late_recovers_lower(self) -> None:
+        await self._assert_delayed_expiration_recovers_lower(timedelta(seconds=1))
+
+    async def test_late_expiration_uses_earliest_active_boundary_per_target(
+        self,
+    ) -> None:
+        low = request("base", 20, (1, 1, 1))
+        later = request(
+            "later",
+            50,
+            (2, 2, 2),
+            expires_at=BASE + timedelta(seconds=10),
+        )
+        earliest = request(
+            "earliest",
+            80,
+            (3, 3, 3),
+            expires_at=BASE + timedelta(seconds=5),
+        )
+        middle = request(
+            "middle",
+            60,
+            (4, 4, 4),
+            expires_at=BASE + timedelta(seconds=8),
+        )
+        for item in (low, later, earliest, middle):
+            await self.engine.async_submit(item)
+        self.clock.value = BASE + timedelta(seconds=11)
+
+        changes = await self.engine.async_expire()
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0].previous, earliest)
+        self.assertEqual(changes[0].current, low)
+
+    async def test_expiration_removes_inactive_record_without_physical_change(
+        self,
+    ) -> None:
+        low = request("base", 20, (1, 1, 1))
+        inactive = replace(
+            request(
+                "inactive",
+                80,
+                (2, 2, 2),
+                expires_at=BASE + timedelta(seconds=5),
+            ),
+            active=False,
+        )
+        await self.engine.async_submit(low)
+        await self.engine.async_submit(inactive)
+        self.clock.value = BASE + timedelta(seconds=6)
+
+        changes = await self.engine.async_expire()
+
+        self.assertEqual(changes, ())
+        self.assertEqual(await self.engine.async_requests(), (low,))
+        self.assertEqual(await self.engine.async_winner("light.one"), low)
+
+    async def test_late_terminal_mutations_recover_lower(self) -> None:
+        for mutation in ("cancel", "deactivate", "cancel_matching"):
+            with self.subTest(mutation=mutation):
+                clock = MutableClock()
+                engine = PriorityEngine(clock=clock)
+                low = request("base", 20, (1, 1, 1))
+                temporary = request(
+                    "temporary",
+                    70,
+                    (2, 2, 2),
+                    expires_at=BASE + timedelta(seconds=5),
+                )
+                await engine.async_submit(low)
+                await engine.async_submit(temporary)
+                clock.value = BASE + timedelta(seconds=6)
+
+                if mutation == "cancel":
+                    changes = await engine.async_cancel(temporary.request_id)
+                elif mutation == "deactivate":
+                    changes = await engine.async_deactivate(temporary.request_id)
+                else:
+                    request_id = temporary.request_id
+                    changes = await engine.async_cancel_matching(
+                        lambda item, request_id=request_id: item.request_id
+                        == request_id
+                    )
+
+                self.assertEqual(len(changes), 1)
+                self.assertEqual(changes[0].previous, temporary)
+                self.assertEqual(changes[0].current, low)
+                self.assertEqual(changes[0].reason, mutation)
+                self.assertEqual(await engine.async_winner("light.one"), low)
+
+    async def test_late_removal_of_masked_expired_request_has_no_change(self) -> None:
+        expired = request(
+            "expired",
+            50,
+            (1, 1, 1),
+            expires_at=BASE + timedelta(seconds=5),
+        )
+        permanent = request("permanent", 80, (2, 2, 2))
+        await self.engine.async_submit(expired)
+        await self.engine.async_submit(permanent)
+        self.clock.value = BASE + timedelta(seconds=6)
+
+        changes = await self.engine.async_cancel(expired.request_id)
+
+        self.assertEqual(changes, ())
+        self.assertEqual(await self.engine.async_winner("light.one"), permanent)
+
+    async def _assert_delayed_expiration_recovers_lower(
+        self, processing_delay: timedelta
+    ) -> None:
+        low = request("base", 20, (1, 1, 1))
+        expires_at = BASE + timedelta(seconds=5)
+        temporary = request(
+            "temporary",
+            70,
+            (2, 2, 2),
+            expires_at=expires_at,
+        )
+        await self.engine.async_submit(low)
+        await self.engine.async_submit(temporary)
+        self.clock.value = expires_at + processing_delay
+
+        changes = await self.engine.async_expire()
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0].previous, temporary)
+        self.assertEqual(changes[0].current, low)
+        self.assertEqual(changes[0].reason, "expire")
+        self.assertNotIn(temporary, await self.engine.async_requests())
+        self.assertEqual(await self.engine.async_winner("light.one"), low)
 
     async def test_cancel_and_deactivate_are_idempotent(self) -> None:
         item = request("item", 50, (1, 1, 1))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -20,8 +21,14 @@ from custom_components.smart_led_manager.const import (
     SERVICE_SET_MANUAL_OVERRIDE,
     SERVICE_SET_SCENE,
 )
+from custom_components.smart_led_manager.core.engine import PriorityEngine
 from custom_components.smart_led_manager.core.targets import TargetResolver
-from custom_components.smart_led_manager.models import AnimationKind
+from custom_components.smart_led_manager.models import (
+    AnimationKind,
+    LightCommand,
+    Request,
+    utc_now,
+)
 from custom_components.smart_led_manager.services import (
     async_setup_services,
     async_unload_services,
@@ -109,6 +116,52 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.command.animation.kind, AnimationKind.BLINK)
         self.assertIsNotNone(request.expires_at)
         self.assertFalse(request.persistent)
+
+    async def test_temporary_notification_recovers_lower_request_when_late(
+        self,
+    ) -> None:
+        now = utc_now()
+        clock = SimpleNamespace(value=now)
+        engine = PriorityEngine(clock=lambda: clock.value)
+        lower = Request(
+            request_id="scene:ambient",
+            source="test",
+            name="Ambient",
+            module="scene",
+            targets=frozenset({"light.strip"}),
+            priority=20,
+            command=LightCommand(color=(1, 2, 3), brightness=90),
+            activated_at=now,
+            updated_at=now,
+        )
+        await engine.async_submit(lower)
+        coordinator = _coordinator()
+        coordinator.async_submit = AsyncMock(side_effect=engine.async_submit)
+        hass = _Hass(coordinator)
+        async_setup_services(hass)
+
+        await _call(
+            hass,
+            SERVICE_NOTIFY,
+            {
+                "request_id": "notice:doorbell",
+                "targets": ["light.strip"],
+                "rgb_color": [255, 0, 0],
+                "duration": 1,
+                "animation": "blink",
+            },
+        )
+        notification = coordinator.async_submit.await_args.args[0]
+        self.assertEqual(notification.module, MODULE_NOTIFICATION)
+        self.assertIsNotNone(notification.expires_at)
+        clock.value = notification.expires_at + timedelta(seconds=1)
+
+        changes = await engine.async_expire()
+
+        self.assertEqual(len(changes), 1)
+        self.assertEqual(changes[0].previous, notification)
+        self.assertEqual(changes[0].current, lower)
+        self.assertEqual(await engine.async_winner("light.strip"), lower)
 
     async def test_rejects_target_outside_explicit_allowlist(self) -> None:
         coordinator = _coordinator()

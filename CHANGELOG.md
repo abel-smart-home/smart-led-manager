@@ -31,10 +31,17 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
 - Las órdenes internas conservan contexto para no tratarse como control manual
   externo y la detección directa permanece conservadora y optativa.
 
+### Corregido
+
+- Los temporizadores de vencimiento que se ejecutan con retraso reconstruyen el
+  ganador anterior en el límite real de expiración de cada luz. De este modo,
+  una notificación temporal libera su animación y sus órdenes obsoletas antes
+  de recuperar la solicitud válida de menor prioridad.
+
 ### Validación automatizada
 
-- Ruff y la matriz pytest completaron 62 pruebas en Home Assistant `2026.11.0`
-  y `2026.11.2`, con cobertura total de ramas de `80.39 %`.
+- Ruff y la matriz pytest completaron 71 pruebas en Home Assistant `2026.11.0`
+  y `2026.11.2`, con cobertura total de ramas igual o superior al `80 %`.
 - Hassfest y HACS/Marketplace Action superaron la validación del PR #1.
 
 ### Pendiente antes de publicar
