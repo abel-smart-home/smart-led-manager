@@ -49,4 +49,3 @@ La pre-release solo puede considerarse lista cuando:
 ## Fuera de certificación
 
 Las luces administradas no sustituyen sistemas certificados de incendio, humo, intrusión, emergencia o accesibilidad. Los efectos rápidos deben permanecer desactivados por defecto y la documentación debe advertir sobre fotosensibilidad.
-

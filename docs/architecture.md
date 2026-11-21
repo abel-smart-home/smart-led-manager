@@ -79,4 +79,3 @@ Al descargar la integración se eliminan listeners, se cancelan vencimientos/ani
 ## Riesgos que requieren pruebas físicas
 
 La conversión de color de una entidad concreta, la latencia ZHA, el multicast de grupos Zigbee, la propagación de `Context`, los límites aceptables de animación y la recuperación de un GLEDOPTO desconectado no pueden validarse plenamente en pruebas unitarias. El procedimiento está en [haos-test-plan.md](haos-test-plan.md).
-

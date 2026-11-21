@@ -238,4 +238,3 @@ set_manual_override:
           max: 100
           step: 1
           mode: box
-

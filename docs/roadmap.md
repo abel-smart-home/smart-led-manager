@@ -52,4 +52,3 @@ Se publica únicamente tras cerrar los requisitos aprobados de la versión regul
 - WS2812B, WS2815, SK6812 y otras tiras direccionables.
 - Segmentos, píxeles individuales y señales simultáneas por segmento.
 - Panel visual dedicado solo si los flujos y dashboards nativos dejan necesidades justificadas.
-

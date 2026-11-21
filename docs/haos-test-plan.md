@@ -72,4 +72,3 @@ Adjunta este archivo actualizado o un informe equivalente al PR candidato,
 incluyendo fallos y limitaciones. Un fallo de hardware/integración externa debe
 distinguirse de un fallo del motor, pero no ocultarse. La autorización para
 fusionar o publicar sigue siendo una decisión separada.
-

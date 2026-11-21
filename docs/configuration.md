@@ -78,4 +78,3 @@ La alfa permite agregar y eliminar reglas mediante options flow. La edición o
 duplicación directa, condiciones compuestas, áreas/etiquetas, horarios y
 disparadores de eventos pertenecen a incrementos posteriores de la hoja de
 ruta. Elimina y vuelve a crear una regla para cambiarla en esta versión.
-

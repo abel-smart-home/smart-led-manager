@@ -76,4 +76,3 @@ Describe el problema, la solución, riesgos, pruebas ejecutadas y pruebas no
 ejecutadas con su motivo. Incluye capturas sólo cuando la interfaz cambie. No
 mezcles refactors no relacionados. La aprobación del PR no autoriza por sí sola
 una release ni una prueba física no registrada.
-

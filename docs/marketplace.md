@@ -322,4 +322,3 @@ Fuentes:
 - [ ] La release contiene notas, es una pre-release y no es sólo una etiqueta.
 - [ ] No se afirma que las pruebas físicas en HAOS pasaron hasta que el
   propietario las ejecute.
-

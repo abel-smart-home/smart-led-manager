@@ -75,4 +75,3 @@ detectar nombres o identificadores que no quieras compartir y adjunta al issue:
 
 No describas una simulación como prueba física. Para vulnerabilidades usa el
 canal privado indicado en [SECURITY.md](../SECURITY.md).
-

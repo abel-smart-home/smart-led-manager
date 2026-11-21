@@ -59,4 +59,3 @@ See [architecture](docs/architecture.md), [requirements](docs/requirements.md), 
 - Review `docs/community-audit.md` before borrowing from another project. Preserve required license and copyright notices and update `THIRD_PARTY_NOTICES.md`.
 - The `0.1.0-alpha.1` manifest version, Python package form `0.1.0a1`, changelog, archive name, and eventual release tag must describe the same release.
 - Never call a placeholder or untested path “implemented.” Mark incomplete work explicitly and state the path to the regular `0.1.0` release.
-

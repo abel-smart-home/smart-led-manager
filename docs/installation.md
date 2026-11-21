@@ -66,4 +66,3 @@ migración de la versión destino antes de actualizar.
 
 La descarga no fuerza una restauración ciega de las luces. Comprueba su estado
 final y ajústalo con la integración física correspondiente si es necesario.
-
