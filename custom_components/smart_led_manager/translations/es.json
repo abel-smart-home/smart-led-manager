@@ -1,0 +1,335 @@
+{
+  "title": "Smart LED Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurar Smart LED Manager",
+        "description": "Selecciona únicamente las luces LED físicas que Smart LED Manager podrá controlar.",
+        "data": {
+          "lights": "Luces LED administradas"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Selecciona al menos una luz"
+    },
+    "abort": {
+      "already_configured": "Smart LED Manager ya está configurado"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Administrar Smart LED Manager",
+        "menu_options": {
+          "lights": "Luces administradas",
+          "settings": "Ajustes del motor",
+          "add_state_rule": "Agregar regla de estado",
+          "add_numeric_rule": "Agregar regla numérica",
+          "delete_rule": "Eliminar regla"
+        }
+      },
+      "lights": {
+        "title": "Luces LED administradas",
+        "description": "La integración solo puede enviar órdenes a las luces seleccionadas.",
+        "data": {
+          "lights": "Luces LED administradas"
+        }
+      },
+      "settings": {
+        "title": "Ajustes del motor",
+        "data": {
+          "tie_breaker": "Desempate de igual prioridad",
+          "min_command_interval": "Intervalo mínimo por luz",
+          "manual_policy": "Política de control manual directo"
+        }
+      },
+      "add_state_rule": {
+        "title": "Agregar regla de estado",
+        "description": "La solicitud permanece activa mientras se cumpla la condición.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Entidad de origen",
+          "operator": "Condición",
+          "state": "Valor del estado",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición"
+        }
+      },
+      "add_numeric_rule": {
+        "title": "Agregar regla de color numérica",
+        "description": "Escribe al menos dos puntos separados por punto y coma como valor:R,G,B.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Origen numérico",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "points": "Puntos de referencia de color",
+          "mode": "Cálculo del color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "minimum_change": "Variación numérica mínima",
+          "minimum_interval": "Intervalo mínimo de actualización"
+        }
+      },
+      "delete_rule": {
+        "title": "Eliminar regla",
+        "data": {
+          "rule_id": "Regla"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Selecciona al menos una luz",
+      "at_least_one_target": "Selecciona al menos una luz administrada",
+      "target_not_managed": "Todos los destinos deben ser luces administradas",
+      "invalid_color_points": "Usa entradas valor:R,G,B separadas por punto y coma, con al menos dos valores únicos"
+    },
+    "abort": {
+      "no_rules": "No hay reglas para eliminar"
+    }
+  },
+  "selector": {
+    "tie_breaker": {
+      "options": {
+        "newest": "Gana la solicitud más reciente",
+        "oldest": "Gana la solicitud más antigua",
+        "lexical": "Orden del identificador"
+      }
+    },
+    "manual_policy": {
+      "options": {
+        "service_only": "Solo mediante la acción manual explícita",
+        "respect": "Respetar cambios físicos detectados",
+        "temporary": "Cambio físico temporal"
+      }
+    },
+    "state_operator": {
+      "options": {
+        "equals": "El estado es igual a",
+        "not_equals": "El estado es diferente de"
+      }
+    },
+    "numeric_mode": {
+      "options": {
+        "interpolate": "Interpolación gradual",
+        "ranges": "Rango inferior más cercano"
+      }
+    },
+    "animation": {
+      "options": {
+        "fixed": "Fijo",
+        "blink": "Parpadeo",
+        "pulse": "Pulsación"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "engine_status": {
+        "name": "Estado del motor",
+        "state": {
+          "idle": "Inactivo",
+          "active": "Activo",
+          "stopped": "Detenido",
+          "error": "Error"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_configured": {
+      "message": "Smart LED Manager no está configurado."
+    },
+    "unmanaged_targets": {
+      "message": "Estas luces no están autorizadas para Smart LED Manager: {targets}"
+    },
+    "at_least_one_target": {
+      "message": "Selecciona al menos una luz administrada."
+    }
+  },
+  "services": {
+    "activate": {
+      "name": "Activar solicitud",
+      "description": "Crea o actualiza una solicitud priorizada para luces administradas.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador estable para actualizar después la misma solicitud."
+        },
+        "name": {
+          "name": "Nombre",
+          "description": "Nombre visible en diagnósticos y actividad."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente que afecta la solicitud."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Los valores mayores ganan de forma independiente en cada destino."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB que se adapta a las capacidades de cada luz."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo de 1 a 255."
+        },
+        "transition": {
+          "name": "Transición",
+          "description": "Duración de la transición en segundos, si está disponible."
+        },
+        "duration": {
+          "name": "Duración",
+          "description": "Vigencia opcional en segundos antes de que expire la solicitud."
+        },
+        "allow_turn_on": {
+          "name": "Permitir encendido",
+          "description": "Permite que la solicitud encienda una luz apagada."
+        },
+        "persistent": {
+          "name": "Conservar tras reinicios",
+          "description": "Guarda la solicitud para recuperarla después de un reinicio."
+        }
+      }
+    },
+    "deactivate": {
+      "name": "Desactivar solicitud",
+      "description": "Desactiva una solicitud y conserva su definición.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador de la solicitud que se desactivará."
+        }
+      }
+    },
+    "notify": {
+      "name": "Notificación luminosa",
+      "description": "Crea una solicitud temporal de notificación.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador estable opcional para reemplazar esta notificación."
+        },
+        "name": {
+          "name": "Nombre",
+          "description": "Nombre descriptivo de la notificación."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente usadas en la notificación."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Prioridad de la notificación en cada destino."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB de la notificación."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo de la notificación, de 1 a 255."
+        },
+        "duration": {
+          "name": "Duración",
+          "description": "Vigencia de la notificación en segundos."
+        },
+        "animation": {
+          "name": "Animación",
+          "description": "Animación por software fija, parpadeo o pulsación."
+        },
+        "period": {
+          "name": "Periodo de animación",
+          "description": "Duración de un ciclo de animación en segundos."
+        }
+      }
+    },
+    "set_scene": {
+      "name": "Establecer escena administrada",
+      "description": "Crea o actualiza una escena mediante el motor de prioridades.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador estable para actualizar la misma escena."
+        },
+        "name": {
+          "name": "Nombre",
+          "description": "Nombre descriptivo de la solicitud de escena."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente que afecta la escena."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Prioridad de la escena en cada destino."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB opcional de la escena."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo opcional de la escena, de 1 a 255."
+        },
+        "transition": {
+          "name": "Transición",
+          "description": "Duración de la transición en segundos, si está disponible."
+        }
+      }
+    },
+    "cancel": {
+      "name": "Cancelar solicitud",
+      "description": "Elimina una solicitud por su identificador estable.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador de la solicitud que se eliminará."
+        }
+      }
+    },
+    "clear_notifications": {
+      "name": "Borrar notificaciones",
+      "description": "Elimina las notificaciones, opcionalmente de luces seleccionadas.",
+      "fields": {
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Si se indica, elimina solo notificaciones que afecten estas luces."
+        }
+      }
+    },
+    "set_manual_override": {
+      "name": "Establecer control manual",
+      "description": "Activa o desactiva el control manual respetando prioridades.",
+      "fields": {
+        "enabled": {
+          "name": "Activado",
+          "description": "Activa o elimina la solicitud manual."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente que afecta la solicitud manual."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB opcional; si se omite se usa el estado actual."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo opcional; si se omite se usa el estado actual."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Prioridad de la solicitud manual en cada destino."
+        }
+      }
+    }
+  }
+}
+

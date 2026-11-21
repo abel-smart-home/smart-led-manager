@@ -1,0 +1,335 @@
+{
+  "title": "Smart LED Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Smart LED Manager",
+        "description": "Choose only the physical LED lights that Smart LED Manager is allowed to control.",
+        "data": {
+          "lights": "Managed LED lights"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Select at least one light"
+    },
+    "abort": {
+      "already_configured": "Smart LED Manager is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage Smart LED Manager",
+        "menu_options": {
+          "lights": "Managed lights",
+          "settings": "Engine settings",
+          "add_state_rule": "Add state rule",
+          "add_numeric_rule": "Add numeric rule",
+          "delete_rule": "Delete rule"
+        }
+      },
+      "lights": {
+        "title": "Managed LED lights",
+        "description": "Only selected lights can receive commands from this integration.",
+        "data": {
+          "lights": "Managed LED lights"
+        }
+      },
+      "settings": {
+        "title": "Engine settings",
+        "data": {
+          "tie_breaker": "Equal-priority tie-breaker",
+          "min_command_interval": "Minimum interval per light",
+          "manual_policy": "Direct manual-control policy"
+        }
+      },
+      "add_state_rule": {
+        "title": "Add state rule",
+        "description": "The request remains active while the state condition is true.",
+        "data": {
+          "name": "Rule name",
+          "source": "Source entity",
+          "operator": "Condition",
+          "state": "State value",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition"
+        }
+      },
+      "add_numeric_rule": {
+        "title": "Add numeric color rule",
+        "description": "Enter at least two semicolon-separated points as value:R,G,B.",
+        "data": {
+          "name": "Rule name",
+          "source": "Numeric source",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "points": "Color reference points",
+          "mode": "Color calculation",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "minimum_change": "Minimum numeric change",
+          "minimum_interval": "Minimum update interval"
+        }
+      },
+      "delete_rule": {
+        "title": "Delete rule",
+        "data": {
+          "rule_id": "Rule"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Select at least one light",
+      "at_least_one_target": "Select at least one managed light",
+      "target_not_managed": "Every target must be a managed light",
+      "invalid_color_points": "Use value:R,G,B entries separated by semicolons, with at least two unique values"
+    },
+    "abort": {
+      "no_rules": "There are no rules to delete"
+    }
+  },
+  "selector": {
+    "tie_breaker": {
+      "options": {
+        "newest": "Newest request wins",
+        "oldest": "Oldest request wins",
+        "lexical": "Request identifier order"
+      }
+    },
+    "manual_policy": {
+      "options": {
+        "service_only": "Only explicit manual action",
+        "respect": "Respect detected physical changes",
+        "temporary": "Temporary detected override"
+      }
+    },
+    "state_operator": {
+      "options": {
+        "equals": "State equals",
+        "not_equals": "State does not equal"
+      }
+    },
+    "numeric_mode": {
+      "options": {
+        "interpolate": "Gradual interpolation",
+        "ranges": "Nearest lower range"
+      }
+    },
+    "animation": {
+      "options": {
+        "fixed": "Fixed",
+        "blink": "Blink",
+        "pulse": "Pulse"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "engine_status": {
+        "name": "Engine status",
+        "state": {
+          "idle": "Idle",
+          "active": "Active",
+          "stopped": "Stopped",
+          "error": "Error"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_configured": {
+      "message": "Smart LED Manager is not configured."
+    },
+    "unmanaged_targets": {
+      "message": "These lights are not authorized for Smart LED Manager: {targets}"
+    },
+    "at_least_one_target": {
+      "message": "Select at least one managed light."
+    }
+  },
+  "services": {
+    "activate": {
+      "name": "Activate request",
+      "description": "Create or update a priority request for managed lights.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Stable identifier used to update the same request later."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Friendly name shown in diagnostics and activity."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights affected by this request."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Higher values win independently on each target."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "RGB color to project onto each light's capabilities."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness from 1 to 255."
+        },
+        "transition": {
+          "name": "Transition",
+          "description": "Transition duration in seconds when supported."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Optional lifetime in seconds before the request expires."
+        },
+        "allow_turn_on": {
+          "name": "Allow turn on",
+          "description": "Allow this request to turn on a light that is off."
+        },
+        "persistent": {
+          "name": "Persist across restarts",
+          "description": "Store this request for recovery after a restart."
+        }
+      }
+    },
+    "deactivate": {
+      "name": "Deactivate request",
+      "description": "Deactivate a request while retaining its definition.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Identifier of the request to deactivate."
+        }
+      }
+    },
+    "notify": {
+      "name": "Light notification",
+      "description": "Create a temporary notification request.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Optional stable identifier for replacing this notification."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Friendly notification name."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights used for the notification."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Notification priority on each target."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Notification RGB color."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Notification brightness from 1 to 255."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Notification lifetime in seconds."
+        },
+        "animation": {
+          "name": "Animation",
+          "description": "Fixed, blink, or pulse software animation."
+        },
+        "period": {
+          "name": "Animation period",
+          "description": "Length of one animation cycle in seconds."
+        }
+      }
+    },
+    "set_scene": {
+      "name": "Set managed scene",
+      "description": "Create or update a scene request through the priority engine.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Stable identifier used to update the same scene request."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Friendly scene request name."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights affected by the scene."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Scene priority on each target."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Optional RGB scene color."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Optional scene brightness from 1 to 255."
+        },
+        "transition": {
+          "name": "Transition",
+          "description": "Transition duration in seconds when supported."
+        }
+      }
+    },
+    "cancel": {
+      "name": "Cancel request",
+      "description": "Remove a request by its stable identifier.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Identifier of the request to remove."
+        }
+      }
+    },
+    "clear_notifications": {
+      "name": "Clear notifications",
+      "description": "Remove notification requests, optionally for selected lights.",
+      "fields": {
+        "targets": {
+          "name": "Managed lights",
+          "description": "If supplied, clear only notifications affecting these lights."
+        }
+      }
+    },
+    "set_manual_override": {
+      "name": "Set manual override",
+      "description": "Enable or disable priority-aware manual control.",
+      "fields": {
+        "enabled": {
+          "name": "Enabled",
+          "description": "Enable or remove the manual request."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights affected by the manual request."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Optional RGB color; current state is used when omitted."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Optional brightness; current state is used when omitted."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Manual request priority on each target."
+        }
+      }
+    }
+  }
+}
+

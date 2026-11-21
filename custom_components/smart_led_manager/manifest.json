@@ -1,0 +1,16 @@
+{
+  "domain": "smart_led_manager",
+  "name": "Smart LED Manager",
+  "after_dependencies": ["light"],
+  "categories": ["helpers", "lighting.led_strips_controllers"],
+  "codeowners": ["@Platibolo"],
+  "config_flow": true,
+  "documentation": "https://github.com/abel-smart-home/smart-led-manager",
+  "integration_type": "helper",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/abel-smart-home/smart-led-manager/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0-alpha.1"
+}
+
