@@ -23,10 +23,10 @@
         "title": "Administrar Smart LED Manager",
         "menu_options": {
           "lights": "Luces administradas",
-          "settings": "Ajustes del motor",
-          "add_state_rule": "Agregar regla de estado",
-          "add_numeric_rule": "Agregar regla numérica",
-          "delete_rule": "Eliminar regla"
+          "zones": "Zonas",
+          "modes": "Modos de iluminación",
+          "rules": "Reglas inteligentes",
+          "advanced": "Ajustes avanzados"
         }
       },
       "lights": {
@@ -42,6 +42,103 @@
           "tie_breaker": "Desempate de igual prioridad",
           "min_command_interval": "Intervalo mínimo por luz",
           "manual_policy": "Política de control manual directo"
+        }
+      },
+      "advanced": {
+        "title": "Ajustes avanzados",
+        "data": {
+          "tie_breaker": "Desempate de igual prioridad",
+          "min_command_interval": "Intervalo mínimo por luz",
+          "manual_policy": "Política de control manual directo"
+        }
+      },
+      "zones": {
+        "title": "Administrar zonas",
+        "menu_options": {
+          "add_zone": "Crear zona",
+          "edit_zone": "Editar zona",
+          "delete_zone": "Eliminar zona"
+        }
+      },
+      "add_zone": {
+        "title": "Crear zona",
+        "description": "Cada luz física solo puede pertenecer a una zona.",
+        "data": {
+          "name": "Nombre",
+          "targets": "Luces de la zona"
+        }
+      },
+      "edit_zone": {
+        "title": "Elegir zona",
+        "data": {"zone_id": "Zona"}
+      },
+      "edit_zone_form": {
+        "title": "Editar zona",
+        "data": {
+          "name": "Nombre",
+          "targets": "Luces de la zona"
+        }
+      },
+      "delete_zone": {
+        "title": "Eliminar zona",
+        "description": "Primero elimina los modos de la zona.",
+        "data": {"zone_id": "Zona"}
+      },
+      "modes": {
+        "title": "Administrar modos",
+        "menu_options": {
+          "add_mode": "Crear modo",
+          "edit_mode": "Editar modo",
+          "delete_mode": "Eliminar modo"
+        }
+      },
+      "add_mode": {
+        "title": "Crear modo de iluminación",
+        "description": "El modo participa como solicitud persistente del motor de prioridades.",
+        "data": {
+          "zone_id": "Zona",
+          "name": "Nombre",
+          "targets": "Luces del modo",
+          "priority": "Prioridad",
+          "rgb_color": "Color opcional",
+          "brightness": "Brillo opcional",
+          "transition": "Transición opcional",
+          "allow_turn_on": "Permitir encendido",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "expose_switch": "Crear interruptor para paneles y puentes"
+        }
+      },
+      "edit_mode": {
+        "title": "Elegir modo",
+        "data": {"mode_id": "Modo"}
+      },
+      "edit_mode_form": {
+        "title": "Editar modo de iluminación",
+        "data": {
+          "zone_id": "Zona",
+          "name": "Nombre",
+          "targets": "Luces del modo",
+          "priority": "Prioridad",
+          "rgb_color": "Color opcional",
+          "brightness": "Brillo opcional",
+          "transition": "Transición opcional",
+          "allow_turn_on": "Permitir encendido",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "expose_switch": "Crear interruptor para paneles y puentes"
+        }
+      },
+      "delete_mode": {
+        "title": "Eliminar modo",
+        "data": {"mode_id": "Modo"}
+      },
+      "rules": {
+        "title": "Reglas inteligentes",
+        "menu_options": {
+          "add_state_rule": "Agregar regla de estado",
+          "add_numeric_rule": "Agregar regla numérica",
+          "delete_rule": "Eliminar regla"
         }
       },
       "add_state_rule": {
@@ -86,10 +183,23 @@
       "at_least_one_light": "Selecciona al menos una luz",
       "at_least_one_target": "Selecciona al menos una luz administrada",
       "target_not_managed": "Todos los destinos deben ser luces administradas",
-      "invalid_color_points": "Usa entradas valor:R,G,B separadas por punto y coma, con al menos dos valores únicos"
+      "invalid_color_points": "Usa entradas valor:R,G,B separadas por punto y coma, con al menos dos valores únicos",
+      "zones_use_removed_lights": "Una zona todavía usa una de las luces que intentas quitar",
+      "zone_without_targets": "Selecciona al menos una luz para la zona",
+      "target_in_multiple_zones": "Una luz física no puede pertenecer a varias zonas",
+      "duplicate_zone": "Los nombres e identificadores de zona deben ser únicos",
+      "mode_without_targets": "Selecciona al menos una luz para el modo",
+      "mode_target_outside_zone": "Todas las luces del modo deben pertenecer a su zona",
+      "duplicate_mode_name": "El nombre del modo debe ser único dentro de la zona",
+      "zone_has_modes": "Elimina primero los modos de esta zona",
+      "invalid_mode": "La definición del modo no es válida",
+      "invalid_zone": "La definición de la zona no es válida",
+      "reserved_mode_name": "Ese nombre está reservado por la opción Sin modo del selector de zona"
     },
     "abort": {
-      "no_rules": "No hay reglas para eliminar"
+      "no_rules": "No hay reglas para eliminar",
+      "no_zones": "Primero crea una zona",
+      "no_modes": "No hay modos configurados"
     }
   },
   "selector": {
@@ -125,9 +235,24 @@
         "blink": "Parpadeo",
         "pulse": "Pulsación"
       }
+    },
+    "mode_animation": {
+      "options": {
+        "fixed": "Fijo",
+        "blink": "Parpadeo",
+        "pulse": "Pulsación"
+      }
     }
   },
   "entity": {
+    "select": {
+      "zone_mode": {
+        "name": "Modo de {zone}",
+        "state": {
+          "none": "Sin modo"
+        }
+      }
+    },
     "sensor": {
       "engine_status": {
         "name": "Estado del motor",
@@ -149,6 +274,18 @@
     },
     "at_least_one_target": {
       "message": "Selecciona al menos una luz administrada."
+    },
+    "mode_not_found": {
+      "message": "No existe el modo {mode_id}."
+    },
+    "zone_not_found": {
+      "message": "No existe la zona {zone_id}."
+    },
+    "mode_not_in_zone": {
+      "message": "El modo seleccionado no pertenece a esta zona."
+    },
+    "managed_mode_request": {
+      "message": "Las solicitudes internas de modo solo pueden modificarse con las acciones de modos."
     }
   },
   "services": {
@@ -327,6 +464,40 @@
         "priority": {
           "name": "Prioridad",
           "description": "Prioridad de la solicitud manual en cada destino."
+        }
+      }
+    },
+    "activate_mode": {
+      "name": "Activar modo",
+      "description": "Selecciona un modo persistente en su zona.",
+      "fields": {
+        "mode_id": {
+          "name": "ID de modo",
+          "description": "Identificador inmutable del modo configurado."
+        }
+      }
+    },
+    "deactivate_mode": {
+      "name": "Desactivar modo",
+      "description": "Libera el modo si continúa seleccionado en su zona.",
+      "fields": {
+        "mode_id": {
+          "name": "ID de modo",
+          "description": "Identificador inmutable del modo configurado."
+        }
+      }
+    },
+    "set_zone_mode": {
+      "name": "Establecer modo de zona",
+      "description": "Reemplaza atómicamente el modo de una zona; omite el modo para elegir Sin modo.",
+      "fields": {
+        "zone_id": {
+          "name": "ID de zona",
+          "description": "Identificador inmutable de la zona configurada."
+        },
+        "mode_id": {
+          "name": "ID de modo",
+          "description": "Modo de la zona; déjalo vacío para liberar la solicitud de modo."
         }
       }
     }

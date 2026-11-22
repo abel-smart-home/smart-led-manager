@@ -18,7 +18,21 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - [x] Pruebas automatizadas del criterio de aceptación de alpha.1.
 - [ ] Ejecución física documentada por el propietario en HAOS con GLEDOPTO/ZHA.
 
-## `0.1.0-alpha.2` — destinos y disparadores completos
+## `0.1.0-alpha.2` — zonas y modos persistentes
+
+- [x] Zonas no superpuestas sobre la lista explícita de luces administradas.
+- [x] Catálogo gráfico de modos con prioridad, estilo y animación inicial.
+- [x] Selección exclusiva y reemplazo atómico por zona, sin estado intermedio.
+- [x] Persistencia y reconciliación de selección contra definiciones vigentes.
+- [x] Un `select` por zona e interruptores opcionales por modo.
+- [x] Acciones de activar, desactivar y establecer modo de zona.
+- [x] Compatibilidad de carga con entradas y Store de alpha.1 sin migración de
+  esquema.
+- [x] Pruebas automatizadas de los casos M-01 a M-20 aplicables al software.
+- [ ] Validación física de modos en HAOS, incluidos reinicio, animaciones y
+  exposición opcional mediante Alexa/Matter Hub.
+
+## `0.1.0-alpha.3` — destinos y disparadores completos
 
 - Áreas, etiquetas, grupos compatibles y “todas las administradas”, con expansión acíclica y deduplicación.
 - Edición y duplicación de reglas; condiciones compuestas, horarios y duración mínima.

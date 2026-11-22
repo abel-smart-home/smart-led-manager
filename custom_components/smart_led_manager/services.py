@@ -17,12 +17,15 @@ from .const import (
     MODULE_NOTIFICATION,
     MODULE_SCENE,
     SERVICE_ACTIVATE,
+    SERVICE_ACTIVATE_MODE,
     SERVICE_CANCEL,
     SERVICE_CLEAR_NOTIFICATIONS,
     SERVICE_DEACTIVATE,
+    SERVICE_DEACTIVATE_MODE,
     SERVICE_NOTIFY,
     SERVICE_SET_MANUAL_OVERRIDE,
     SERVICE_SET_SCENE,
+    SERVICE_SET_ZONE_MODE,
 )
 from .core.targets import UnauthorizedTargetError
 from .models import (
@@ -32,6 +35,7 @@ from .models import (
     Request,
     utc_now,
 )
+from .modules.modes import ModeValidationError
 
 ATTR_REQUEST_ID = "request_id"
 ATTR_NAME = "name"
@@ -46,6 +50,8 @@ ATTR_PERSISTENT = "persistent"
 ATTR_ANIMATION = "animation"
 ATTR_PERIOD = "period"
 ATTR_ENABLED = "enabled"
+ATTR_MODE_ID = "mode_id"
+ATTR_ZONE_ID = "zone_id"
 
 _TARGET_SELECTOR = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="light", multiple=True)
@@ -110,12 +116,36 @@ def async_setup_services(hass: HomeAssistant) -> None:
         coordinator = _coordinator(hass)
         service = call.service
 
+        if service in {
+            SERVICE_ACTIVATE_MODE,
+            SERVICE_DEACTIVATE_MODE,
+            SERVICE_SET_ZONE_MODE,
+        }:
+            try:
+                if service == SERVICE_ACTIVATE_MODE:
+                    mode_id = call.data[ATTR_MODE_ID]
+                    await coordinator.async_activate_mode(mode_id)
+                    return {ATTR_MODE_ID: mode_id, "active": True}
+                if service == SERVICE_DEACTIVATE_MODE:
+                    mode_id = call.data[ATTR_MODE_ID]
+                    await coordinator.async_deactivate_mode(mode_id)
+                    return {ATTR_MODE_ID: mode_id, "active": False}
+                zone_id = call.data[ATTR_ZONE_ID]
+                mode_id = call.data.get(ATTR_MODE_ID)
+                await coordinator.async_set_zone_mode(zone_id, mode_id)
+                return {ATTR_ZONE_ID: zone_id, ATTR_MODE_ID: mode_id}
+            except ModeValidationError as err:
+                raise _service_mode_error(err) from err
+
         if service in {SERVICE_DEACTIVATE, SERVICE_CANCEL}:
             request_id = call.data[ATTR_REQUEST_ID]
-            if service == SERVICE_DEACTIVATE:
-                await coordinator.async_deactivate(request_id)
-            else:
-                await coordinator.async_cancel(request_id)
+            try:
+                if service == SERVICE_DEACTIVATE:
+                    await coordinator.async_deactivate(request_id)
+                else:
+                    await coordinator.async_cancel(request_id)
+            except ModeValidationError as err:
+                raise _service_mode_error(err) from err
             return {ATTR_REQUEST_ID: request_id}
 
         if service == SERVICE_CLEAR_NOTIFICATIONS:
@@ -165,7 +195,10 @@ def async_setup_services(hass: HomeAssistant) -> None:
             persistent=persistent,
             metadata={"action": service},
         )
-        await coordinator.async_submit(request)
+        try:
+            await coordinator.async_submit(request)
+        except ModeValidationError as err:
+            raise _service_mode_error(err) from err
         return {ATTR_REQUEST_ID: request_id, "targets": sorted(targets)}
 
     hass.services.async_register(
@@ -240,6 +273,32 @@ def async_setup_services(hass: HomeAssistant) -> None:
         ),
         supports_response=SupportsResponse.OPTIONAL,
     )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_ACTIVATE_MODE,
+        _handle,
+        schema=probatio.Schema({probatio.Required(ATTR_MODE_ID): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DEACTIVATE_MODE,
+        _handle,
+        schema=probatio.Schema({probatio.Required(ATTR_MODE_ID): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_ZONE_MODE,
+        _handle,
+        schema=probatio.Schema(
+            {
+                probatio.Required(ATTR_ZONE_ID): cv.string,
+                probatio.Optional(ATTR_MODE_ID): cv.string,
+            }
+        ),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
 
 
 def async_unload_services(hass: HomeAssistant) -> None:
@@ -252,6 +311,9 @@ def async_unload_services(hass: HomeAssistant) -> None:
         SERVICE_CANCEL,
         SERVICE_CLEAR_NOTIFICATIONS,
         SERVICE_SET_MANUAL_OVERRIDE,
+        SERVICE_ACTIVATE_MODE,
+        SERVICE_DEACTIVATE_MODE,
+        SERVICE_SET_ZONE_MODE,
     ):
         hass.services.async_remove(DOMAIN, service)
 
@@ -305,3 +367,11 @@ def _command(data: dict[str, Any]) -> LightCommand:
 
 def _generated_id(service: str) -> str:
     return f"{service}:{uuid4().hex}"
+
+
+def _service_mode_error(error: ModeValidationError) -> ServiceValidationError:
+    return ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key=error.key,
+        translation_placeholders=error.placeholders,
+    )

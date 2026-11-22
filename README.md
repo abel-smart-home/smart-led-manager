@@ -5,9 +5,10 @@ Home Assistant. Coordina solicitudes de color, brillo, escenas y avisos sobre
 entidades `light` existentes, y decide cuál debe verse en cada luz mediante un
 motor de prioridades determinista.
 
-> **Estado:** `0.1.0-alpha.1` en desarrollo. Esta rama no es una release
-> publicada ni cuenta todavía con un registro de validación física en HAOS,
-> Zigbee/GLEDOPTO, Alexa o Matter Hub.
+> **Estado:** `0.1.0-alpha.2` en desarrollo. Es un candidato experimental para
+> validación física, no una release publicada. Conserva la base alpha.1 probada
+> con HAOS/ZHA/GLEDOPTO; las funciones nuevas de modos, Alexa y Matter Hub aún
+> no tienen validación física.
 
 ## Qué hace esta alfa
 
@@ -18,6 +19,9 @@ motor de prioridades determinista.
   ocultas, para mostrar la vigente al terminar la solicitud superior.
 - Admite reglas de estado y reglas numéricas de color con N puntos,
   interpolación o rangos.
+- Permite crear zonas no superpuestas y modos persistentes por zona. Cada zona
+  expone un `select`; un modo puede exponer además un `switch` opcional para
+  paneles o puentes, sin depender de Alexa o Matter.
 - Expone acciones para activar, desactivar y cancelar solicitudes, enviar
   avisos, fijar escenas, limpiar avisos y establecer control manual explícito.
 - Proyecta la intención RGB sobre las capacidades declaradas por cada entidad,
@@ -36,8 +40,8 @@ certificado de alarma, incendio o emergencia.
 | Componente | Versión de esta alfa |
 |---|---|
 | Home Assistant | `2026.11.0` o posterior |
-| Versión del manifest/release | `0.1.0-alpha.1` |
-| Versión de paquete Python | `0.1.0a1` |
+| Versión del manifest/release | `0.1.0-alpha.2` |
+| Versión de paquete Python | `0.1.0a2` |
 | Configuración ordinaria | Interfaz gráfica; YAML no requerido |
 | Operación | Local, asíncrona y sin servicio externo |
 
@@ -51,7 +55,8 @@ desarrollo y pruebas. Copia
 `custom_components/smart_led_manager` dentro de `config/custom_components/`,
 reinicia Home Assistant y agrega **Smart LED Manager** desde **Ajustes >
 Dispositivos y servicios > Añadir integración**. Selecciona sólo las luces que
-quieras delegar al motor.
+quieras delegar al motor. Después abre **Configurar > Zonas** y **Configurar >
+Modos de iluminación** para crear el catálogo; no hace falta YAML.
 
 Cuando haya una release compatible, Marketplace de Home Assistant 2026.11+
 será el canal previsto. Consulta la [guía de instalación](docs/installation.md)

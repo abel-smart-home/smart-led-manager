@@ -8,7 +8,44 @@ rechazan. No existe una opción implícita para “todas las luces”.
 
 Para cambiarla, abre **Ajustes > Dispositivos y servicios > Smart LED Manager
 > Configurar > Luces administradas**. Si retiras una entidad, revisa también
-las reglas que la usen.
+las reglas que la usen. No se puede retirar una luz mientras una zona todavía
+la contenga.
+
+## Zonas y modos de iluminación
+
+Una zona agrupa una o más luces administradas. Cada luz física puede pertenecer
+a una sola zona, aunque una instalación puede tener tantas zonas como necesite.
+Desde **Configurar > Zonas** puedes crear, renombrar, cambiar luces o eliminar
+una zona; primero debes eliminar sus modos.
+
+Un modo pertenece a una zona y controla un subconjunto no vacío de sus luces.
+Desde **Configurar > Modos de iluminación** puedes crear, editar o eliminar:
+
+- nombre, prioridad `0..100` y luces del modo;
+- color RGB, brillo y transición opcionales;
+- permiso para encender una luz apagada;
+- animación `fixed`, `blink` o `pulse` y su periodo;
+- un `switch` opcional para paneles, Alexa o puentes Matter.
+
+Home Assistant crea un `select` por zona. Elegir un modo reemplaza de forma
+atómica el modo anterior de esa misma zona; otra zona no cambia. Elegir **Sin
+modo** libera la solicitud de modo y deja que aparezca una regla, aviso, escena
+u otra intención vigente. No envía una orden de apagado por sí misma.
+
+La selección sobrevive reinicios porque se guarda como solicitud persistente.
+Las definiciones de opciones mandan sobre el comando: editar un modo activo y
+recargar aplica su definición actual; borrar el modo elimina su intención
+guardada. Repetir la selección actual es idempotente y no reinicia animaciones.
+
+Guardar cambios del options flow recarga la entrada para conservar un ciclo de
+vida predecible. Las solicitudes persistentes se reconcilian, pero una
+notificación temporal no persistente que estuviera activa termina durante esa
+recarga y no se reproduce después; la edición no se presenta como actualización
+en caliente libre de interrupciones.
+
+Los interruptores son optativos y no integran directamente servicios de nube.
+Home Assistant puede exponerlos con sus mecanismos habituales, pero la
+interoperabilidad física con Alexa/Matter Hub debe validarse por separado.
 
 ## Ajustes del motor
 
@@ -74,7 +111,8 @@ pero al regresar se vuelve a comprobar qué solicitud sigue vigente.
 
 ## Estado actual de edición
 
-La alfa permite agregar y eliminar reglas mediante options flow. La edición o
-duplicación directa, condiciones compuestas, áreas/etiquetas, horarios y
-disparadores de eventos pertenecen a incrementos posteriores de la hoja de
-ruta. Elimina y vuelve a crear una regla para cambiarla en esta versión.
+La alfa permite crear, editar y eliminar zonas y modos; las reglas todavía se
+agregan y eliminan mediante options flow. La edición o duplicación directa de
+reglas, condiciones compuestas, áreas/etiquetas, horarios y disparadores de
+eventos pertenecen a incrementos posteriores. Elimina y vuelve a crear una
+regla para cambiarla en esta versión.

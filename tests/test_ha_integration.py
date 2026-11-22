@@ -24,8 +24,10 @@ from custom_components.smart_led_manager.const import (
     CONF_LIGHTS,
     CONF_MANUAL_POLICY,
     CONF_MIN_COMMAND_INTERVAL,
+    CONF_MODES,
     CONF_RULES,
     CONF_TIE_BREAKER,
+    CONF_ZONES,
     DOMAIN,
     SERVICE_CANCEL,
     SERVICE_NOTIFY,
@@ -65,6 +67,8 @@ async def test_config_flow_creates_allowlisted_entry(hass) -> None:
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert result["data"] == {CONF_LIGHTS: ["light.strip"]}
     assert result["options"][CONF_RULES] == []
+    assert result["options"][CONF_ZONES] == []
+    assert result["options"][CONF_MODES] == []
     assert result["options"][CONF_TIE_BREAKER] == "newest"
     assert result["options"][CONF_MANUAL_POLICY] == "service_only"
     assert result["options"][CONF_MIN_COMMAND_INTERVAL] > 0
@@ -218,7 +222,10 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] is FlowResultType.MENU
-    assert "add_state_rule" in result["menu_options"]
+    assert "rules" in result["menu_options"]
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "rules"}
+    )
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "add_state_rule"}
     )
@@ -243,6 +250,9 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
     assert state_rule["targets"] == ["light.strip"]
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "rules"}
+    )
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "add_numeric_rule"}
     )
@@ -269,6 +279,9 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "rules"}
+    )
+    result = await hass.config_entries.options.async_configure(
         result["flow_id"], {"next_step_id": "delete_rule"}
     )
     assert result["type"] is FlowResultType.FORM
@@ -277,3 +290,67 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert [rule["type"] for rule in result["data"][CONF_RULES]] == ["numeric"]
+
+
+async def test_options_flow_creates_zone_and_mode_definitions(hass) -> None:
+    """Zones and modes are created through native, validated option forms."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-modes",
+        data={CONF_LIGHTS: ["light.one", "light.two"]},
+        options={
+            CONF_RULES: [],
+            CONF_ZONES: [],
+            CONF_MODES: [],
+            CONF_TIE_BREAKER: "newest",
+            CONF_MIN_COMMAND_INTERVAL: 0.75,
+            CONF_MANUAL_POLICY: "service_only",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "zones"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_zone"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {"name": "Sala", "targets": ["light.one", "light.two"]},
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    zone = result["data"][CONF_ZONES][0]
+    assert zone["name"] == "Sala"
+    assert zone["targets"] == ["light.one", "light.two"]
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "modes"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "add_mode"}
+    )
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"],
+        {
+            "zone_id": zone["zone_id"],
+            "name": "Lectura",
+            "targets": ["light.one"],
+            "priority": 50,
+            "rgb_color": [255, 180, 80],
+            "brightness": 160,
+            "transition": 1,
+            "allow_turn_on": True,
+            "animation": "fixed",
+            "period": 1,
+            "expose_switch": True,
+        },
+    )
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    mode = result["data"][CONF_MODES][0]
+    assert mode["zone_id"] == zone["zone_id"]
+    assert mode["name"] == "Lectura"
+    assert mode["rgb_color"] == [255, 180, 80]
+    assert mode["expose_switch"] is True

@@ -112,15 +112,59 @@ de una comunicación Zigbee fallida y no deben ocultarse.
 - Firmware del coordinador, firmware del controlador y fecha/hora exacta de
   ejecución.
 
+## Plan adicional de `0.1.0-alpha.2` — zonas y modos
+
+Este bloque todavía **no se ha ejecutado físicamente**. Debe registrarse con el
+SHA candidato alpha.2, fecha/hora y entorno real sin reemplazar los resultados
+alpha.1 anteriores. Las pruebas automatizadas indicadas son cobertura de
+software, no evidencia de HAOS, Zigbee, Alexa o Matter Hub.
+
+| ID | Validación física propuesta | Cobertura automatizada | Resultado físico |
+|---|---|---|---|
+| M-01 | Activa dos veces el mismo modo fijo y animado; observa que no reinicie. | Idempotencia de solicitud, antigüedad, aplicación y guardado. | Pendiente |
+| M-02 | Cambia Cine → Lectura con una regla inferior visible en el historial. | Reemplazo atómico sin ganador intermedio. | Pendiente |
+| M-03 | Mantén Cine P50 durante un aviso P70 y espera su vencimiento. | Enmascaramiento y recuperación del modo vigente. | Pendiente |
+| M-04 | Desactiva Cine mientras gana P70 y espera. | Recuperación de la regla inferior, no del modo retirado. | Pendiente |
+| M-05 | Cambia varias veces el sensor P40 bajo Cine y después libera Cine. | Actualización enmascarada y último comando vigente. | Pendiente |
+| M-06 | Selecciona modos distintos en dos zonas/tiras. | Catálogos y solicitudes independientes por zona. | Pendiente; requiere al menos dos luces |
+| M-07 | Reinicia Core con definiciones y selección activas. | Serialización, restauración y reconciliación. | Pendiente |
+| M-08 | Elige **Sin modo** con y sin regla inferior. | Liberación sin comando de apagado ni snapshot. | Pendiente |
+| M-09 | Edita un modo seleccionado, guarda y verifica la recarga. | La definición actual reemplaza el comando histórico. | Pendiente |
+| M-10 | Elimina un modo activo y comprueba entidades/Store tras recarga. | Limpieza de solicitudes huérfanas. | Pendiente |
+| M-11 | Cambia de modo con el GLEDOPTO sin alimentación y reconecta. | Sólo la última solicitud de modo conserva recuperación. | Pendiente |
+| M-12 | Repite M-11 mientras ZHA mantiene `on`/`off`. | Regresiones de recuperación acotada, caché y tarea única. | Pendiente |
+| M-13 | Alterna rápidamente selector, switch y acciones. | Serialización por bloqueo y una sola selección final. | Pendiente |
+| M-14 | Combina modo con solicitudes de igual prioridad bajo tres desempates. | Suite existente de `newest`, `oldest` y `lexical`. | Pendiente |
+| M-15 | Intenta guardar una zona/modo con luz no autorizada. | Rechazo de catálogo y allowlist. | Pendiente |
+| M-16 | Recarga y elimina la entrada con animación de modo activa. | Cancelación de plataformas, listeners, tareas y Store. | Pendiente |
+| M-17 | Repite acciones/reglas principales de alpha.1. | Suite completa de regresión alpha.1. | Pendiente |
+| M-18 | Enmascara el modo y compara selector/switch con la luz física. | Entidades derivadas de selección y diagnóstico winner/masked/partial. | Pendiente |
+| M-19 | Prueba identificadores inválidos mediante la UI y datos huérfanos simulados. | Validación, catálogo contenido y reconciliación determinista. | Pendiente |
+| M-20 | Actualiza manualmente alpha.1, recarga, reinicia y revierte de forma controlada. | Entrada alpha.1 sin nuevas claves y Store anterior compatibles. | Pendiente |
+
+En M-09, guardar opciones recarga la entrada. Una notificación temporal no
+persistente termina durante esa recarga y no debe reproducirse después; registra
+este límite en lugar de describir la edición como actualización en caliente.
+
 ## Alexa y Matter Hub
 
-La alfa no promete entidades virtuales específicas para exposición. Si el
-propietario ya expone las entidades `light` subyacentes, comprueba que una orden
-de Alexa/Matter y una solicitud del motor produzcan un resultado comprensible,
-pero registra la atribución exacta. No marques integración nativa con Alexa o
-Matter como validada sólo porque la luz física responde. Esta validación formal
-permanece pendiente. Home-Assistant-Matter-Hub `2.0.60` está instalado en el
-entorno, pero esa presencia no constituye evidencia de interoperabilidad.
+Alpha.2 puede crear un `switch` por cada modo marcado para exposición. Smart
+LED Manager no se comunica con Matter Hub ni con Alexa: el interruptor sólo
+representa **modo seleccionado**, no confirmación física del color.
+
+Procedimiento pendiente para el propietario:
+
+1. Crea un modo fijo seguro y habilita su interruptor opcional.
+2. Verifica primero ON/OFF desde Home Assistant y que el selector de zona se
+   sincronice.
+3. Expón únicamente ese `switch` mediante Home-Assistant-Matter-Hub `2.0.60`.
+4. Confirma descubrimiento, cambio ON, selección de otro modo, cambio OFF y
+   recuperación después de un aviso temporal.
+5. Registra nombres de entidad, latencia, estados del selector/switch, estado
+   físico y logs. Retira la exposición temporal al finalizar.
+
+No marques Alexa/Matter como validado sólo porque Matter Hub esté instalado o
+la luz subyacente responda. La validación formal continúa pendiente.
 
 ## Cierre
 

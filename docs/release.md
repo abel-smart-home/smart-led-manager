@@ -4,13 +4,13 @@ Este documento describe el camino; no autoriza ninguna acción. Fusionar a
 `main`, crear una etiqueta, publicar una release o enviar el catálogo de
 Marketplace requiere aprobación explícita del propietario.
 
-## Identidad de `0.1.0-alpha.1`
+## Identidad de `0.1.0-alpha.2`
 
 | Lugar | Valor |
 |---|---|
-| `manifest.json` y changelog | `0.1.0-alpha.1` |
-| `pyproject.toml` (PEP 440) | `0.1.0a1` |
-| Nombre de archivo opcional | `smart-led-manager-0.1.0-alpha.1.zip` |
+| `manifest.json` y changelog | `0.1.0-alpha.2` |
+| `pyproject.toml` (PEP 440) | `0.1.0a2` |
+| Nombre de archivo opcional | `smart-led-manager-0.1.0-alpha.2.zip` |
 | Release | Pre-release, nunca estable |
 
 La etiqueta final debe usar la convención aprobada y comprobarse con HACS
@@ -19,12 +19,15 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 
 ## Puertas del candidato
 
-- [x] El diff contiene sólo cambios revisados y preserva trabajo ajeno.
-- [x] `ruff format --check .` y `ruff check .` pasan.
-- [x] `pytest --cov` pasa con cobertura de ramas configurada.
-- [x] La matriz prueba Home Assistant `2026.11.0` y `2026.11.2`.
-- [x] hassfest y HACS Action pasan sin `ignore` ni supresiones engañosas.
-- [x] Manifest, `hacs.json`, Python, changelog y notas coinciden.
+- [x] El diff local contiene sólo el incremento alpha.2 y preserva la base
+      remota verificada de alpha.1.
+- [x] `ruff format --check .` y `ruff check .` pasan localmente.
+- [x] `pytest --cov` pasa localmente: 121 pruebas y 27 subpruebas, cobertura de
+      ramas `85.13 %`; 5 pruebas HA se omiten en Windows y se reservan a CI
+      Linux.
+- [ ] La matriz prueba Home Assistant `2026.11.0` y `2026.11.2`.
+- [ ] hassfest y HACS Action pasan sin `ignore` ni supresiones engañosas.
+- [x] Manifest, `hacs.json`, Python, changelog y notas coinciden para alpha.2.
 - [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
       excepciones.
 - [ ] Instalación, actualización, recarga, descarga y recuperación se prueban.
@@ -38,20 +41,19 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 Una comprobación que no pueda ejecutarse se registra como pendiente con su
 motivo; no se sustituye por una afirmación de éxito.
 
-## Evaluación del candidato `f283d36`
+## Base física heredada de alpha.1
 
 No se conoce un defecto bloqueante en los recorridos automatizados y físicos
 ejecutados. R-01, R-02 y sus antecedentes de recuperación Zigbee quedaron
 corregidos y repetidos satisfactoriamente; las advertencias controladas por
 dispositivo sin respuesta siguen siendo normales y deben permanecer visibles.
 
-El candidato es técnicamente apto para una **pre-release experimental y
-limitada** si sus notas enumeran los escenarios pendientes. No está validado
-como versión regular, no está listo para afirmar compatibilidad amplia de
-hardware y este estado no autoriza Marketplace. F-08 ya cubre tanto `unknown`
-como `unavailable`, y R-05 cubre carga mixta; F-02, eliminación de entrada,
-estrés extremo multidispositivo, grupos Zigbee, Alexa/Matter y otros
-controladores siguen siendo riesgos de cobertura, no resultados aprobados.
+Esos resultados protegen la base que alpha.2 debe conservar, pero no prueban
+zonas, modos, selectores ni interruptores. Alpha.2 sólo puede llamarse
+**candidata experimental para validación** después de sus comprobaciones
+automatizadas; no está validada como versión regular ni autoriza Marketplace.
+F-08 de alpha.1 sigue aprobada para `unknown` y `unavailable`; no debe volver a
+marcarse pendiente.
 
 La publicación continúa bloqueada administrativamente hasta que el propietario
 la autorice de forma explícita; este documento no concede esa autorización.
@@ -83,6 +85,26 @@ Si la instalación publicada falla, marca el problema de forma visible, detén
 la promoción y prepara un nuevo parche; no muevas ni reutilices silenciosamente
 una etiqueta existente. Indica cómo volver a la versión anterior y qué datos de
 Store/config entry requieren atención.
+
+### Actualización manual segura desde alpha.1
+
+1. Crea una copia de seguridad de Home Assistant y conserva una copia de la
+   carpeta alpha.1.
+2. Descarga o recarga Smart LED Manager para detener animaciones y tareas.
+3. Sustituye únicamente `custom_components/smart_led_manager/` por el contenido
+   alpha.2 del commit candidato y reinicia Core.
+4. Comprueba que las luces, reglas y ajustes anteriores siguen presentes.
+5. Crea zonas y modos desde **Configurar**; no edites `.storage` ni inventes
+   identificadores a mano.
+6. Ejecuta primero los casos sin animación y después el plan físico de modos.
+
+Alpha.2 no requiere migración de ConfigEntry ni del Store. Si es necesario
+volver a alpha.1, desactiva todos los modos o elige **Sin modo**, descarga la
+entrada, restaura la carpeta alpha.1 y reinicia Core. Alpha.1 ignora las claves
+de opciones `zones`/`modes`; antes de una reversión prolongada conviene eliminar
+los modos desde alpha.2 para que no quede una solicitud persistente de módulo
+desconocido compitiendo en el Store. Conserva la copia de seguridad hasta
+verificar luces, reglas, tareas y almacenamiento.
 
 ## Camino a `0.1.0`
 

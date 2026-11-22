@@ -91,9 +91,35 @@ Activa o desactiva una solicitud manual explícita para `targets`. Requiere
 (`60` por defecto). Al desactivar, el motor muestra la solicitud vigente que
 siga en la cola. La respuesta devuelve el estado y los destinos.
 
+## Acciones de modos persistentes
+
+`smart_led_manager.activate_mode` requiere `mode_id` y selecciona ese modo en
+su zona. Si había otro modo seleccionado, ambos se reemplazan en una sola
+transacción. Su respuesta contiene `mode_id` y `active: true`.
+
+`smart_led_manager.deactivate_mode` requiere `mode_id`. Sólo libera la
+solicitud cuando ese modo continúa seleccionado; desactivar un modo ya
+reemplazado es idempotente y no afecta al modo nuevo.
+
+`smart_led_manager.set_zone_mode` requiere `zone_id` y acepta `mode_id`. Si se
+omite `mode_id`, equivale a **Sin modo**: elimina la intención de modo sin
+ordenar apagar y deja que el motor recalcule la solicitud vigente.
+
+```yaml
+action: smart_led_manager.set_zone_mode
+data:
+  zone_id: sala
+  mode_id: lectura
+```
+
+Los identificadores aparecen en diagnósticos y permanecen estables aunque se
+cambie el nombre visible. Las solicitudes internas `smart_led_manager:mode:*` están
+reservadas: no uses `activate`, `deactivate` ni `cancel` para modificarlas.
+
 ## Errores esperados
 
 Si no hay una entrada cargada, la acción devuelve un error traducido. Si algún
 destino no está administrado, la llamada completa se rechaza y enumera las
 entidades no autorizadas; no se ejecuta parcialmente. Los límites del esquema
-se validan antes de llegar al motor.
+se validan antes de llegar al motor. Las acciones de modo también rechazan
+zonas/modos inexistentes y un modo que no pertenezca a la zona indicada.

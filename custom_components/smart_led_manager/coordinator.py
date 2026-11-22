@@ -25,8 +25,10 @@ from .const import (
     CONF_LIGHTS,
     CONF_MANUAL_POLICY,
     CONF_MIN_COMMAND_INTERVAL,
+    CONF_MODES,
     CONF_RULES,
     CONF_TIE_BREAKER,
+    CONF_ZONES,
     DEFAULT_MANUAL_POLICY,
     DEFAULT_MIN_COMMAND_INTERVAL,
     DEFAULT_TIE_BREAKER,
@@ -47,6 +49,7 @@ from .models import (
     TieBreaker,
     utc_now,
 )
+from .modules.modes import ModeManager, ModeValidationError
 from .modules.rules import RuleManager
 from .storage import SmartLEDStorage
 
@@ -78,6 +81,18 @@ class SmartLEDCoordinator:
         self.animations = AnimationScheduler()
         self.expiry = DeadlineScheduler()
         self.storage = SmartLEDStorage(hass, entry.entry_id)
+        catalog_error: str | None = None
+        try:
+            self.modes = ModeManager(
+                self.engine,
+                list(options.get(CONF_ZONES, [])),
+                list(options.get(CONF_MODES, [])),
+                self.targets.authorized,
+            )
+        except ModeValidationError as err:
+            catalog_error = f"Invalid mode catalog ignored: {err.key}"
+            _LOGGER.error("%s", catalog_error)
+            self.modes = ModeManager(self.engine, [], [], self.targets.authorized)
         self.rules = RuleManager(
             hass,
             list(options.get(CONF_RULES, [])),
@@ -87,7 +102,7 @@ class SmartLEDCoordinator:
         )
         self.manual_policy = str(options.get(CONF_MANUAL_POLICY, DEFAULT_MANUAL_POLICY))
         self.history: deque[dict[str, Any]] = deque(maxlen=MAX_ACTIVITY_ITEMS)
-        self.last_error: str | None = None
+        self.last_error: str | None = catalog_error
         self.status = "idle"
         self.request_count = 0
         self._winners: dict[str, str] = {}
@@ -104,8 +119,9 @@ class SmartLEDCoordinator:
         """Restore durable intent and start event-driven processing."""
         stored = await self.storage.async_load()
         changes: tuple[DecisionChange, ...] = ()
+        storage_changed = False
         if stored:
-            authorized: list[dict[str, Any]] = []
+            authorized: list[Request] = []
             rejected = 0
             for item in stored:
                 try:
@@ -113,26 +129,39 @@ class SmartLEDCoordinator:
                     self.targets.resolve(request.targets)
                 except (TypeError, ValueError) as err:
                     rejected += 1
+                    if item.get(
+                        "module"
+                    ) == "mode" or ModeManager.is_internal_request_id(
+                        str(item.get("request_id", ""))
+                    ):
+                        storage_changed = True
                     _LOGGER.warning(
                         "Ignoring unauthorized or invalid stored request %s: %s",
                         item.get("request_id", "<unknown>"),
                         err,
                     )
                     continue
-                authorized.append(item)
+                authorized.append(request)
             if rejected:
                 self.last_error = (
                     f"Ignored {rejected} invalid or unauthorized stored request(s)"
                 )
             try:
-                changes = await self.engine.async_restore(authorized)
+                reconciled, modes_changed = self.modes.reconcile_requests(authorized)
+                storage_changed = storage_changed or modes_changed
+                changes = await self.engine.async_restore(
+                    request.to_dict() for request in reconciled
+                )
             except (TypeError, ValueError):
+                storage_changed = True
                 self.last_error = "Stored requests were invalid and were ignored"
                 _LOGGER.exception("Unable to restore Smart LED Manager requests")
         self._persisted_request_ids = {
             str(item["request_id"])
             for item in await self.engine.async_serialize(persistent_only=True)
         }
+        if storage_changed:
+            await self._async_save()
 
         self._unsub_lights = async_track_state_change_event(
             self.hass,
@@ -148,6 +177,8 @@ class SmartLEDCoordinator:
 
     async def async_submit(self, request: Request) -> None:
         """Authorize, submit, apply, persist, and reschedule a request."""
+        if ModeManager.is_internal_request(request):
+            raise ModeValidationError("managed_mode_request")
         resolved = self.targets.resolve(request.targets)
         if resolved != request.targets:
             request = replace(request, targets=resolved)
@@ -161,6 +192,8 @@ class SmartLEDCoordinator:
 
     async def async_deactivate(self, request_id: str) -> None:
         """Deactivate a request without deleting its record."""
+        if ModeManager.is_internal_request_id(request_id):
+            raise ModeValidationError("managed_mode_request")
         async with self._mutation_lock:
             save = request_id in self._persisted_request_ids
             changes = await self.engine.async_deactivate(request_id)
@@ -170,12 +203,37 @@ class SmartLEDCoordinator:
 
     async def async_cancel(self, request_id: str) -> None:
         """Delete a request and expose the next valid winner."""
+        if ModeManager.is_internal_request_id(request_id):
+            raise ModeValidationError("managed_mode_request")
         async with self._mutation_lock:
             save = request_id in self._persisted_request_ids
             changes = await self.engine.async_cancel(request_id)
             self._forget_manual_activation(request_id)
             await self._async_apply_changes(changes)
             await self._async_after_mutation(save=save)
+
+    async def async_activate_mode(self, mode_id: str) -> None:
+        """Select one configured mode through the protected mode manager."""
+        mode = self.modes.mode(mode_id)
+        await self.async_set_zone_mode(mode.zone_id, mode_id)
+
+    async def async_deactivate_mode(self, mode_id: str) -> None:
+        """Clear one configured mode if it is currently selected."""
+        async with self._mutation_lock:
+            mutation = await self.modes.async_deactivate(mode_id)
+            if not mutation.changed:
+                return
+            await self._async_apply_changes(mutation.changes)
+            await self._async_after_mutation(save=True)
+
+    async def async_set_zone_mode(self, zone_id: str, mode_id: str | None) -> None:
+        """Atomically replace a zone's selected mode, or select no mode."""
+        async with self._mutation_lock:
+            mutation = await self.modes.async_set_zone_mode(zone_id, mode_id)
+            if not mutation.changed:
+                return
+            await self._async_apply_changes(mutation.changes)
+            await self._async_after_mutation(save=True)
 
     async def async_clear_notifications(
         self, targets: frozenset[str] | None = None
@@ -254,6 +312,7 @@ class SmartLEDCoordinator:
             "manual_policy": self.manual_policy,
             "request_count": len(requests),
             "requests": [request.to_dict() for request in requests],
+            "mode_catalog": self.modes.snapshot(self._winners),
             "winners": dict(sorted(self._winners.items())),
             "animation_targets": sorted(self.animations.active_targets),
             "pending_controller_targets": sorted(self.controller.pending_targets),

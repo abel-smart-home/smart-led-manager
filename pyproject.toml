@@ -1,6 +1,6 @@
 [project]
 name = "smart-led-manager"
-version = "0.1.0a1"
+version = "0.1.0a2"
 description = "Priority-driven LED strip management for Home Assistant"
 requires-python = ">=3.14.2"
 license = "Apache-2.0"

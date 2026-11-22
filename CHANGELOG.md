@@ -2,8 +2,50 @@
 
 Este proyecto sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y usa versionado semántico. La versión del manifest conserva la forma de
-pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
-(`0.1.0a1`).
+pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
+(`0.1.0a2`).
+
+## [0.1.0-alpha.2] — Sin publicar
+
+### Añadido
+
+- Zonas gráficas con identificador estable, nombre y subconjunto no vacío de
+  luces autorizadas; una luz física sólo puede pertenecer a una zona.
+- Modos persistentes por zona con prioridad, color, brillo, transición,
+  permiso de encendido y animaciones `fixed`, `blink` o `pulse`.
+- `ModeManager` que representa la selección como una solicitud persistente del
+  motor, reemplaza el modo anterior de la zona en una sola transacción y
+  reconcilia datos guardados contra la definición vigente al arrancar.
+- Un `select` por zona con la opción **Sin modo**, y un `switch` estable sólo
+  para cada modo que el propietario decida exponer.
+- Acciones `activate_mode`, `deactivate_mode` y `set_zone_mode`, con esquemas y
+  traducciones en inglés y español.
+- Flujos gráficos para crear, editar y eliminar zonas y modos sin YAML.
+
+### Seguridad y compatibilidad
+
+- Las solicitudes internas de modo usan identificadores protegidos y no pueden
+  modificarse con las acciones genéricas.
+- Cambiar de modo no muestra estados intermedios de menor prioridad; reactivar
+  el mismo modo no altera su antigüedad, no reinicia animaciones, no repite el
+  comando físico y no reescribe el almacenamiento.
+- **Sin modo** libera únicamente la solicitud de modo y deja que el motor
+  calcule la intención vigente; nunca ordena apagar a ciegas.
+- No se cambia el esquema de config entry ni el Store de alpha.1: las nuevas
+  definiciones son opciones con valores vacíos compatibles y las solicitudes
+  conservan el formato persistente existente.
+
+### Validación
+
+- Cobertura automatizada de creación, edición, selección, reemplazo atómico,
+  idempotencia, prioridades, reinicio, limpieza de huérfanos, varias zonas y
+  entidades `select`/`switch`.
+- La validación local aprobó 121 pruebas y 27 subpruebas, con 5 pruebas de
+  runtime Home Assistant omitidas en Windows porque requieren Linux. La
+  cobertura total de ramas fue `85.13 %`; Ruff y formato aprobaron.
+- La validación física de alpha.2, incluida la exposición opcional mediante
+  Alexa/Matter Hub, permanece pendiente y no se deduce de las pruebas de
+  alpha.1.
 
 ## [0.1.0-alpha.1] — Sin publicar
 
@@ -79,3 +121,4 @@ pre-release (`0.1.0-alpha.1`) y `pyproject.toml` usa su equivalente PEP 440
   pre-release o enviar la integración al catálogo Marketplace.
 
 [0.1.0-alpha.1]: https://github.com/abel-smart-home/smart-led-manager/compare/main...feat/v0.1.0-alpha.1
+[0.1.0-alpha.2]: https://github.com/abel-smart-home/smart-led-manager/compare/feat/v0.1.0-alpha.1...feat/v0.1.0-alpha.2-modes

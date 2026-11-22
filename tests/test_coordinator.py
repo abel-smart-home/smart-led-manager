@@ -36,6 +36,7 @@ from custom_components.smart_led_manager.models import (
     Request,
     utc_now,
 )
+from custom_components.smart_led_manager.modules.modes import ModeManager
 
 
 def _request(request_id: str, target: str) -> Request:
@@ -118,6 +119,167 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(coordinator._async_cancel_recoveries)
         self.addAsyncCleanup(coordinator.animations.async_shutdown)
         return coordinator
+
+    async def test_mode_selection_applies_once_and_idempotent_reactivation_is_silent(
+        self,
+    ) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        coordinator.modes = ModeManager(
+            coordinator.engine,
+            [
+                {
+                    "zone_id": "living",
+                    "name": "Sala",
+                    "targets": ["light.strip"],
+                }
+            ],
+            [
+                {
+                    "mode_id": "blue",
+                    "zone_id": "living",
+                    "name": "Azul",
+                    "targets": ["light.strip"],
+                    "priority": 50,
+                    "rgb_color": [0, 0, 255],
+                }
+            ],
+            frozenset({"light.strip"}),
+        )
+
+        await coordinator.async_activate_mode("blue")
+        first_request = await coordinator.engine.async_winner("light.strip")
+        first_apply_count = len(coordinator.controller.applied)
+        self.assertEqual(first_request.command.color, (0, 0, 255))
+        coordinator._async_after_mutation.assert_awaited_once_with(save=True)
+
+        coordinator._async_after_mutation.reset_mock()
+        await coordinator.async_activate_mode("blue")
+
+        self.assertEqual(len(coordinator.controller.applied), first_apply_count)
+        self.assertEqual(
+            await coordinator.engine.async_winner("light.strip"), first_request
+        )
+        coordinator._async_after_mutation.assert_not_awaited()
+
+    async def test_concurrent_mode_activations_leave_one_consistent_selection(
+        self,
+    ) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        coordinator.modes = ModeManager(
+            coordinator.engine,
+            [{"zone_id": "living", "name": "Sala", "targets": ["light.strip"]}],
+            [
+                {
+                    "mode_id": "blue",
+                    "zone_id": "living",
+                    "name": "Azul",
+                    "targets": ["light.strip"],
+                    "rgb_color": [0, 0, 255],
+                },
+                {
+                    "mode_id": "red",
+                    "zone_id": "living",
+                    "name": "Rojo",
+                    "targets": ["light.strip"],
+                    "rgb_color": [255, 0, 0],
+                },
+            ],
+            frozenset({"light.strip"}),
+            clock=lambda: now,
+        )
+
+        await asyncio.gather(
+            coordinator.async_activate_mode("blue"),
+            coordinator.async_activate_mode("red"),
+        )
+
+        requests = [
+            request
+            for request in await coordinator.engine.async_requests()
+            if request.module == "mode"
+        ]
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(
+            coordinator.modes.selected_mode_id("living"),
+            requests[0].metadata["mode_id"],
+        )
+
+    async def test_offline_mode_replacement_retains_only_latest_recovery_intent(
+        self,
+    ) -> None:
+        now = utc_now()
+        coordinator = self._runtime_coordinator(lambda: now)
+        coordinator.controller.async_apply = AsyncMock(
+            return_value=ApplyResult(
+                "light.strip",
+                ApplyStatus.OFFLINE,
+                "send failed after 1 attempt: device did not respond",
+            )
+        )
+        coordinator.controller.async_retry = AsyncMock()
+        coordinator.controller.invalidate_applied_state = Mock()
+        coordinator.modes = ModeManager(
+            coordinator.engine,
+            [{"zone_id": "living", "name": "Sala", "targets": ["light.strip"]}],
+            [
+                {
+                    "mode_id": "blue",
+                    "zone_id": "living",
+                    "name": "Azul",
+                    "targets": ["light.strip"],
+                    "rgb_color": [0, 0, 255],
+                },
+                {
+                    "mode_id": "red",
+                    "zone_id": "living",
+                    "name": "Rojo",
+                    "targets": ["light.strip"],
+                    "rgb_color": [255, 0, 0],
+                },
+            ],
+            frozenset({"light.strip"}),
+            clock=lambda: now,
+        )
+
+        await coordinator.async_activate_mode("blue")
+        stale_recovery = coordinator._recovery_tasks["light.strip"]
+        await coordinator.async_activate_mode("red")
+
+        self.assertTrue(stale_recovery.cancelled())
+        requests = [
+            request
+            for request in await coordinator.engine.async_requests()
+            if request.module == "mode"
+        ]
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(requests[0].metadata["mode_id"], "red")
+        self.assertEqual(
+            coordinator.controller.async_apply.await_args.args[1].color, (255, 0, 0)
+        )
+        self.assertIn("light.strip", coordinator._recovery_tasks)
+
+    def test_invalid_mode_catalog_is_contained_without_blocking_alpha1(self) -> None:
+        entry = SimpleNamespace(
+            entry_id="entry-1",
+            data={CONF_LIGHTS: ["light.allowed"]},
+            options={
+                "zones": [
+                    {
+                        "zone_id": "bad",
+                        "name": "Dañada",
+                        "targets": ["light.unauthorized"],
+                    }
+                ]
+            },
+        )
+
+        with patch("custom_components.smart_led_manager.coordinator.SmartLEDStorage"):
+            coordinator = SmartLEDCoordinator(SimpleNamespace(), entry)
+
+        self.assertEqual(coordinator.modes.zones, ())
+        self.assertIn("Invalid mode catalog ignored", coordinator.last_error)
 
     @staticmethod
     def _animated_notification(now, *, expires_at=None) -> Request:

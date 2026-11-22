@@ -3,7 +3,9 @@
 ## Estado del documento
 
 - Proyecto: Smart LED Manager.
-- Versión objetivo: `v0.1.0-alpha.1`.
+- Versión auditada originalmente: `v0.1.0-alpha.1`.
+- Revisión alpha.2: los modos persistentes se implementaron únicamente sobre
+  la arquitectura propia ya auditada; no se incorporó código de terceros.
 - Fecha de auditoría: 20 de noviembre de 2026.
 - Alcance: repositorios y blueprints públicos relacionados con prioridades,
   notificaciones luminosas, animaciones, restauración, control manual e

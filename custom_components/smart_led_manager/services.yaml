@@ -238,3 +238,28 @@ set_manual_override:
           max: 100
           step: 1
           mode: box
+
+activate_mode:
+  fields:
+    mode_id:
+      required: true
+      selector:
+        text:
+
+deactivate_mode:
+  fields:
+    mode_id:
+      required: true
+      selector:
+        text:
+
+set_zone_mode:
+  fields:
+    zone_id:
+      required: true
+      selector:
+        text:
+    mode_id:
+      required: false
+      selector:
+        text:

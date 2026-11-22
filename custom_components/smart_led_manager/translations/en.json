@@ -23,10 +23,10 @@
         "title": "Manage Smart LED Manager",
         "menu_options": {
           "lights": "Managed lights",
-          "settings": "Engine settings",
-          "add_state_rule": "Add state rule",
-          "add_numeric_rule": "Add numeric rule",
-          "delete_rule": "Delete rule"
+          "zones": "Zones",
+          "modes": "Lighting modes",
+          "rules": "Smart rules",
+          "advanced": "Advanced settings"
         }
       },
       "lights": {
@@ -42,6 +42,97 @@
           "tie_breaker": "Equal-priority tie-breaker",
           "min_command_interval": "Minimum interval per light",
           "manual_policy": "Direct manual-control policy"
+        }
+      },
+      "advanced": {
+        "title": "Advanced settings",
+        "data": {
+          "tie_breaker": "Equal-priority tie-breaker",
+          "min_command_interval": "Minimum interval per light",
+          "manual_policy": "Direct manual-control policy"
+        }
+      },
+      "zones": {
+        "title": "Manage zones",
+        "menu_options": {
+          "add_zone": "Create zone",
+          "edit_zone": "Edit zone",
+          "delete_zone": "Delete zone"
+        }
+      },
+      "add_zone": {
+        "title": "Create zone",
+        "description": "Each physical light can belong to only one zone.",
+        "data": {"name": "Name", "targets": "Zone lights"}
+      },
+      "edit_zone": {
+        "title": "Choose zone",
+        "data": {"zone_id": "Zone"}
+      },
+      "edit_zone_form": {
+        "title": "Edit zone",
+        "data": {"name": "Name", "targets": "Zone lights"}
+      },
+      "delete_zone": {
+        "title": "Delete zone",
+        "description": "Delete the zone's modes first.",
+        "data": {"zone_id": "Zone"}
+      },
+      "modes": {
+        "title": "Manage modes",
+        "menu_options": {
+          "add_mode": "Create mode",
+          "edit_mode": "Edit mode",
+          "delete_mode": "Delete mode"
+        }
+      },
+      "add_mode": {
+        "title": "Create lighting mode",
+        "description": "The mode participates as a persistent priority-engine request.",
+        "data": {
+          "zone_id": "Zone",
+          "name": "Name",
+          "targets": "Mode lights",
+          "priority": "Priority",
+          "rgb_color": "Optional color",
+          "brightness": "Optional brightness",
+          "transition": "Optional transition",
+          "allow_turn_on": "Allow turn on",
+          "animation": "Animation",
+          "period": "Animation period",
+          "expose_switch": "Create switch for dashboards and bridges"
+        }
+      },
+      "edit_mode": {
+        "title": "Choose mode",
+        "data": {"mode_id": "Mode"}
+      },
+      "edit_mode_form": {
+        "title": "Edit lighting mode",
+        "data": {
+          "zone_id": "Zone",
+          "name": "Name",
+          "targets": "Mode lights",
+          "priority": "Priority",
+          "rgb_color": "Optional color",
+          "brightness": "Optional brightness",
+          "transition": "Optional transition",
+          "allow_turn_on": "Allow turn on",
+          "animation": "Animation",
+          "period": "Animation period",
+          "expose_switch": "Create switch for dashboards and bridges"
+        }
+      },
+      "delete_mode": {
+        "title": "Delete mode",
+        "data": {"mode_id": "Mode"}
+      },
+      "rules": {
+        "title": "Smart rules",
+        "menu_options": {
+          "add_state_rule": "Add state rule",
+          "add_numeric_rule": "Add numeric rule",
+          "delete_rule": "Delete rule"
         }
       },
       "add_state_rule": {
@@ -86,10 +177,23 @@
       "at_least_one_light": "Select at least one light",
       "at_least_one_target": "Select at least one managed light",
       "target_not_managed": "Every target must be a managed light",
-      "invalid_color_points": "Use value:R,G,B entries separated by semicolons, with at least two unique values"
+      "invalid_color_points": "Use value:R,G,B entries separated by semicolons, with at least two unique values",
+      "zones_use_removed_lights": "A zone still uses one of the lights you are removing",
+      "zone_without_targets": "Select at least one light for the zone",
+      "target_in_multiple_zones": "A physical light cannot belong to multiple zones",
+      "duplicate_zone": "Zone names and identifiers must be unique",
+      "mode_without_targets": "Select at least one light for the mode",
+      "mode_target_outside_zone": "Every mode light must belong to its zone",
+      "duplicate_mode_name": "The mode name must be unique within the zone",
+      "zone_has_modes": "Delete this zone's modes first",
+      "invalid_mode": "The mode definition is invalid",
+      "invalid_zone": "The zone definition is invalid",
+      "reserved_mode_name": "That name is reserved by the zone selector's No mode option"
     },
     "abort": {
-      "no_rules": "There are no rules to delete"
+      "no_rules": "There are no rules to delete",
+      "no_zones": "Create a zone first",
+      "no_modes": "There are no configured modes"
     }
   },
   "selector": {
@@ -125,9 +229,24 @@
         "blink": "Blink",
         "pulse": "Pulse"
       }
+    },
+    "mode_animation": {
+      "options": {
+        "fixed": "Fixed",
+        "blink": "Blink",
+        "pulse": "Pulse"
+      }
     }
   },
   "entity": {
+    "select": {
+      "zone_mode": {
+        "name": "{zone} mode",
+        "state": {
+          "none": "No mode"
+        }
+      }
+    },
     "sensor": {
       "engine_status": {
         "name": "Engine status",
@@ -149,6 +268,18 @@
     },
     "at_least_one_target": {
       "message": "Select at least one managed light."
+    },
+    "mode_not_found": {
+      "message": "Mode {mode_id} does not exist."
+    },
+    "zone_not_found": {
+      "message": "Zone {zone_id} does not exist."
+    },
+    "mode_not_in_zone": {
+      "message": "The selected mode does not belong to this zone."
+    },
+    "managed_mode_request": {
+      "message": "Internal mode requests can only be changed with mode actions."
     }
   },
   "services": {
@@ -327,6 +458,40 @@
         "priority": {
           "name": "Priority",
           "description": "Manual request priority on each target."
+        }
+      }
+    },
+    "activate_mode": {
+      "name": "Activate mode",
+      "description": "Select a persistent mode in its zone.",
+      "fields": {
+        "mode_id": {
+          "name": "Mode ID",
+          "description": "Immutable identifier of the configured mode."
+        }
+      }
+    },
+    "deactivate_mode": {
+      "name": "Deactivate mode",
+      "description": "Release the mode if it is still selected in its zone.",
+      "fields": {
+        "mode_id": {
+          "name": "Mode ID",
+          "description": "Immutable identifier of the configured mode."
+        }
+      }
+    },
+    "set_zone_mode": {
+      "name": "Set zone mode",
+      "description": "Atomically replace a zone mode; omit mode to select No mode.",
+      "fields": {
+        "zone_id": {
+          "name": "Zone ID",
+          "description": "Immutable identifier of the configured zone."
+        },
+        "mode_id": {
+          "name": "Mode ID",
+          "description": "Mode in the zone; leave empty to release mode intent."
         }
       }
     }

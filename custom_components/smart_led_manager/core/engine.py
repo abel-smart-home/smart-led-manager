@@ -122,6 +122,39 @@ class PriorityEngine:
                 del self._requests[request.request_id]
             return self._changes(previous, targets, now, "cancel_matching")
 
+    async def async_replace_matching(
+        self,
+        predicate: Callable[[Request], bool],
+        request: Request | None,
+        *,
+        reason: str = "replace_matching",
+    ) -> tuple[DecisionChange, ...]:
+        """Remove matching requests and optionally insert one in one transaction.
+
+        The returned decisions compare the state before the complete replacement
+        with its final state. Consumers therefore never observe an intermediate
+        winner while a mutually exclusive intent is switched.
+        """
+
+        if request is not None and not isinstance(request, Request):
+            raise TypeError("request must be a Request or None")
+        async with self._lock:
+            matching = [
+                current for current in self._requests.values() if predicate(current)
+            ]
+            if not matching and request is None:
+                return ()
+            now = self._now()
+            targets = {target for current in matching for target in current.targets}
+            if request is not None:
+                targets.update(request.targets)
+            previous = self._winners_before_removal(matching, targets, now)
+            for current in matching:
+                del self._requests[current.request_id]
+            if request is not None:
+                self._requests[request.request_id] = request
+            return self._changes(previous, targets, now, reason)
+
     async def async_expire(
         self, now: datetime | None = None
     ) -> tuple[DecisionChange, ...]:

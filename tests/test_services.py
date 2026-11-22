@@ -14,12 +14,15 @@ from custom_components.smart_led_manager.const import (
     DOMAIN,
     MODULE_NOTIFICATION,
     SERVICE_ACTIVATE,
+    SERVICE_ACTIVATE_MODE,
     SERVICE_CANCEL,
     SERVICE_CLEAR_NOTIFICATIONS,
     SERVICE_DEACTIVATE,
+    SERVICE_DEACTIVATE_MODE,
     SERVICE_NOTIFY,
     SERVICE_SET_MANUAL_OVERRIDE,
     SERVICE_SET_SCENE,
+    SERVICE_SET_ZONE_MODE,
 )
 from custom_components.smart_led_manager.core.engine import PriorityEngine
 from custom_components.smart_led_manager.core.targets import TargetResolver
@@ -29,6 +32,7 @@ from custom_components.smart_led_manager.models import (
     Request,
     utc_now,
 )
+from custom_components.smart_led_manager.modules.modes import ModeValidationError
 from custom_components.smart_led_manager.services import (
     async_setup_services,
     async_unload_services,
@@ -76,6 +80,9 @@ def _coordinator():
         async_cancel=AsyncMock(),
         async_clear_notifications=AsyncMock(),
         async_set_manual_override=AsyncMock(),
+        async_activate_mode=AsyncMock(),
+        async_deactivate_mode=AsyncMock(),
+        async_set_zone_mode=AsyncMock(),
     )
 
 
@@ -239,6 +246,9 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             SERVICE_CANCEL,
             SERVICE_CLEAR_NOTIFICATIONS,
             SERVICE_SET_MANUAL_OVERRIDE,
+            SERVICE_ACTIVATE_MODE,
+            SERVICE_DEACTIVATE_MODE,
+            SERVICE_SET_ZONE_MODE,
         }
         self.assertEqual(set(hass.services.registrations), expected)
 
@@ -260,6 +270,63 @@ class ServiceTests(unittest.IsolatedAsyncioTestCase):
             {service for domain, service in hass.services.removed if domain == DOMAIN},
             expected,
         )
+
+    async def test_mode_actions_delegate_by_stable_identifiers(self) -> None:
+        coordinator = _coordinator()
+        hass = _Hass(coordinator)
+        async_setup_services(hass)
+
+        self.assertEqual(
+            await _call(hass, SERVICE_ACTIVATE_MODE, {"mode_id": "blue"}),
+            {"mode_id": "blue", "active": True},
+        )
+        self.assertEqual(
+            await _call(hass, SERVICE_DEACTIVATE_MODE, {"mode_id": "blue"}),
+            {"mode_id": "blue", "active": False},
+        )
+        self.assertEqual(
+            await _call(
+                hass,
+                SERVICE_SET_ZONE_MODE,
+                {"zone_id": "living", "mode_id": "red"},
+            ),
+            {"zone_id": "living", "mode_id": "red"},
+        )
+        self.assertEqual(
+            await _call(hass, SERVICE_SET_ZONE_MODE, {"zone_id": "living"}),
+            {"zone_id": "living", "mode_id": None},
+        )
+
+        coordinator.async_activate_mode.assert_awaited_once_with("blue")
+        coordinator.async_deactivate_mode.assert_awaited_once_with("blue")
+        self.assertEqual(
+            coordinator.async_set_zone_mode.await_args_list[0].args,
+            ("living", "red"),
+        )
+        self.assertEqual(
+            coordinator.async_set_zone_mode.await_args_list[1].args,
+            ("living", None),
+        )
+
+    async def test_protected_mode_namespace_returns_service_validation_error(
+        self,
+    ) -> None:
+        coordinator = _coordinator()
+        coordinator.async_submit.side_effect = ModeValidationError(
+            "managed_mode_request"
+        )
+        hass = _Hass(coordinator)
+        async_setup_services(hass)
+
+        with self.assertRaises(ServiceValidationError):
+            await _call(
+                hass,
+                SERVICE_ACTIVATE,
+                {
+                    "request_id": "smart_led_manager:mode:blue",
+                    "targets": ["light.strip"],
+                },
+            )
 
     async def test_reports_action_use_before_configuration(self) -> None:
         hass = _Hass()

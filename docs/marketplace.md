@@ -30,7 +30,7 @@ Fuentes oficiales:
 
 ## Decisiones para Smart LED Manager
 
-| Tema | Decisión para `v0.1.0-alpha.1` |
+| Tema | Decisión para `v0.1.0-alpha.2` |
 |---|---|
 | Tipo de repositorio | Un repositorio público para una integración personalizada. |
 | Dominio | `smart_led_manager`; no debe cambiar después de publicar. |
@@ -41,7 +41,7 @@ Fuentes oficiales:
 | Canal principal | Marketplace integrado de Home Assistant 2026.11 o posterior. |
 | Versión mínima provisional | Home Assistant `2026.11.0`, por ser la primera versión que incluye Marketplace. Debe validarse en CI antes de publicarla en `hacs.json`. |
 | Versión de prueba actual | Home Assistant y `pytest-homeassistant` `2026.11.2`, último parche disponible al redactar este documento. |
-| Versión del proyecto | `0.1.0-alpha.1` en manifest y release; `0.1.0a1` es su representación PEP 440 en `pyproject.toml`. |
+| Versión del proyecto | `0.1.0-alpha.2` en manifest y release; `0.1.0a2` es su representación PEP 440 en `pyproject.toml`. |
 | Idiomas iniciales | Inglés completo como fallback obligatorio y español completo. |
 | Dependencias externas | Ninguna para el funcionamiento inicial; se utilizan únicamente API incluidas en Home Assistant. |
 
@@ -105,7 +105,7 @@ Smart LED Manager se conservan además:
 El manifest actual ya declara `helpers` como categoría primaria y
 `lighting.led_strips_controllers` como secundaria. También identifica al
 mantenedor verificado `@Platibolo` en `codeowners` y conserva
-`0.1.0-alpha.1` como versión del candidato. Antes de publicar sólo queda
+`0.1.0-alpha.2` como versión del candidato. Antes de publicar sólo queda
 confirmar esas decisiones mediante hassfest/HACS Action y mantener la versión
 sincronizada con el commit que eventualmente se etiquete.
 
@@ -146,14 +146,14 @@ Una etiqueta de Git no basta: Marketplace y el catálogo requieren una release
 de GitHub publicada. Para una integración, la versión del `manifest.json` debe
 corresponder a la versión de la release.
 
-Flujo de `v0.1.0-alpha.1`:
+Flujo de `v0.1.0-alpha.2`:
 
 1. Completar código, documentación y pruebas en una rama de desarrollo.
 2. Ejecutar pytest, Ruff, hassfest y HACS Action sin exclusiones.
 3. Revisar el diff y fusionar sólo con autorización del propietario.
 4. Etiquetar el commit aprobado usando una convención única. Para coincidir de
-   forma literal con el manifest, se recomienda `0.1.0-alpha.1`; si se conserva
-   `v0.1.0-alpha.1`, debe comprobarse previamente la normalización con HACS
+   forma literal con el manifest, se recomienda `0.1.0-alpha.2`; si se conserva
+   `v0.1.0-alpha.2`, debe comprobarse previamente la normalización con HACS
    Action y Marketplace.
 5. Crear una **pre-release** de GitHub con notas completas. No publicar sólo la
    etiqueta.

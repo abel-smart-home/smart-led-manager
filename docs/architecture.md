@@ -9,14 +9,19 @@ La primera versión se diseña para RGB, RGBW, RGB+CCT y RGBWW sin lógica exclu
 ## Capas
 
 1. **Modelo y motor puro** (`models.py`, `core/priority.py`, `core/engine.py`). Conservan solicitudes activas, validan tiempos/prioridades y resuelven un ganador independiente por destino bajo un bloqueo asíncrono.
-2. **Reglas** (`modules/`). Traducen cambios de estado y valores numéricos de Home Assistant a solicitudes estables. Una regla oculta por otra prioridad continúa actualizándose.
+2. **Módulos** (`modules/`). Las reglas traducen estados y valores numéricos a
+   solicitudes estables. `ModeManager` valida zonas/modos y representa la
+   selección de cada zona con una solicitud persistente protegida.
 3. **Orquestación** (`coordinator.py`). Posee suscripciones, historial acotado, persistencia, vencimientos, disponibilidad y ciclo de vida de la entrada.
 4. **Planificación** (`core/scheduler.py`). Cancela el trabajo del ganador anterior y ejecuta expiraciones/animaciones con tareas asíncronas por destino.
 5. **Proyección física** (`controllers/rgb.py`). Consulta el estado y capacidades reales, convierte la intención a `light.turn_on`/`light.turn_off`, deduplica y limita órdenes.
-6. **Superficie Home Assistant** (`config_flow.py`, `services.py`, `sensor.py`, `diagnostics.py`). Ofrece configuración nativa, acciones con selectores, diagnóstico y una entidad de estado del motor.
+6. **Superficie Home Assistant** (`config_flow.py`, `services.py`, `select.py`,
+   `switch.py`, `sensor.py`, `diagnostics.py`). Ofrece configuración nativa,
+   acciones con selectores, un selector por zona, interruptores de modo
+   opcionales, diagnóstico y una entidad de estado del motor.
 
 ```text
-reglas / acciones / control manual
+reglas / modos / acciones / control manual
                 │
                 ▼
        solicitudes de intención
@@ -47,6 +52,12 @@ El estilo es una intención portable: encendido/apagado, RGB opcional, brillo, t
 - Todas las mutaciones del motor están protegidas por un único `asyncio.Lock`. Las llamadas físicas ocurren después de liberar ese bloqueo.
 - La política temporal de `alpha.1` es **vencimiento en tiempo real**: una solicitud interrumpida sigue consumiendo su TTL. La reanudación con tiempo restante se mantiene como política futura explícita.
 
+El cambio de modo usa `async_replace_matching`: retira la solicitud anterior de
+la zona e inserta la nueva bajo el mismo bloqueo del motor. Los cambios físicos
+comparan el ganador anterior con el resultado final, por lo que una regla o
+escena de menor prioridad no aparece entre ambos modos. La reactivación del
+mismo modo se detecta antes de mutar el motor.
+
 ## Capacidades y comandos
 
 El controlador lee `supported_color_modes`, `supported_features`, disponibilidad y efectos de la entidad. Envía solo atributos representables. RGB se proyecta sobre modos RGB/RGBW/RGBWW compatibles; si una luz no puede representar color, el error queda diagnosticado sin un bucle de reintentos.
@@ -57,7 +68,17 @@ Si un envío falla aunque Home Assistant todavía publique `on` u `off`, el cont
 
 ## Persistencia y recuperación
 
-La configuración y las reglas viven en la entrada de configuración. Las solicitudes marcadas persistentes se guardan mediante `Store` con versión de esquema. En el arranque se descartan entradas inválidas o vencidas, se vuelven a evaluar las fuentes y se calcula el ganador actual. Nunca se recrean temporizadores duplicados.
+La configuración, las zonas, los modos y las reglas viven en la entrada de
+configuración. La selección activa no se duplica en opciones: se guarda como
+la solicitud persistente de modo mediante el mismo `Store` versionado. En el
+arranque, `ModeManager` elimina modos huérfanos o duplicados y reconstruye el
+comando desde la definición vigente, conservando la antigüedad válida para el
+desempate. Después se vuelven a evaluar fuentes y ganador actual. Nunca se
+restaura una definición borrada ni se recrean temporizadores duplicados.
+
+Alpha.2 añade claves opcionales `zones` y `modes` con listas vacías por defecto;
+no modifica la versión del config entry ni el esquema serializado de
+`Request`, de modo que una entrada alpha.1 se carga sin migración destructiva.
 
 Al descargar la integración se eliminan listeners, se cancelan vencimientos/animaciones/tareas de controlador y se vacía el registro de runtime. La política de descarga no fuerza restauraciones físicas ciegas.
 

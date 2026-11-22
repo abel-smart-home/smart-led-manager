@@ -22,6 +22,35 @@ La pre-release solo puede considerarse lista cuando:
 12. Hassfest y HACS/Marketplace Action pasan en GitHub antes de publicar una pre-release.
 13. La documentación distingue de forma explícita pruebas automatizadas de pruebas físicas HAOS/Zigbee/Alexa.
 
+## Criterios verificables de `0.1.0-alpha.2`
+
+1. Una zona contiene al menos una luz autorizada y ninguna luz física puede
+   pertenecer a dos zonas.
+2. Un modo tiene identificador inmutable, pertenece a una zona y sólo usa un
+   subconjunto no vacío de sus luces.
+3. Sólo hay una selección de modo por zona; cambiarla reemplaza la solicitud
+   anterior bajo un único bloqueo y nunca expone un ganador intermedio.
+4. Reactivar el mismo modo conserva antigüedad, tarea de animación, comando
+   físico y Store sin escrituras redundantes.
+5. **Sin modo** elimina únicamente la solicitud interna y permite que el motor
+   muestre la intención vigente de otro módulo.
+6. Las definiciones viven en opciones y la selección en el Store existente. Al
+   iniciar se eliminan huérfanos/duplicados y el comando se reconstruye desde
+   la definición actual.
+7. Un selector estable se crea por zona y sólo los modos autorizados por el
+   propietario crean un interruptor estable.
+8. `activate_mode`, `deactivate_mode` y `set_zone_mode` pasan por el coordinador
+   y no permiten apropiarse de solicitudes internas mediante acciones
+   genéricas.
+9. Las notificaciones y reglas de prioridad superior enmascaran el modo; al
+   terminar recuperan sólo el modo vigente, nunca uno reemplazado o borrado.
+10. Alpha.1 se carga con listas vacías sin migración destructiva; descarga,
+    recarga y reinicio no dejan listeners, animaciones ni órdenes tardías.
+11. Ruff, pytest con cobertura de ramas, Hassfest y HACS/Marketplace deben
+    aprobar antes de considerar el commit candidato para prueba física.
+12. La exposición opcional de interruptores no equivale a validación de Alexa o
+    Matter Hub; esa evidencia sólo puede registrarla el propietario en HAOS.
+
 ## Requisitos no funcionales
 
 - Operación completamente local y asíncrona.
