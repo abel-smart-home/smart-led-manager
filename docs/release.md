@@ -25,8 +25,10 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] `pytest --cov` pasa localmente: 121 pruebas y 27 subpruebas, cobertura de
       ramas `85.13 %`; 5 pruebas HA se omiten en Windows y se reservan a CI
       Linux.
-- [ ] La matriz prueba Home Assistant `2026.11.0` y `2026.11.2`.
-- [ ] hassfest y HACS Action pasan sin `ignore` ni supresiones engañosas.
+- [x] La matriz de CI prueba Home Assistant `2026.11.0` y `2026.11.2`: 126
+      pruebas aprobadas en Linux y cobertura total `86.96 %` en ambas.
+- [x] Hassfest y HACS/Marketplace Action pasan sin `ignore` ni supresiones
+      engañosas en el PR #2.
 - [x] Manifest, `hacs.json`, Python, changelog y notas coinciden para alpha.2.
 - [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
       excepciones.

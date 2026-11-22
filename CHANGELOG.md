@@ -43,6 +43,9 @@ pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
 - La validación local aprobó 121 pruebas y 27 subpruebas, con 5 pruebas de
   runtime Home Assistant omitidas en Windows porque requieren Linux. La
   cobertura total de ramas fue `85.13 %`; Ruff y formato aprobaron.
+- La matriz de CI aprobó 126 pruebas en Linux, sin omisiones, tanto con Home
+  Assistant `2026.11.0` como con `2026.11.2`; la cobertura total fue
+  `86.96 %`. Hassfest y HACS/Marketplace también aprobaron en el PR #2.
 - La validación física de alpha.2, incluida la exposición opcional mediante
   Alexa/Matter Hub, permanece pendiente y no se deduce de las pruebas de
   alpha.1.
