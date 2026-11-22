@@ -22,10 +22,10 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] El diff local contiene sólo el incremento alpha.2 y preserva la base
       remota verificada de alpha.1.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
-- [x] `pytest --cov` pasa localmente: 121 pruebas y 27 subpruebas, cobertura de
-      ramas `85.13 %`; 5 pruebas HA se omiten en Windows y se reservan a CI
+- [x] `pytest --cov` pasa localmente: 123 pruebas y 27 subpruebas, cobertura de
+      ramas `85.14 %`; 7 pruebas HA se omiten en Windows y se reservan a CI
       Linux.
-- [x] La matriz de CI prueba Home Assistant `2026.11.0` y `2026.11.2`: 126
+- [x] La matriz de CI prueba Home Assistant `2026.11.0` y `2026.11.2`: 130
       pruebas aprobadas en Linux y cobertura total `86.96 %` en ambas.
 - [x] Hassfest y HACS/Marketplace Action pasan sin `ignore` ni supresiones
       engañosas en el PR #2.
@@ -37,6 +37,8 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
       registradas; eliminar la entrada y verificar su limpieza sigue pendiente.
 - [ ] El propietario ejecuta y registra `docs/haos-test-plan.md`. La ejecución
       es parcial: conserva casos pendientes en el propio plan.
+- [ ] El propietario confirma en HAOS que la entrada reclasificada aparece en
+      **Integraciones** y que `es`/`es-419` se muestran en español.
 - [ ] Se revisan licencia, `THIRD_PARTY_NOTICES.md`, seguridad y privacidad.
 - [ ] El propietario aprueba explícitamente la fusión y publicación.
 
