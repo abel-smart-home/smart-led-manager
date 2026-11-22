@@ -18,6 +18,7 @@ from homeassistant.const import (
     STATE_OFF,
 )
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.smart_led_manager.const import (
@@ -72,6 +73,22 @@ async def test_config_flow_creates_allowlisted_entry(hass) -> None:
     assert result["options"][CONF_TIE_BREAKER] == "newest"
     assert result["options"][CONF_MANUAL_POLICY] == "service_only"
     assert result["options"][CONF_MIN_COMMAND_INTERVAL] > 0
+
+
+@pytest.mark.parametrize("language", ["es", "es-419"])
+async def test_spanish_options_flow_translations_load(hass, language: str) -> None:
+    """Home Assistant loads both supported Spanish catalogs without fallback."""
+    translations = await async_get_translations(
+        hass,
+        language,
+        "options",
+        {DOMAIN},
+    )
+
+    prefix = f"component.{DOMAIN}.options.step.init"
+    assert translations[f"{prefix}.title"] == "Administrar Smart LED Manager"
+    assert translations[f"{prefix}.menu_options.lights"] == "Luces administradas"
+    assert translations[f"{prefix}.menu_options.modes"] == "Modos de iluminación"
 
 
 async def test_setup_action_and_unload_lifecycle(hass) -> None:

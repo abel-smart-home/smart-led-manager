@@ -51,10 +51,25 @@ secundario si la release declara y prueba esa compatibilidad.
 
 ## Actualización manual
 
-Haz una copia de seguridad, detén Home Assistant, reemplaza únicamente la
-carpeta de esta integración por la versión completa nueva y vuelve a iniciar.
-No mezcles archivos de versiones. Revisa `CHANGELOG.md` y las instrucciones de
-migración de la versión destino antes de actualizar.
+Para actualizar esta corrección desde un alpha.2 anterior sin perder la entrada:
+
+1. Crea una copia de seguridad de Home Assistant y conserva una copia de la
+   carpeta instalada.
+2. **No elimines la entrada** de Smart LED Manager ni sus entidades.
+3. Detén Home Assistant Core y reemplaza únicamente
+   `custom_components/smart_led_manager/` por la carpeta completa del commit
+   candidato; no mezcles archivos de distintos commits.
+4. Inicia Core de nuevo. El mismo dominio y ConfigEntry conservan el `entry_id`,
+   luces autorizadas, opciones, reglas, zonas, modos y solicitudes del Store.
+5. Verifica que la entrada existente aparezca en **Ajustes > Dispositivos y
+   servicios > Integraciones** y no en **Ayudantes**. Esta comprobación visual
+   continúa pendiente de ejecución física en HAOS.
+6. Abre **Configurar** con el perfil en Español o Español (Latinoamérica). Si el
+   navegador conservaba recursos anteriores, recarga la página sin caché o
+   cierra y vuelve a abrir la aplicación.
+
+El cambio de `integration_type` es metadato del manifest: no requiere una
+migración del ConfigEntry ni del almacenamiento persistente.
 
 ## Desinstalación
 

@@ -35,6 +35,10 @@ Smart LED Manager no controla hardware directamente: actúa sobre integraciones
 de luz ya configuradas, como ZHA, Matter, ESPHome o WLED. Tampoco es un sistema
 certificado de alarma, incendio o emergencia.
 
+Home Assistant la clasifica como integración de tipo `service`: una entrada
+representa el servicio local de administración de iluminación. No es un
+Ayudante individual, aunque proporcione entidades auxiliares para controlarlo.
+
 ## Compatibilidad objetivo
 
 | Componente | Versión de esta alfa |

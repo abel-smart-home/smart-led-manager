@@ -24,6 +24,11 @@ pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
 
 ### Seguridad y compatibilidad
 
+- La entrada se clasifica como integración de tipo `service`, no como
+  `helper`, para que Home Assistant la muestre en **Integraciones**. Este cambio
+  sólo afecta a metadatos del manifest y no recrea ni migra la entrada.
+- Se añade el catálogo completo `es-419` para que Español (Latinoamérica) no
+  caiga al fallback inglés del Options Flow; `es` continúa disponible.
 - Las solicitudes internas de modo usan identificadores protegidos y no pueden
   modificarse con las acciones genéricas.
 - Cambiar de modo no muestra estados intermedios de menor prioridad; reactivar

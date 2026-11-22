@@ -95,15 +95,18 @@ dominio válido y coincidente con la carpeta, nombre, documentación HTTPS,
 Smart LED Manager se conservan además:
 
 - `config_flow: true`;
-- `integration_type: helper`;
+- `integration_type: service`, porque una entrada representa el servicio local
+  de administración de iluminación y no una entidad auxiliar individual;
 - `iot_class: calculated`;
 - `single_config_entry: true`;
 - `requirements: []` mientras no exista una dependencia externa;
 - `after_dependencies: ["light"]` únicamente si el código necesita cargarse
   después de la plataforma `light` cuando esta ya está presente.
 
-El manifest actual ya declara `helpers` como categoría primaria y
-`lighting.led_strips_controllers` como secundaria. También identifica al
+El manifest actual conserva `helpers` como categoría de catálogo y
+`lighting.led_strips_controllers` como categoría secundaria; estas categorías
+no determinan si la entrada aparece en **Integraciones** o **Ayudantes**. Esa
+clasificación de ejecución depende de `integration_type`. También identifica al
 mantenedor verificado `@Platibolo` en `codeowners` y conserva
 `0.1.0-alpha.2` como versión del candidato. Antes de publicar sólo queda
 confirmar esas decisiones mediante hassfest/HACS Action y mantener la versión
@@ -261,9 +264,10 @@ integraciones personalizadas. Smart LED Manager no debe depender de
 `strings.json` ni de Lokalise. Debe distribuir directamente:
 
 - `translations/en.json`, completo y obligatorio como fallback;
-- `translations/es.json`, completo para español.
+- `translations/es.json`, completo para Español;
+- `translations/es-419.json`, completo para Español (Latinoamérica).
 
-Ambos archivos deben contener los textos de config flow, options flow,
+Los tres archivos deben contener los textos de config flow, options flow,
 subentries, entidades, errores y acciones que correspondan. Las referencias
 `[%key:...%]` no se resuelven en las traducciones de una integración
 personalizada y no deben utilizarse. Hassfest valida `translations/en.json`.

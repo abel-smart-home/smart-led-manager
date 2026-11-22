@@ -8,6 +8,23 @@ carpeta adicional creada al descomprimir y que Home Assistant se haya
 reiniciado. Revisa **Ajustes > Sistema > Registros** por errores de manifest o
 versión mínima.
 
+## La entrada aparece en Ayudantes
+
+Las compilaciones anteriores del candidato alpha.2 usaban por error
+`integration_type: helper`. Instala el commit corregido completo y reinicia
+Home Assistant Core; no elimines ni vuelvas a crear la entrada. El manifest
+actual usa `service`, por lo que la entrada existente debe clasificarse en
+**Integraciones**. Registra el resultado real antes de dar la comprobación
+visual por aprobada.
+
+## El Options Flow aparece en inglés
+
+Comprueba el idioma del perfil de usuario, no sólo el idioma general de Home
+Assistant. La interfaz distingue los códigos `es` y `es-419`; la integración
+distribuye `translations/es.json` y `translations/es-419.json` porque el
+cargador no sustituye automáticamente una variante regional por `es`. Después
+de copiar la carpeta completa, reinicia Core y recarga el frontend sin caché.
+
 ## Una acción rechaza los destinos
 
 Sólo pueden usarse entidades elegidas en **Smart LED Manager > Configurar >

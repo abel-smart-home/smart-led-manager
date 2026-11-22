@@ -166,6 +166,26 @@ Procedimiento pendiente para el propietario:
 No marques Alexa/Matter como validado sólo porque Matter Hub esté instalado o
 la luz subyacente responda. La validación formal continúa pendiente.
 
+## Verificación visual de clasificación y traducciones
+
+Esta comprobación está **pendiente de confirmación por el propietario en HAOS
+2026.11.2**. Las pruebas automatizadas sólo verifican manifest y catálogos; no
+sustituyen la interfaz real.
+
+1. Actualiza la carpeta de la integración sin eliminar la entrada existente y
+   reinicia Home Assistant Core.
+2. Confirma que Smart LED Manager aparece en **Ajustes > Dispositivos y
+   servicios > Integraciones**, no solamente en **Ayudantes**.
+3. Comprueba que el `entry_id`, las luces autorizadas, reglas, zonas, modos,
+   selectores, interruptores y solicitudes persistentes siguen presentes.
+4. Con el perfil en Español (Latinoamérica), abre **Configurar** y verifica al
+   menos **Administrar Smart LED Manager**, **Luces administradas** y **Modos de
+   iluminación**.
+5. Repite con Español si está disponible y registra fecha, SHA, capturas y
+   cualquier texto que aún caiga al inglés.
+
+Resultado visual: **Pendiente**.
+
 ## Cierre
 
 Adjunta este archivo actualizado o un informe equivalente al PR candidato,
