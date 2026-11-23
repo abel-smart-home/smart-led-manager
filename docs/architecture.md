@@ -18,7 +18,8 @@ La primera versión se diseña para RGB, RGBW, RGB+CCT y RGBWW sin lógica exclu
 4. **Planificación** (`core/scheduler.py`). Cancela el trabajo del ganador anterior y ejecuta expiraciones/animaciones con tareas asíncronas por destino.
 5. **Proyección física** (`controllers/rgb.py`). Consulta el estado y capacidades reales, convierte la intención a `light.turn_on`/`light.turn_off`, deduplica y limita órdenes.
 6. **Superficie Home Assistant** (`config_flow.py`, `services.py`, `select.py`,
-   `switch.py`, `sensor.py`, `registry.py`, `diagnostics.py`). Ofrece configuración nativa,
+   `switch.py`, `sensor.py`, `registry.py`, `diagnostics.py`, `visual_editor.py`
+   y `frontend/`). Ofrece configuración nativa,
    acciones con selectores, un selector por zona, interruptores de modo
    opcionales, dispositivos virtuales estables por zona, diagnóstico y una
    entidad de estado del motor.
@@ -92,6 +93,36 @@ ordinaria descarta el motor en memoria anterior; el catálogo nuevo reevalúa la
 fuentes actuales. Las tareas de la instancia anterior se cancelan y esperan
 antes de crear listeners nuevos, por lo que no pueden reinsertar una solicitud
 obsoleta.
+
+## Editor gráfico avanzado de reglas
+
+El Bloque B.1 añade una superficie de configuración; no añade otro motor de
+reglas. Home Assistant sirve los módulos ES incluidos en `frontend/` mediante
+`StaticPathConfig` y registra un panel personalizado local con
+`panel_custom.async_register_panel`. El panel lateral exige administrador y
+también cada comando WebSocket aplica `require_admin`, por lo que ocultar la
+interfaz no constituye la barrera de seguridad.
+
+El frontend mantiene un borrador de `mode` y `points`. Agregar, modificar,
+eliminar, simular, restaurar o descartar no toca ConfigEntry, Store, motor ni
+servicios `light.*`. La simulación envía el borrador al backend, que llama a
+`core/color.py`; el navegador sólo calcula geometría de presentación. Así no
+existe una segunda implementación de interpolación o rangos.
+
+Al guardar, `visual_editor.py` vuelve a comprobar la entrada, el tipo y `id` de
+la regla, sus destinos contra las luces autorizadas, el modo, valores finitos,
+unicidad y RGB. Relee las opciones bajo un bloqueo, compara una revisión
+SHA-256 de las opciones completas y rechaza una sesión obsoleta con
+`conflict`. Sólo sustituye `mode` y `points` de la regla vigente, preserva el
+resto de opciones y usa `async_update_entry`; el listener normal ejecuta la
+recarga ya probada por el Bloque B.
+
+Al descargar se retira el panel visible y se cancelan las tareas normales del
+coordinador. Los manejadores WebSocket y la ruta estática, registrados una sola
+vez a nivel de integración, no crean tareas ni conservan catálogos; Home
+Assistant no ofrece una API pública para desregistrarlos durante la misma
+ejecución. Sin la ConfigEntry cargada responden `entry_not_found`. Un reinicio
+de Core elimina esos registros junto con el runtime completo.
 
 El Device Registry contiene un dispositivo central identificado por
 `(smart_led_manager, entry_id)` y un dispositivo por zona identificado por

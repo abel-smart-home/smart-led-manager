@@ -45,14 +45,14 @@ secundario si la release declara y prueba esa compatibilidad.
    ```
 
 3. Verifica que `manifest.json`, `services.yaml`, `translations/`, `core/`,
-   `controllers/` y `modules/` estén presentes.
+   `controllers/`, `modules/` y `frontend/` estén presentes.
 4. Reinicia Home Assistant y revisa los registros.
 5. Añade la integración desde la interfaz. No se requiere YAML.
 
 ## Actualización manual
 
-Para actualizar desde alpha.2 o desde el Bloque A de alpha.3 al Bloque B sin
-perder la entrada:
+Para actualizar desde alpha.2 o desde los Bloques A/B de alpha.3 al Bloque B.1
+sin perder la entrada:
 
 1. Crea una copia de seguridad de Home Assistant y conserva una copia de la
    carpeta instalada.
@@ -77,6 +77,29 @@ perder la entrada:
 9. Asigna un área opcional desde la edición de la zona. No edites archivos de
    `.storage` ni cambies el área de las luces físicas para completar esta
    prueba.
+10. Con una cuenta administradora abre **Smart LED Manager** en la barra lateral
+    o entra en `/smart-led-manager-editor`. Si el panel no aparece, comprueba
+    que copiaste `frontend/`, reinicia Core y recarga el navegador sin caché.
+11. Simula un valor antes de guardar: la luz no debe cambiar. Guarda después una
+    edición controlada, espera la recarga normal y confirma que la regla
+    conserva su identificador y metadatos.
+
+## Acceso al editor gráfico B.1
+
+El panel se registra automáticamente cuando carga la única ConfigEntry y se
+muestra sólo a administradores. No requiere añadir un recurso Lovelace ni
+configuración YAML. Hay dos referencias de acceso:
+
+1. **Barra lateral > Smart LED Manager**.
+2. **Ajustes > Dispositivos y servicios > Smart LED Manager > Configurar >
+   Reglas inteligentes > Abrir editor gráfico avanzado**, donde se documenta
+   la ruta `/smart-led-manager-editor`.
+
+La segunda pantalla no abre el panel automáticamente: Home Assistant 2026.11 no
+ofrece una API pública estable para navegar desde un Options Flow. Copia la
+ruta o usa la barra lateral. El panel sólo edita puntos y modo de reglas
+numéricas existentes; para crear una regla o cambiar origen, prioridad,
+destinos y otros metadatos usa el editor nativo.
 
 La interfaz `es-419` fue comprobada físicamente; el catálogo `es` tiene
 cobertura automatizada, pero no una ejecución física independiente registrada.
@@ -93,6 +116,12 @@ trataría como activas. Restaura la copia completa anterior a Bloque B. Si debes
 preparar una reversión manual, elimina primero las copias y reglas
 deshabilitadas desde la versión nueva y verifica prioridades y destinos antes
 de detener Core.
+
+El Bloque B.1 tampoco cambia ConfigEntry ni Store. Para revertir únicamente el
+panel, detén Core, restaura la carpeta completa del commit `f8b9fc9` y reinicia.
+Las reglas y los puntos guardados siguen siendo compatibles, pero el rollback
+de código no deshace ediciones: restaura la copia de seguridad si también
+quieres recuperar los valores anteriores.
 
 ## Desinstalación
 

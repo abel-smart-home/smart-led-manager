@@ -23,9 +23,15 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
       `a14d9afb465c698c0354d18892ecac3537d5f6b4`, no de `main`.
 - [x] El Bloque B parte del HEAD aprobado del Bloque A
       `fa9ecd650485e27ee1f1f22654972a1c47379c17` y conserva sus cambios.
+- [x] El Bloque B.1 parte exactamente del HEAD del Bloque B
+      `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe`; el commit funcional del panel
+      y su compatibilidad con runtime sin frontend quedan en
+      `6cabf0a0b82fb70acfddb0f528abd93557936860`; la cobertura frontend adicional
+      queda en `3cf0192ea89dc2aac5a00c403d557daf6fccd12c`.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
 - [x] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
-      pasan: 148 pruebas y cobertura de ramas `87.14 %` en ambas variantes.
+      pasan para B.1: 157 pruebas y cobertura de ramas `87.21 %` en ambas
+      variantes; el job frontend aprueba 6 pruebas Node.
 - [x] Hassfest y HACS/Marketplace Action pasan sin exclusiones engañosas.
 - [x] Manifest, Python, changelog y notas coinciden para alpha.3.
 - [x] Traducciones `en`, `es` y `es-419` cubren flujos, entidades, acciones y
@@ -37,8 +43,11 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] El propietario aprobó 8/8 pruebas del Bloque A en HAOS VirtualBox con
       `fa9ecd650485e27ee1f1f22654972a1c47379c17`, reportadas el 23 de noviembre
       de 2026. No se atribuyen logs o métricas no entregados.
-- [ ] El propietario repite el Bloque A en Raspberry Pi/ZHA/GLEDOPTO y ejecuta
-      el plan del Bloque B primero en VirtualBox y después en hardware físico.
+- [x] El propietario reportó B-01 a B-10, 10/10 en HAOS VirtualBox con
+      `f8b9fc9`, el 23 de noviembre de 2026; no se atribuyen evidencias no
+      entregadas.
+- [ ] El propietario ejecuta B1-01 a B1-10 en HAOS VirtualBox y repite los
+      Bloques A/B/B.1 en Raspberry Pi/ZHA/GLEDOPTO donde corresponda.
 - [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
       en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
       español. No se atribuye una prueba independiente al perfil `es`.
@@ -52,9 +61,10 @@ Una comprobación que no pueda ejecutarse se registra como pendiente con su
 motivo; no se sustituye por una afirmación de éxito.
 
 El pytest completo no se marca como aprobado en Windows: la dependencia
-`pytest-homeassistant` importa `fcntl`, disponible sólo en POSIX. Las tres
-pruebas síncronas del validador visual y Ruff sí se ejecutaron localmente; la
-evidencia completa corresponde a la matriz Linux indicada arriba.
+`pytest-homeassistant` importa `fcntl`, disponible sólo en POSIX. Ruff, la
+compilación sintáctica y las seis pruebas Node del modelo/panel sí se ejecutaron
+localmente; la evidencia Python completa corresponde a la matriz Linux indicada
+arriba.
 
 ## Base física heredada de alpha.1
 
@@ -122,9 +132,12 @@ Store/config entry requieren atención.
 5. Abre **Configurar > Reglas inteligentes**, edita una regla sin cambiar su
    identidad y revisa el editor visual de puntos. Las copias empiezan
    deshabilitadas; no las actives hasta comprobar destinos y prioridad.
-6. Asigna áreas desde **Configurar > Zonas** si lo deseas; no edites `.storage`
+6. Con una cuenta administradora abre **Smart LED Manager** en la barra lateral
+   o `/smart-led-manager-editor`. Simula antes de guardar y verifica que no se
+   envíen órdenes físicas durante el borrador.
+7. Asigna áreas desde **Configurar > Zonas** si lo deseas; no edites `.storage`
    ni registros internos.
-7. Ejecuta primero el plan VirtualBox y después el plan físico.
+8. Ejecuta primero B1-01 a B1-10 en VirtualBox y después el plan físico.
 
 Alpha.3 migra el ConfigEntry de `1.1` a `1.2`, pero no cambia el Store. Volver
 a alpha.2 requiere restaurar la copia de seguridad completa: una versión
@@ -136,6 +149,12 @@ copias o reglas que estaban deshabilitadas, porque el código anterior no conoce
 `enabled`. La reversión segura es restaurar la copia de seguridad completa. Si
 no existe, elimina antes todas las copias y reglas deshabilitadas desde Bloque B
 y documenta una revisión manual; no se recomienda sustituir sólo el código.
+
+Volver de B.1 al commit del Bloque B sí conserva el esquema y el formato de
+puntos: detén Core, restaura la carpeta completa de `f8b9fc9` y reinicia. El
+panel lateral desaparecerá y las reglas guardadas seguirán disponibles en el
+editor nativo. Restaura la copia de seguridad si el objetivo es deshacer
+también los cambios de puntos, porque sustituir código no revierte opciones.
 
 ## Camino a `0.1.0`
 

@@ -149,6 +149,40 @@ la solicitud desde la definición y el estado actuales. Una regla activa que
 cambia de destinos deja de participar en los anteriores; una deshabilitada o
 eliminada no reaparece al terminar una solicitud superior.
 
+### Editor gráfico avanzado B.1
+
+Una cuenta administradora puede abrir **Smart LED Manager** en la barra lateral
+o entrar directamente en `/smart-led-manager-editor`. Desde **Configurar >
+Reglas inteligentes > Abrir editor gráfico avanzado** se muestra esa ruta; el
+Options Flow no intenta forzar navegación con una API interna de Home
+Assistant. El editor nativo anterior continúa disponible para crear reglas y
+editar todos sus metadatos.
+
+El panel avanzado edita reglas numéricas existentes. Primero muestra nombre,
+origen y estado; al elegir una regla carga su unidad, prioridad, destinos,
+brillo e identificador como información de sólo lectura. En B.1 sólo cambia:
+
+- `interpolate` o `ranges`;
+- valor numérico y color de cada punto;
+- alta y eliminación de puntos.
+
+La barra y la gráfica colocan cada punto según su valor real, no a distancias
+uniformes. Los marcadores se seleccionan con ratón, tacto o teclado y siempre
+hay un campo numérico equivalente. Los colores también aparecen como RGB y
+hexadecimal para no depender sólo de la percepción cromática.
+
+El simulador acepta un valor hipotético y devuelve el color, RGB/hexadecimal y
+el punto o intervalo usado. El cálculo ocurre en el backend con el mismo código
+que evalúa la regla activa. Simular o editar un borrador nunca ordena encender o
+apagar una luz.
+
+**Restaurar borrador** vuelve a los datos cargados; **Descartar y volver** sale
+sin modificar opciones; **Guardar cambios** valida otra vez en Python y provoca
+la recarga normal de la entrada. Si el Options Flow u otra pestaña cambió la
+configuración después de cargarla, el panel rechaza el guardado como conflicto:
+elige **Recargar configuración**, revisa la versión nueva y repite la edición.
+No se combinan silenciosamente dos borradores.
+
 La recarga no es edición completamente en caliente. Conserva solicitudes
 persistentes válidas y selecciones de modo, pero una notificación temporal no
 persistente puede terminar. Destinos por área/etiqueta, condiciones compuestas,

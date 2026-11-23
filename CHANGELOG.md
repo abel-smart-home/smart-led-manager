@@ -31,6 +31,27 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Compatibilidad con reglas anteriores sin `enabled`, que continúan habilitadas
   por defecto y conservan identificadores y formato persistente de puntos.
 
+### Añadido — Bloque B.1
+
+- Panel personalizado local para Home Assistant 2026.11, visible sólo para
+  administradores en `/smart-led-manager-editor`, con componente web incluido
+  en la integración y sin CDN, nube, YAML ni compilación para el usuario.
+- Lista de reglas numéricas existentes con nombre, origen y estado; editor de
+  borrador para `mode` y puntos que conserva el `id` y todos los campos no
+  editados de la regla.
+- Selector de color, alta, edición, eliminación y ordenamiento visual de puntos;
+  barra y gráfica respetan sus posiciones numéricas reales, incluso con
+  negativos, decimales e intervalos no uniformes.
+- Simulador WebSocket que reutiliza el cálculo exacto de `core/color.py` para
+  interpolación, rangos y clamp de extremos, sin crear solicitudes ni llamar a
+  servicios de luces.
+- Lectura, simulación y guardado WebSocket restringidos a administradores. El
+  guardado vuelve a validar opciones, luces autorizadas, puntos y formato en
+  Python y usa una revisión SHA-256 de las opciones completas para rechazar
+  conflictos concurrentes.
+- El editor nativo del Bloque B permanece disponible. El Options Flow documenta
+  la ruta oficial del panel sin depender de APIs privadas de navegación.
+
 ### Compatibilidad y correcciones
 
 - Se conservan los `unique_id` de alpha.2; Home Assistant reasocia las mismas
@@ -69,12 +90,25 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - El Bloque B añade regresiones automatizadas de edición, identidad,
   duplicación deshabilitada, destinos, puntos visuales, reglas heredadas,
   intención enmascarada, tareas diferidas y reconstrucción tras recarga. Su
-  validación manual en HAOS todavía está pendiente.
-- En Linux, 148 pruebas aprobaron con cobertura de ramas `87.14 %` tanto en
+  validación manual B-01 a B-10 fue reportada por el propietario como 10/10 en
+  HAOS VirtualBox el 23 de noviembre de 2026 con `f8b9fc9`; no se atribuyen
+  capturas, logs o métricas adicionales. La repetición física en Raspberry
+  Pi/ZHA/GLEDOPTO continúa pendiente.
+- El Bloque B.1 cubre backend y modelo frontend: lectura, borradores, edición y
+  ordenamiento de puntos, simulación exacta, guardado conservador, rechazo de
+  datos inválidos y destinos no autorizados, conflictos concurrentes,
+  autorización administrativa y ciclo de vida del panel. B1-01 a B1-10
+  permanecen pendientes de ejecución real por el propietario en HAOS.
+- El commit del Bloque B cerró 148 pruebas con cobertura de ramas `87.14 %` en
   Home Assistant `2026.11.0` como en `2026.11.2`; Ruff, Hassfest y
   HACS/Marketplace también aprobaron. El pytest completo no se atribuye al
   entorno local Windows, donde `pytest-homeassistant` requiere el módulo POSIX
   `fcntl`; la matriz Linux conserva la evidencia ejecutable.
+- Para B.1, la matriz Linux aprobó 157 pruebas Python con cobertura de ramas
+  `87.21 %` en Home Assistant `2026.11.0` y `2026.11.2`; el job Node aprobó 6
+  pruebas del modelo/panel. Ruff, Hassfest y HACS/Marketplace aprobaron sin
+  exclusiones. La comprobación visual B1-01 a B1-10 permanece manual y
+  pendiente.
 
 ## [0.1.0-alpha.2] — Sin publicar
 

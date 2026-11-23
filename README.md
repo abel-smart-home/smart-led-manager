@@ -11,9 +11,11 @@ motor de prioridades determinista.
 > M completos, 3 parciales y M-06 pendiente con dos controladores Zigbee reales,
 > combinando evidencia física y de laboratorio HAOS con luces Demo. No equivale
 > a 16 pruebas completas sobre Zigbee ni autoriza la publicación. El propietario
-> aprobó 8/8 pruebas del Bloque A de alpha.3 en HAOS VirtualBox sobre
-> `fa9ecd650485e27ee1f1f22654972a1c47379c17`; la validación manual del Bloque B
-> y la repetición física en Raspberry Pi/ZHA/GLEDOPTO siguen pendientes.
+> aprobó 8/8 pruebas del Bloque A y reportó 10/10 del Bloque B en HAOS
+> VirtualBox. El Bloque B se ejecutó el 23 de noviembre de 2026 sobre
+> `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe`. La validación manual del nuevo
+> editor avanzado B.1 y la repetición física en Raspberry Pi/ZHA/GLEDOPTO
+> siguen pendientes.
 
 ## Qué hace esta alfa
 
@@ -28,6 +30,11 @@ motor de prioridades determinista.
   duplicar como copia inicialmente deshabilitada, activar/desactivar y eliminar.
   Los puntos numéricos se agregan, editan, ordenan y colorean con controles
   nativos, sin escribir cadenas RGB.
+- Incluye un editor gráfico avanzado local y exclusivo para administradores en
+  la barra lateral. Permite editar puntos con selector de color, ver su
+  distribución numérica real y simular exactamente interpolación o rangos sin
+  enviar órdenes físicas. El editor nativo del Options Flow continúa
+  disponible como alternativa.
 - Permite crear zonas no superpuestas y modos persistentes por zona. Cada zona
   expone un `select`; un modo puede exponer además un `switch` opcional para
   paneles o puentes, sin depender de Alexa o Matter.
@@ -74,6 +81,14 @@ Dispositivos y servicios > Añadir integración**. Selecciona sólo las luces qu
 quieras delegar al motor. Después abre **Configurar > Zonas** y **Configurar >
 Modos de iluminación** o **Configurar > Reglas inteligentes** para crear el
 catálogo; no hace falta YAML ni introducir puntos RGB como texto.
+
+Para editar gráficamente una regla numérica existente, abre **Smart LED
+Manager** en la barra lateral con una cuenta administradora, o visita
+`/smart-led-manager-editor`. **Configurar > Reglas inteligentes > Abrir editor
+gráfico avanzado** documenta la misma ruta; Home Assistant no ofrece una API
+pública para navegar directamente desde el Options Flow. El panel, sus módulos
+JavaScript y el backend WebSocket se sirven localmente: no usa CDN, nube ni un
+paso de compilación para el usuario.
 
 Cuando haya una release compatible, Marketplace de Home Assistant 2026.11+
 será el canal previsto. Consulta la [guía de instalación](docs/installation.md)
@@ -123,6 +138,7 @@ py -3.14 -m venv .venv
 .venv\Scripts\python -m pip install -r requirements_test.txt
 .venv\Scripts\ruff check .
 .venv\Scripts\pytest --cov
+node --test tests/frontend/*.test.mjs
 ```
 
 Además de Ruff y pytest con cobertura de ramas, CI ejecuta hassfest y HACS

@@ -105,6 +105,40 @@ La pre-release solo puede considerarse lista cuando:
     `2026.11.0`/`2026.11.2`, Hassfest, HACS/Marketplace, traducciones y JSON
     deben aprobar antes de la validación manual.
 
+## Criterios verificables de `0.1.0-alpha.3`, Bloque B.1
+
+1. El panel usa APIs oficiales de panel personalizado, HTTP estático y
+   WebSocket de Home Assistant 2026.11; opera localmente y no exige YAML, CDN,
+   nube, Node.js ni compilación al usuario.
+2. Panel, lectura, simulación y escritura exigen una sesión administradora. Un
+   cliente no autorizado no puede modificar opciones aunque conozca el comando.
+3. Se listan sólo reglas numéricas de la ConfigEntry existente y se muestran
+   nombre, origen, estado, unidad e información relevante sin recrearlas.
+4. El borrador permite alta, edición, eliminación y ordenamiento de puntos con
+   valor y selector de color. Barra y gráfica respetan la escala numérica real.
+5. El diseño mantiene campos numéricos accesibles, soporte de teclado/táctil,
+   datos RGB/hexadecimales y temas claro/oscuro; el color no es la única señal.
+6. La simulación reutiliza `core/color.py`, cubre interpolación, rangos y clamp
+   y nunca llama servicios de luces ni modifica solicitudes.
+7. Antes de guardar, Python valida entrada, regla, `id`, formato, modo, mínimo
+   de puntos, finitud, unicidad, RGB y que cada destino siga autorizado.
+8. Guardar conserva `id` y todos los campos no editados, usa
+   `async_update_entry` y la recarga normal; el formato persistente de puntos y
+   los esquemas no cambian.
+9. Una revisión de las opciones completas impide que una sesión antigua
+   sobrescriba cambios del Options Flow u otra pestaña y devuelve un conflicto
+   comprensible.
+10. Restaurar, descartar o regresar no cambia ConfigEntry, Store, motor ni
+    luces. La navegación interna y la recarga del navegador advierten sobre
+    borradores sin guardar cuando el mecanismo disponible lo permite.
+11. El editor nativo B continúa funcional. Descargar elimina el panel visible
+    y no deja tareas; los recursos de integración registrados una vez no
+    conservan estado de reglas.
+12. Pruebas Python y frontend cubren lectura, puntos, simulación, guardado,
+    preservación, seguridad, concurrencia, reglas heredadas y ciclo de vida; la
+    validación visual real se registra sólo cuando el propietario ejecuta
+    B1-01 a B1-10 en HAOS.
+
 ## Requisitos no funcionales
 
 - Operación completamente local y asíncrona.

@@ -63,8 +63,27 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
   intención tardía.
 - [x] Compatibilidad de reglas alpha.1/alpha.2 sin migración de esquema y
   rechazo completo de cualquier catálogo con destinos no autorizados.
-- [ ] Validación manual del Bloque B en HAOS VirtualBox y posterior repetición
-  separada con Raspberry Pi/ZHA/GLEDOPTO.
+- [x] Validación manual del Bloque B reportada por el propietario: B-01 a B-10,
+  10/10 en HAOS VirtualBox con `f8b9fc9`, el 23 de noviembre de 2026. No se
+  atribuyen logs ni métricas no entregados.
+- [ ] Repetición separada del Bloque B con Raspberry Pi/ZHA/GLEDOPTO.
+
+### Bloque B.1 — editor gráfico especializado
+
+- [x] Panel local de administrador mediante mecanismos oficiales de Home
+  Assistant 2026.11, WebSocket autenticado y recursos incluidos sin compilación
+  para el usuario.
+- [x] Borrador visual de puntos, posiciones numéricas no uniformes, modos por
+  interpolación/rangos y simulación exacta delegada a `core/color.py`.
+- [x] Guardado mínimo con validación Python, destinos autorizados, conservación
+  de `id`/campos y rechazo explícito de concurrencia obsoleta.
+- [x] Editor nativo del Bloque B conservado como alternativa.
+- [ ] B1-01 a B1-10 en HAOS VirtualBox y repetición física Zigbee separada.
+
+El Bloque B.1 adelanta únicamente esta superficie especializada por la
+limitación de usabilidad observada y aprobada por el propietario. No absorbe el
+dashboard operativo ni las capacidades de destinos y disparadores previstas en
+los Bloques C y D.
 
 ### Bloques C y D — alcance aprobado pendiente
 
@@ -105,4 +124,5 @@ Se publica únicamente tras cerrar los requisitos aprobados de la versión regul
 - Controladores WLED y ESPHome Addressable Light.
 - WS2812B, WS2815, SK6812 y otras tiras direccionables.
 - Segmentos, píxeles individuales y señales simultáneas por segmento.
-- Panel visual dedicado solo si los flujos y dashboards nativos dejan necesidades justificadas.
+- Dashboard operativo general sólo si las superficies nativas dejan necesidades
+  adicionales justificadas; el editor especializado B.1 no adelanta ese alcance.

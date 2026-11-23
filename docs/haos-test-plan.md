@@ -308,26 +308,30 @@ Alexa/Matter Hub, M-06 con dos controladores Zigbee reales y las demás pruebas
 físicas parciales heredadas de alpha.2. Alpha.3 no está completamente validada
 ni publicada.
 
-## Plan pendiente de `0.1.0-alpha.3`, Bloque B
+## `0.1.0-alpha.3`, Bloque B — resultado reportado
 
-Usa una copia de seguridad o una instancia aislada. Registra SHA completo,
-fecha y hora, versión de Home Assistant, entorno y resultado real. Los tests y
-la simulación automatizada no cuentan como ejecución HAOS.
+| Campo | Registro |
+|---|---|
+| Fecha del reporte | 23 de noviembre de 2026 |
+| Entorno | HAOS VirtualBox |
+| SHA funcional | `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe` |
+| Resultado | **B-01 a B-10, 10/10 aprobadas por reporte del propietario** |
+| Evidencia | Resultados comunicados por el propietario; no se recibieron ni se atribuyen capturas, logs o métricas adicionales. |
 
 ### HAOS VirtualBox — administrador y editor de reglas
 
 | Caso | Procedimiento | Resultado esperado | Estado |
 |---|---|---|---|
-| B-01 | Actualiza desde el Bloque A sin eliminar la entrada. Abre una regla de estado antigua. | Conserva `id`, valores, luces, zonas, modos, selectores, switches y solicitudes persistentes; la regla heredada aparece habilitada. | Pendiente |
-| B-02 | Edita nombre, origen, condición, prioridad, RGB y brillo de una regla de estado activa. | Tras guardar y recargar se aplica sólo la definición nueva; no aparece una intención anterior. | Pendiente |
-| B-03 | Edita origen, destino, prioridad, modo y límites de una regla numérica. | Conserva el mismo `id` y responde al origen nuevo, sin órdenes del origen anterior. | Pendiente |
-| B-04 | Agrega, edita y elimina puntos con el selector RGB; intenta duplicar un valor y dejar un solo punto. | Ordena automáticamente, muestra la unidad disponible y bloquea duplicados o menos de dos puntos. No exige cadenas RGB. | Pendiente |
-| B-05 | Abre el editor, cambia metadatos y puntos y elige **Descartar cambios**. | No cambia opciones ni envía órdenes físicas intermedias. | Pendiente |
-| B-06 | Duplica una regla, revisa su nombre e identificador y actívala después de ajustar prioridad/destino. | La original queda intacta; la copia usa `id` nuevo y comienza deshabilitada. | Pendiente |
-| B-07 | Mantén una regla inferior enmascarada por un modo superior; edita color, prioridad y destino, luego libera el modo. | No hay destello intermedio; aparece únicamente la intención editada vigente en el destino nuevo. | Pendiente |
-| B-08 | Cambia los destinos de Sala a Oficina; después deshabilita y elimina la regla activa. | Sala deja de recibir la regla, Oficina recibe la vigente y, al deshabilitar/eliminar, no hay recuperación tardía. | Pendiente |
-| B-09 | Reinicia Core con una regla habilitada, otra deshabilitada y un modo persistente. | Se reconstruyen sólo intenciones vigentes; no se duplican listeners, solicitudes, animaciones ni entidades. | Pendiente |
-| B-10 | Provoca una actualización numérica dentro del intervalo mínimo y guarda otra definición antes de la evaluación diferida. | La tarea del catálogo anterior termina durante la recarga y no reintroduce la solicitud obsoleta. | Pendiente |
+| B-01 | Actualiza desde el Bloque A sin eliminar la entrada. Abre una regla de estado antigua. | Conserva `id`, valores, luces, zonas, modos, selectores, switches y solicitudes persistentes; la regla heredada aparece habilitada. | Aprobada (reporte) |
+| B-02 | Edita nombre, origen, condición, prioridad, RGB y brillo de una regla de estado activa. | Tras guardar y recargar se aplica sólo la definición nueva; no aparece una intención anterior. | Aprobada (reporte) |
+| B-03 | Edita origen, destino, prioridad, modo y límites de una regla numérica. | Conserva el mismo `id` y responde al origen nuevo, sin órdenes del origen anterior. | Aprobada (reporte) |
+| B-04 | Agrega, edita y elimina puntos con el selector RGB; intenta duplicar un valor y dejar un solo punto. | Ordena automáticamente, muestra la unidad disponible y bloquea duplicados o menos de dos puntos. No exige cadenas RGB. | Aprobada (reporte) |
+| B-05 | Abre el editor, cambia metadatos y puntos y elige **Descartar cambios**. | No cambia opciones ni envía órdenes físicas intermedias. | Aprobada (reporte) |
+| B-06 | Duplica una regla, revisa su nombre e identificador y actívala después de ajustar prioridad/destino. | La original queda intacta; la copia usa `id` nuevo y comienza deshabilitada. | Aprobada (reporte) |
+| B-07 | Mantén una regla inferior enmascarada por un modo superior; edita color, prioridad y destino, luego libera el modo. | No hay destello intermedio; aparece únicamente la intención editada vigente en el destino nuevo. | Aprobada (reporte) |
+| B-08 | Cambia los destinos de Sala a Oficina; después deshabilita y elimina la regla activa. | Sala deja de recibir la regla, Oficina recibe la vigente y, al deshabilitar/eliminar, no hay recuperación tardía. | Aprobada (reporte) |
+| B-09 | Reinicia Core con una regla habilitada, otra deshabilitada y un modo persistente. | Se reconstruyen sólo intenciones vigentes; no se duplican listeners, solicitudes, animaciones ni entidades. | Aprobada (reporte) |
+| B-10 | Provoca una actualización numérica dentro del intervalo mínimo y guarda otra definición antes de la evaluación diferida. | La tarea del catálogo anterior termina durante la recarga y no reintroduce la solicitud obsoleta. | Aprobada (reporte) |
 
 Comprueba también que una notificación temporal activa puede terminar durante
 la recarga: es la política documentada, no una edición completamente en
@@ -350,5 +354,33 @@ vieja reaparece, registra el log y detén la prueba.
    sola compatibilidad de voz.
 
 No ejecutes eliminaciones sobre la instalación principal sin copia de
-seguridad. La validación de Bloque B permanece pendiente hasta que el
-propietario reporte estos resultados; no hereda el 8/8 del Bloque A.
+seguridad. Este 10/10 corresponde a HAOS VirtualBox y no sustituye la repetición
+física Zigbee pendiente.
+
+## Plan pendiente de `0.1.0-alpha.3`, Bloque B.1
+
+Usa una copia de seguridad o una instancia aislada. Registra SHA completo,
+fecha/hora, versión de Home Assistant, navegador, tamaño de pantalla y resultado
+real. Las pruebas automatizadas no cuentan como ejecución visual HAOS.
+
+### HAOS VirtualBox — panel gráfico avanzado
+
+| Caso | Procedimiento | Resultado esperado | Estado |
+|---|---|---|---|
+| B1-01 | Actualiza la carpeta completa sin eliminar la entrada, reinicia Core e inicia sesión como administrador. | Smart LED Manager aparece en la barra lateral; `/smart-led-manager-editor` abre el panel sin YAML, CDN ni error de carga. Un usuario no administrador no puede acceder. | Pendiente |
+| B1-02 | Abre una regla numérica creada en el Bloque B. | Aparecen el mismo nombre, `id`, origen, estado, unidad, modo y puntos; prioridad, destinos y brillo se muestran sin alterarse. | Pendiente |
+| B1-03 | Revisa una curva con intervalos desiguales, negativos y decimales en tema claro y oscuro, escritorio y móvil. | Barra, eje, marcas y etiquetas respetan posiciones reales; los datos siguen legibles y utilizables con teclado y tacto. | Pendiente |
+| B1-04 | Agrega un punto, cambia valor/color, selecciona desde barra y gráfica, elimina otro y prueba duplicado/NaN/menos de dos. | Ordena automáticamente; RGB/hex y muestra coinciden; validación impide guardar datos inválidos sin perder el borrador. | Pendiente |
+| B1-05 | Simula valores exactos, intermedios y fuera de extremos en `interpolate` y `ranges`. | Color, RGB/hex y punto/intervalo coinciden con la regla; no se envían órdenes `light.*` ni cambia la tira. | Pendiente |
+| B1-06 | Modifica puntos y usa **Restaurar borrador**; repite y usa **Descartar y volver**. | Restaurar recupera lo cargado; descartar deja opciones, Store, motor y estado físico sin cambios. | Pendiente |
+| B1-07 | Guarda una edición válida y vuelve a abrir tras la recarga. | Conserva `id` y todos los campos no editados; persiste sólo modo/puntos nuevos y la regla activa se reevalúa normalmente. | Pendiente |
+| B1-08 | Abre la misma regla en dos sesiones; guarda en la primera y luego intenta guardar el borrador antiguo. | La segunda recibe conflicto claro, no sobrescribe y puede recargar la configuración vigente. | Pendiente |
+| B1-09 | Reinicia Core, descarga/recarga y elimina la entrada en la instancia aislada. | El panel reaparece sólo con entrada cargada; no quedan tareas, animaciones ni panel visible tras descargar/eliminar, y una instalación nueva no muestra reglas antiguas. | Pendiente |
+| B1-10 | Edita la misma regla con el editor nativo y repite una prioridad/modo/notificación del Bloque B. | Ambos editores siguen disponibles, el formato heredado continúa compatible y no hay regresión de prioridades, modos, zonas o recuperación. | Pendiente |
+
+### Repetición física separada
+
+Después de B1-01 a B1-10 en VirtualBox, repite B1-05, B1-06, B1-07 y B1-10
+con Raspberry Pi 5/ZHA/GLEDOPTO. Distingue la ausencia de órdenes durante la
+simulación de la aplicación real posterior al guardado. No marques el panel
+validado físicamente ni B.1 aprobado hasta recibir el reporte del propietario.
