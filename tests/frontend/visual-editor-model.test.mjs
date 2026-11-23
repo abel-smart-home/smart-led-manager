@@ -29,6 +29,10 @@ test("point creation, edit, deletion and sorting are deterministic", () => {
   assert.deepEqual(edited[0].rgb, [1, 2, 3]);
   assert.deepEqual(removePoint(edited, 1).map((point) => point.value), [10, 24]);
   assert.deepEqual(sortPoints(points).map((point) => point.value), [20, 24, 36]);
+  assert.throws(
+    () => replacePoint(points, 0, { value: "", rgb: [1, 2, 3] }),
+    /invalid numeric value/,
+  );
 });
 
 test("validation rejects duplicate, non-finite and invalid RGB values", () => {

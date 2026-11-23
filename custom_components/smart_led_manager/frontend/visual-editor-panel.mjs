@@ -536,6 +536,11 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     );
     root.querySelectorAll("[data-point-value]").forEach((input) =>
       input.addEventListener("change", () => {
+        if (input.value.trim() === "" || !Number.isFinite(Number(input.value))) {
+          this._error = this._t.invalid_value;
+          this._render();
+          return;
+        }
         const index = Number(input.dataset.pointValue);
         this._draft.points = replacePoint(this._draft.points, index, {
           ...this._draft.points[index], value: input.value,

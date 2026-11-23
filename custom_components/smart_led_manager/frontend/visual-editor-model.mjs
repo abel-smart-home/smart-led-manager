@@ -21,9 +21,16 @@ export function sortPoints(points) {
 }
 
 export function replacePoint(points, index, replacement) {
+  const value =
+    typeof replacement.value === "string" && replacement.value.trim() === ""
+      ? Number.NaN
+      : Number(replacement.value);
+  if (!Number.isFinite(value)) {
+    throw new Error("invalid numeric value");
+  }
   const updated = deepClone(points);
   updated[index] = {
-    value: Number(replacement.value),
+    value,
     rgb: replacement.rgb.map(Number),
   };
   return sortPoints(updated);
