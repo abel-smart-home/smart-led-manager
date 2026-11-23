@@ -29,17 +29,35 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - [x] Compatibilidad de carga con entradas y Store de alpha.1 sin migración de
   esquema.
 - [x] Pruebas automatizadas de los casos M-01 a M-20 aplicables al software.
-- [ ] Validación física de modos en HAOS, incluidos reinicio, animaciones y
-  exposición opcional mediante Alexa/Matter Hub.
+- [ ] Validación física **parcial** con `8e21b28`: selección exclusiva,
+  prioridades, reinicio de Core, recuperación Zigbee, animaciones,
+  clasificación como Integración, `es-419` y exposición mediante
+  Alexa/Matter Hub fueron satisfactorias. Permanecen las variantes y casos
+  aislados detallados en `docs/haos-test-plan.md`, especialmente M-06, M-16,
+  M-19 y M-20.
 
 ## `0.1.0-alpha.3` — destinos y disparadores completos
 
 - Áreas, etiquetas, grupos compatibles y “todas las administradas”, con expansión acíclica y deduplicación.
-- Edición y duplicación de reglas; condiciones compuestas, horarios y duración mínima.
+- Edición y duplicación de reglas con identificadores estables, reconciliación
+  de solicitudes activas y ausencia de intenciones obsoletas; condiciones
+  compuestas, horarios y duración mínima.
 - Histéresis numérica, unidades y políticas por debajo/encima/rango.
 - Botones, `event`, `input_button` y device triggers con semántica real de evento.
 - Política de reintento y verificación física configurables.
 - Política temporal opcional de pausa/reanudación además del vencimiento en tiempo real.
+- Un dispositivo virtual por zona, bajo una sola integración, entrada y motor;
+  asociación opcional a áreas y migración que preserve `unique_id` y
+  automatizaciones. No convertir zonas en entradas independientes sin un
+  rediseño aprobado.
+- Editor visual de puntos numéricos con valor, unidad cuando esté disponible,
+  selector de color, alta/baja, ordenamiento, validación y vista previa si el
+  Options Flow nativo lo permite.
+- Ciclo de vida selectivo del Entity Registry al eliminar un modo, distinguiendo
+  la retirada de definición/plataforma de una eliminación persistente y sin
+  borrar entidades ajenas o todavía referenciadas.
+- Nombres y aliases naturales para voz, breves y opcionalmente cualificados por
+  zona, sin cambiar los `unique_id` existentes.
 
 ## `0.1.0-beta.1` — módulos funcionales
 

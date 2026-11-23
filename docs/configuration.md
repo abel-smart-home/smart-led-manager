@@ -44,8 +44,21 @@ recarga y no se reproduce después; la edición no se presenta como actualizaci�
 en caliente libre de interrupciones.
 
 Los interruptores son optativos y no integran directamente servicios de nube.
-Home Assistant puede exponerlos con sus mecanismos habituales, pero la
-interoperabilidad física con Alexa/Matter Hub debe validarse por separado.
+En la validación física de `8e21b28`, Home-Assistant-Matter-Hub `2.0.60` expuso
+los interruptores de Cine y Lectura a Alexa y sincronizó correctamente la
+selección. Smart LED Manager no se comunica directamente con Matter Hub ni con
+Alexa, y el estado del `switch` expresa intención lógica, no confirmación del
+color físico.
+
+Actualmente los selectores e interruptores se agrupan bajo un único dispositivo
+virtual Smart LED Manager. Alexa puede heredar nombres como **Smart LED Manager
+Cine**, que el propietario tuvo que acortar manualmente. Alpha.3 estudiará un
+dispositivo por zona y nombres o aliases naturales sin cambiar los `unique_id`.
+
+Al eliminar un modo se retiran su definición y solicitud. Home Assistant puede
+conservar su registro de entidad como “ya no proporcionada”; esto se observó en
+M-10 y la entidad se eliminó manualmente. Una futura limpieza debe ser selectiva
+y no borrar registros indiscriminadamente.
 
 ## Ajustes del motor
 
@@ -85,6 +98,13 @@ limitan al primer/último color. El modo `interpolate` mezcla linealmente los
 puntos contiguos; `ranges` usa el rango inferior más próximo. **Variación
 mínima** y **intervalo mínimo** evitan ruido y exceso de órdenes.
 
+El primer número es el valor de la entidad de origen y los tres siguientes son
+los canales rojo, verde y azul de `0..255`; `;` separa los puntos. Fuera de los
+extremos se usa el color del punto más cercano. Alpha.3 propone sustituir esta
+cadena técnica por un editor con valor, unidad visible cuando sea posible,
+selector de color, ordenamiento y validación, siempre que pueda implementarse
+de forma segura con el Options Flow nativo.
+
 `unknown`, `unavailable`, NaN e infinito nunca se convierten en cero ni en un
 color válido. Comprueba que la entidad de origen publique un valor numérico
 real.
@@ -115,4 +135,6 @@ La alfa permite crear, editar y eliminar zonas y modos; las reglas todavía se
 agregan y eliminan mediante options flow. La edición o duplicación directa de
 reglas, condiciones compuestas, áreas/etiquetas, horarios y disparadores de
 eventos pertenecen a incrementos posteriores. Elimina y vuelve a crear una
-regla para cambiarla en esta versión.
+regla para cambiarla en esta versión. Alpha.3 deberá conservar un identificador
+estable al editarla y reconciliar cualquier solicitud activa para no dejar una
+intención obsoleta.

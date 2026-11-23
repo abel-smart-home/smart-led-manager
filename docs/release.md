@@ -36,9 +36,14 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
       La instalación manual, recarga, reinicio de Core y recuperación están
       registradas; eliminar la entrada y verificar su limpieza sigue pendiente.
 - [ ] El propietario ejecuta y registra `docs/haos-test-plan.md`. La ejecución
-      es parcial: conserva casos pendientes en el propio plan.
-- [ ] El propietario confirma en HAOS que la entrada reclasificada aparece en
-      **Integraciones** y que `es`/`es-419` se muestran en español.
+      alpha.2 es parcial: 10 casos M completos, 9 parciales y M-06 pendiente;
+      conserva cada subcomprobación faltante en el propio plan.
+- [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
+      en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
+      español. No se atribuye una prueba independiente al perfil `es`.
+- [x] Los interruptores de Cine/Lectura funcionaron mediante Matter Hub `2.0.60`
+      y Alexa en el entorno registrado; esta evidencia no implica integración
+      directa ni compatibilidad general con otros puentes o asistentes.
 - [ ] Se revisan licencia, `THIRD_PARTY_NOTICES.md`, seguridad y privacidad.
 - [ ] El propietario aprueba explícitamente la fusión y publicación.
 
@@ -58,6 +63,13 @@ zonas, modos, selectores ni interruptores. Alpha.2 sólo puede llamarse
 automatizadas; no está validada como versión regular ni autoriza Marketplace.
 F-08 de alpha.1 sigue aprobada para `unknown` y `unavailable`; no debe volver a
 marcarse pendiente.
+
+Alpha.2 tiene validación física parcial reportada con `8e21b28`: prioridades,
+reinicio de Core, recuperación Zigbee, selector/interruptores y exposición
+Matter/Alexa funcionaron en el entorno registrado. No cierra M-06, la eliminación
+completa de M-16, los datos huérfanos de M-19 ni la reversión de M-20. La entidad
+residual observada al eliminar un modo en M-10 también debe evaluarse antes de
+una revisión final.
 
 La publicación continúa bloqueada administrativamente hasta que el propietario
 la autorice de forma explícita; este documento no concede esa autorización.

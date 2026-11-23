@@ -7,8 +7,10 @@ motor de prioridades determinista.
 
 > **Estado:** `0.1.0-alpha.2` en desarrollo. Es un candidato experimental para
 > validación física, no una release publicada. Conserva la base alpha.1 probada
-> con HAOS/ZHA/GLEDOPTO; las funciones nuevas de modos, Alexa y Matter Hub aún
-> no tienen validación física.
+> con HAOS/ZHA/GLEDOPTO y cuenta con validación física parcial de modos,
+> recuperación y exposición mediante Alexa/Matter Hub. Conserva casos y
+> variantes pendientes; no equivale a validación total ni autorización de
+> publicación.
 
 ## Qué hace esta alfa
 
@@ -38,6 +40,9 @@ certificado de alarma, incendio o emergencia.
 Home Assistant la clasifica como integración de tipo `service`: una entrada
 representa el servicio local de administración de iluminación. No es un
 Ayudante individual, aunque proporcione entidades auxiliares para controlarlo.
+La clasificación en **Integraciones** y el Options Flow en `es-419` fueron
+confirmados por el propietario con `8e21b28`; no se realizó una prueba física
+independiente del perfil `es`.
 
 ## Compatibilidad objetivo
 

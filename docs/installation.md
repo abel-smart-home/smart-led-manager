@@ -62,11 +62,14 @@ Para actualizar esta corrección desde un alpha.2 anterior sin perder la entrada
 4. Inicia Core de nuevo. El mismo dominio y ConfigEntry conservan el `entry_id`,
    luces autorizadas, opciones, reglas, zonas, modos y solicitudes del Store.
 5. Verifica que la entrada existente aparezca en **Ajustes > Dispositivos y
-   servicios > Integraciones** y no en **Ayudantes**. Esta comprobación visual
-   continúa pendiente de ejecución física en HAOS.
+   servicios > Integraciones** y no en **Ayudantes**. El propietario confirmó
+   esta clasificación con `8e21b28` en HAOS `2026.11.2`.
 6. Abre **Configurar** con el perfil en Español o Español (Latinoamérica). Si el
    navegador conservaba recursos anteriores, recarga la página sin caché o
    cierra y vuelve a abrir la aplicación.
+
+La interfaz `es-419` fue comprobada físicamente; el catálogo `es` tiene
+cobertura automatizada, pero no una ejecución física independiente registrada.
 
 El cambio de `integration_type` es metadato del manifest: no requiere una
 migración del ConfigEntry ni del almacenamiento persistente.

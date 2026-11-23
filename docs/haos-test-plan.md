@@ -100,91 +100,153 @@ satisfactorios. Las advertencias controladas, por ejemplo un intento fallido
 seguido de `retrying current intent in 5.00 seconds`, son diagnóstico esperado
 de una comunicación Zigbee fallida y no deben ocultarse.
 
-## Escenarios pendientes
+## Escenarios pendientes de alpha.1
 
 - F-02: dos tiras independientes y resolución simultánea por destino.
 - R-04: eliminación de la entrada y verificación de limpieza posterior.
 - Estrés extremo adicional con simultaneidad intensa, múltiples dispositivos y
   varias tiras; no forma parte de la carga mixta aprobada en R-05.
 - R-06: grupos Zigbee y comportamiento multicast/unicast.
-- Validación formal específica de Alexa y Matter Hub.
 - Otros modelos GLEDOPTO y combinaciones RGB, RGBW y RGB+CCT.
 - Firmware del coordinador, firmware del controlador y fecha/hora exacta de
   ejecución.
 
-## Plan adicional de `0.1.0-alpha.2` — zonas y modos
+La validación específica de Alexa/Matter Hub se efectuó posteriormente con
+alpha.2 y se registra abajo; no se atribuye retroactivamente a alpha.1.
 
-Este bloque todavía **no se ha ejecutado físicamente**. Debe registrarse con el
-SHA candidato alpha.2, fecha/hora y entorno real sin reemplazar los resultados
-alpha.1 anteriores. Las pruebas automatizadas indicadas son cobertura de
-software, no evidencia de HAOS, Zigbee, Alexa o Matter Hub.
+## Registro independiente de `0.1.0-alpha.2`
 
-| ID | Validación física propuesta | Cobertura automatizada | Resultado físico |
+Estos resultados fueron **reportados por el propietario** después de ejecutar
+las pruebas físicas durante noviembre de 2026. Codex no ejecutó las pruebas en
+HAOS. La fecha y hora exactas, el firmware del coordinador y el firmware del
+GLEDOPTO no fueron proporcionados y permanecen pendientes.
+
+| Campo | Valor |
+|---|---|
+| Commit y versión | `8e21b28`, `0.1.0-alpha.2` |
+| Home Assistant | Core `2026.11.2`; OS `18.5`; Supervisor `2026.11.0` |
+| Python y hardware | `3.14.10`; Raspberry Pi 5 `aarch64` |
+| Zona horaria | `America/Tijuana` |
+| Zigbee | ZHA; Sonoff Dongle-P MG24 Plus; firmware pendiente |
+| Controlador y entidad | GLEDOPTO GL-C-007P; firmware pendiente; `light.gledopto_gl_c_007p` |
+| Catálogo probado | Zona Sala; modos Cine y Lectura |
+| Matter | Home-Assistant-Matter-Hub `2.0.60` |
+| Resultado general | **Validación física parcial: 10 casos completos, 9 parciales y 1 pendiente** |
+
+El contador operativo usado durante el seguimiento alcanzó 16 de 20 casos
+considerados funcionalmente cerrados. La clasificación documental anterior es
+más estricta: una prueba queda parcial cuando falta una variante o comprobación
+expresamente incluida en el plan, aunque su comportamiento principal haya sido
+satisfactorio.
+
+## Resultados físicos M-01 a M-20
+
+| ID | Estado | Evidencia física reportada | Alcance pendiente u observación |
 |---|---|---|---|
-| M-01 | Activa dos veces el mismo modo fijo y animado; observa que no reinicie. | Idempotencia de solicitud, antigüedad, aplicación y guardado. | Pendiente |
-| M-02 | Cambia Cine → Lectura con una regla inferior visible en el historial. | Reemplazo atómico sin ganador intermedio. | Pendiente |
-| M-03 | Mantén Cine P50 durante un aviso P70 y espera su vencimiento. | Enmascaramiento y recuperación del modo vigente. | Pendiente |
-| M-04 | Desactiva Cine mientras gana P70 y espera. | Recuperación de la regla inferior, no del modo retirado. | Pendiente |
-| M-05 | Cambia varias veces el sensor P40 bajo Cine y después libera Cine. | Actualización enmascarada y último comando vigente. | Pendiente |
-| M-06 | Selecciona modos distintos en dos zonas/tiras. | Catálogos y solicitudes independientes por zona. | Pendiente; requiere al menos dos luces |
-| M-07 | Reinicia Core con definiciones y selección activas. | Serialización, restauración y reconciliación. | Pendiente |
-| M-08 | Elige **Sin modo** con y sin regla inferior. | Liberación sin comando de apagado ni snapshot. | Pendiente |
-| M-09 | Edita un modo seleccionado, guarda y verifica la recarga. | La definición actual reemplaza el comando histórico. | Pendiente |
-| M-10 | Elimina un modo activo y comprueba entidades/Store tras recarga. | Limpieza de solicitudes huérfanas. | Pendiente |
-| M-11 | Cambia de modo con el GLEDOPTO sin alimentación y reconecta. | Sólo la última solicitud de modo conserva recuperación. | Pendiente |
-| M-12 | Repite M-11 mientras ZHA mantiene `on`/`off`. | Regresiones de recuperación acotada, caché y tarea única. | Pendiente |
-| M-13 | Alterna rápidamente selector, switch y acciones. | Serialización por bloqueo y una sola selección final. | Pendiente |
-| M-14 | Combina modo con solicitudes de igual prioridad bajo tres desempates. | Suite existente de `newest`, `oldest` y `lexical`. | Pendiente |
-| M-15 | Intenta guardar una zona/modo con luz no autorizada. | Rechazo de catálogo y allowlist. | Pendiente |
-| M-16 | Recarga y elimina la entrada con animación de modo activa. | Cancelación de plataformas, listeners, tareas y Store. | Pendiente |
-| M-17 | Repite acciones/reglas principales de alpha.1. | Suite completa de regresión alpha.1. | Pendiente |
-| M-18 | Enmascara el modo y compara selector/switch con la luz física. | Entidades derivadas de selección y diagnóstico winner/masked/partial. | Pendiente |
-| M-19 | Prueba identificadores inválidos mediante la UI y datos huérfanos simulados. | Validación, catálogo contenido y reconciliación determinista. | Pendiente |
-| M-20 | Actualiza manualmente alpha.1, recarga, reinicia y revierte de forma controlada. | Entrada alpha.1 sin nuevas claves y Store anterior compatibles. | Pendiente |
+| M-01 | **Parcial** | La activación mediante selector e interruptores funcionó y mantuvo sus estados sincronizados. | No consta una repetición explícita del mismo modo fijo y animado que demuestre visualmente que ninguna animación se reinicia. |
+| M-02 | **Completa** | Cine y Lectura se sustituyeron de forma exclusiva; al activar uno el otro pasó a OFF y el selector reflejó la selección. | No se midió latencia; no se atribuye una medición inexistente. |
+| M-03 | **Completa** | Cine P50 quedó seleccionado bajo una notificación roja P70; al vencer el aviso, Cine recuperó automáticamente el control físico. | — |
+| M-04 | **Completa** | Cine se desactivó mientras P70 ganaba y no reapareció al terminar la notificación. | — |
+| M-05 | **Completa** | La regla numérica P40 siguió procesando el sensor detrás de Cine P50 y, al liberar Cine, apareció el color del valor más reciente, no uno obsoleto. | La interfaz actual de puntos RGB es técnica y se propone mejorar en alpha.3. |
+| M-06 | **Pendiente** | No ejecutada: sólo había una tira física. | Requiere una segunda luz y dos zonas independientes. |
+| M-07 | **Completa** | Tras reiniciar Home Assistant Core, el modo seleccionado y su configuración se recuperaron sin reactivación manual. | No equivale a reiniciar todo HAOS. |
+| M-08 | **Parcial** | **Sin modo** desactivó la selección, sincronizó interruptores y liberó la intención sin ordenar un apagado físico forzado. M-05 cubre la recuperación de una regla inferior. | No consta como comprobación independiente la variante sin ninguna solicitud inferior. |
+| M-09 | **Completa** | Se editó el color de Cine; tras guardar, recargar y reiniciar Core prevaleció la definición nueva y no reapareció el color anterior. | Guardar Options Flow recarga la entrada; no fue una edición en caliente sin interrupción. |
+| M-10 | **Parcial** | Un modo temporal activo se eliminó y dejó de estar disponible para Smart LED Manager. | Home Assistant conservó una entidad residual en su registro y el propietario la eliminó manualmente. La integración no limpió automáticamente ese registro. |
+| M-11 | **Completa** | Con el GLEDOPTO sin alimentación se alternó Cine/Lectura; al reconectar se aplicó únicamente el naranja de Lectura, que era la selección final. | Los fallos de comunicación durante la desconexión fueron esperados. |
+| M-12 | **Completa** | Con ZHA aún mostrando `on`, Lectura se recuperó automáticamente al responder otra vez el controlador. | Sólo consta el primer fallo de 8 posibles intentos; no se afirma que se observaran los ocho. |
+| M-13 | **Completa** | Alternancias rápidas mediante interruptores y selector dejaron como ganadora la última selección, con entidades sincronizadas y color correcto. | No fue estrés extremo ni multidispositivo. |
+| M-14 | **Completa** | Con solicitudes P50 se verificaron `newest`, `oldest` y `lexical`; al cancelar la ganadora se recuperó el modo correcto. | La configuración habitual quedó en `newest`. |
+| M-15 | **Parcial** | `light.luz_no_autorizada` fue rechazada y los selectores sólo ofrecieron la tira autorizada. Los dos registros WebSocket/script correspondían al mismo rechazo. | No se inyectaron datos alterados manualmente para intentar eludir la lista autorizada. |
+| M-16 | **Parcial** | Una recarga durante un modo `pulse` terminó correctamente, recuperó el modo persistente y no duplicó animaciones antiguas. | No se eliminó completamente la entrada; esa limpieza requiere respaldo y entorno controlado. |
+| M-17 | **Parcial** | `blink` rojo P70, `pulse` rojo y cancelación anticipada de un `pulse` de 60 s funcionaron; Cine recuperó el control sin órdenes rojas tardías. | No se repitió físicamente toda la batería alpha.1; el resto conserva su evidencia heredada y automatizada. |
+| M-18 | **Parcial** | Selector, interruptores y selección exclusiva permanecieron sincronizados incluso mientras una notificación superior controlaba la luz. | No se observaron de forma separada todos los diagnósticos internos `winner`, `masked` y `partial`. |
+| M-19 | **Parcial** | `activate_mode` rechazó `modo_inexistente_m19` con `Mode modo_inexistente_m19 does not exist`; Cine siguió operativo. | No se manipularon `.storage` ni datos internos para simular huérfanos o corrupción. |
+| M-20 | **Parcial** | La actualización manual conservó la entrada, luces, reglas y modos; también se verificaron las correcciones de clasificación y traducción. | Falta una reversión completa y controlada de alpha.2 a alpha.1. |
 
-En M-09, guardar opciones recarga la entrada. Una notificación temporal no
-persistente termina durante esa recarga y no debe reproducirse después; registra
-este límite en lugar de describir la edición como actualización en caliente.
+### Advertencia controlada de M-12
 
-## Alexa y Matter Hub
+Durante la falta de respuesta se observó:
 
-Alpha.2 puede crear un `switch` por cada modo marcado para exposición. Smart
-LED Manager no se comunica con Matter Hub ni con Alexa: el interruptor sólo
-representa **modo seleccionado**, no confirmación física del color.
+```text
+Light command for light.gledopto_gl_c_007p failed on attempt 1/8: Failed to send request: device did not respond; retrying current intent in 5.00 seconds
+```
 
-Procedimiento pendiente para el propietario:
+La advertencia representa el primer fallo controlado y la espera progresiva de
+la recuperación Zigbee. La tira terminó mostrando Lectura sin una nueva acción,
+por lo que no se clasifica como defecto de recuperación.
 
-1. Crea un modo fijo seguro y habilita su interruptor opcional.
-2. Verifica primero ON/OFF desde Home Assistant y que el selector de zona se
-   sincronice.
-3. Expón únicamente ese `switch` mediante Home-Assistant-Matter-Hub `2.0.60`.
-4. Confirma descubrimiento, cambio ON, selección de otro modo, cambio OFF y
-   recuperación después de un aviso temporal.
-5. Registra nombres de entidad, latencia, estados del selector/switch, estado
-   físico y logs. Retira la exposición temporal al finalizar.
+### Rechazo controlado de M-15
 
-No marques Alexa/Matter como validado sólo porque Matter Hub esté instalado o
-la luz subyacente responda. La validación formal continúa pendiente.
+La acción sobre `light.luz_no_autorizada` devolvió:
 
-## Verificación visual de clasificación y traducciones
+```text
+These lights are not authorized for Smart LED Manager: light.luz_no_autorizada
+```
 
-Esta comprobación está **pendiente de confirmación por el propietario en HAOS
-2026.11.2**. Las pruebas automatizadas sólo verifican manifest y catálogos; no
-sustituyen la interfaz real.
+Las entradas de registro de `homeassistant.components.websocket_api.http.connection`
+y `homeassistant.helpers.script.websocket_api_script` reflejaron el mismo
+rechazo deliberado; no fueron dos fallos independientes del motor.
 
-1. Actualiza la carpeta de la integración sin eliminar la entrada existente y
-   reinicia Home Assistant Core.
-2. Confirma que Smart LED Manager aparece en **Ajustes > Dispositivos y
-   servicios > Integraciones**, no solamente en **Ayudantes**.
-3. Comprueba que el `entry_id`, las luces autorizadas, reglas, zonas, modos,
-   selectores, interruptores y solicitudes persistentes siguen presentes.
-4. Con el perfil en Español (Latinoamérica), abre **Configurar** y verifica al
-   menos **Administrar Smart LED Manager**, **Luces administradas** y **Modos de
-   iluminación**.
-5. Repite con Español si está disponible y registra fecha, SHA, capturas y
-   cualquier texto que aún caiga al inglés.
+### Eliminación de definición frente al registro de entidades
 
-Resultado visual: **Pendiente**.
+M-10 confirmó que eliminar un modo retira su definición y su solicitud del
+motor. Esto no equivale necesariamente a borrar de inmediato la entrada
+persistente del Entity Registry de Home Assistant. La entidad residual quedó
+marcada como no proporcionada y pudo eliminarse manualmente. Debe estudiarse en
+un ciclo posterior si Smart LED Manager puede limpiar de forma selectiva las
+entidades que realmente posee, sin eliminar registros indiscriminadamente ni
+romper automatizaciones.
+
+## Alexa y Matter Hub — validación alpha.2
+
+La exposición fue **validada funcionalmente por el propietario** con
+Home-Assistant-Matter-Hub `2.0.60`. Smart LED Manager creó interruptores para
+Cine y Lectura; el propietario les asignó etiquetas en Home Assistant, Matter
+Hub los expuso y Alexa permitió activar y desactivar ambos modos. La exclusividad
+y la sincronización de estados en ambos sentidos fueron satisfactorias y no se
+reportaron errores funcionales.
+
+Smart LED Manager no se comunica directamente con Alexa ni con Matter Hub:
+expone entidades `switch` y el puente presenta esas entidades al ecosistema
+Matter. El estado del interruptor expresa **selección lógica del modo**, no una
+confirmación física independiente del color.
+
+Alexa recibió inicialmente nombres como **Smart LED Manager Cine**. El
+propietario lo renombró manualmente a **Cine** para obtener órdenes naturales.
+Queda propuesta para alpha.3 una estrategia de nombres o aliases breves que
+pueda incluir la zona cuando existan duplicados, conservando los `unique_id` y
+las automatizaciones existentes.
+
+## Clasificación y traducciones — verificadas
+
+Con el commit `8e21b28`, el propietario confirmó en HAOS `2026.11.2` que:
+
+- Smart LED Manager aparece en **Ajustes > Dispositivos y servicios >
+  Integraciones**, no solamente como Ayudante;
+- el Options Flow aparece en español con el perfil **Español
+  (Latinoamérica)** (`es-419`);
+- la actualización conservó luces autorizadas, reglas y modos;
+- no aparecieron errores nuevos.
+
+No se realizó una comprobación independiente con el perfil `es`; sólo se
+atribuye validación física a `es-419`.
+
+## Pendientes consolidados de alpha.2
+
+- M-01: repetición explícita del mismo modo fijo y animado.
+- M-06: dos zonas sobre dos luces físicas independientes.
+- M-08: variante sin ninguna solicitud inferior.
+- M-10: evaluar el ciclo de vida del Entity Registry tras eliminar modos.
+- M-15: configuración alterada en un entorno seguro, sin manipular la
+  instalación principal.
+- M-16: eliminación completa de la entrada y comprobación de limpieza.
+- M-17: no se repitió toda la matriz física heredada de alpha.1.
+- M-18: observación específica de todos los estados de diagnóstico.
+- M-19: datos huérfanos/corruptos en una instancia aislada.
+- M-20: reversión completa y controlada a alpha.1.
+- Firmware del coordinador y del GLEDOPTO, y fecha/hora exacta de ejecución.
+- Estrés extremo multidispositivo, grupos Zigbee/R-06 y otros controladores.
 
 ## Cierre
 
