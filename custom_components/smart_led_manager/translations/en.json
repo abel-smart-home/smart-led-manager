@@ -140,6 +140,9 @@
         "menu_options": {
           "add_state_rule": "Add state rule",
           "add_numeric_rule": "Add numeric rule",
+          "edit_rule": "Edit existing rule",
+          "duplicate_rule": "Duplicate rule",
+          "toggle_rule": "Enable or disable rule",
           "delete_rule": "Delete rule"
         }
       },
@@ -155,27 +158,140 @@
           "priority": "Priority",
           "rgb_color": "Color",
           "brightness": "Brightness",
-          "transition": "Transition"
+          "transition": "Transition",
+          "enabled": "Enabled"
         }
       },
       "add_numeric_rule": {
         "title": "Add numeric color rule",
-        "description": "Enter at least two semicolon-separated points as value:R,G,B.",
+        "description": "Configure the rule, then continue to the visual color-point editor.",
         "data": {
           "name": "Rule name",
           "source": "Numeric source",
           "targets": "Managed lights",
           "priority": "Priority",
-          "points": "Color reference points",
           "mode": "Color calculation",
           "brightness": "Brightness",
           "transition": "Transition",
           "minimum_change": "Minimum numeric change",
-          "minimum_interval": "Minimum update interval"
+          "minimum_interval": "Minimum update interval",
+          "enabled": "Enabled"
         }
+      },
+      "edit_rule": {
+        "title": "Choose rule to edit",
+        "data": {"rule_id": "Rule"}
+      },
+      "duplicate_rule": {
+        "title": "Choose rule to duplicate",
+        "description": "The copy receives a new identifier and starts disabled.",
+        "data": {"rule_id": "Rule"}
+      },
+      "toggle_rule": {
+        "title": "Enable or disable rule",
+        "data": {"rule_id": "Rule"}
+      },
+      "edit_state_rule": {
+        "title": "Edit state rule",
+        "description": "The stable rule identifier is preserved.",
+        "data": {
+          "name": "Rule name",
+          "source": "Source entity",
+          "operator": "Condition",
+          "state": "State value",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "enabled": "Enabled"
+        }
+      },
+      "duplicate_state_rule": {
+        "title": "Review state-rule copy",
+        "description": "The new rule starts disabled and can be edited before saving.",
+        "data": {
+          "name": "Rule name",
+          "source": "Source entity",
+          "operator": "Condition",
+          "state": "State value",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "enabled": "Enabled"
+        }
+      },
+      "edit_numeric_rule": {
+        "title": "Edit numeric rule",
+        "description": "Continue to review its visual color points before saving.",
+        "data": {
+          "name": "Rule name",
+          "source": "Numeric source",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "mode": "Color calculation",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "minimum_change": "Minimum numeric change",
+          "minimum_interval": "Minimum update interval",
+          "enabled": "Enabled"
+        }
+      },
+      "duplicate_numeric_rule": {
+        "title": "Review numeric-rule copy",
+        "description": "The new rule starts disabled. Continue to review its color points.",
+        "data": {
+          "name": "Rule name",
+          "source": "Numeric source",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "mode": "Color calculation",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "minimum_change": "Minimum numeric change",
+          "minimum_interval": "Minimum update interval",
+          "enabled": "Enabled"
+        }
+      },
+      "numeric_points": {
+        "title": "Visual color points",
+        "description": "Sensor unit: {unit}\n\nCurrent points:\n{points}\n\nNothing is applied until Save rule is selected.",
+        "menu_options": {
+          "add_numeric_point": "Add point",
+          "edit_numeric_point": "Edit point",
+          "delete_numeric_point": "Delete point",
+          "save_numeric_rule": "Save rule",
+          "cancel_numeric_rule": "Discard changes"
+        }
+      },
+      "add_numeric_point": {
+        "title": "Add color point",
+        "data": {"value": "Numeric value", "rgb": "Color"}
+      },
+      "edit_numeric_point": {
+        "title": "Choose point to edit",
+        "data": {"point_index": "Color point"}
+      },
+      "edit_numeric_point_form": {
+        "title": "Edit color point",
+        "data": {"value": "Numeric value", "rgb": "Color"}
+      },
+      "delete_numeric_point": {
+        "title": "Delete color point",
+        "data": {"point_index": "Color point"}
+      },
+      "save_numeric_rule": {
+        "title": "More color points required",
+        "description": "A numeric rule requires at least two unique points. Return to the editor to add another point."
+      },
+      "cancel_numeric_rule": {
+        "title": "Discard numeric-rule changes"
       },
       "delete_rule": {
         "title": "Delete rule",
+        "description": "Permanent deletion releases the rule request after the entry reloads.",
         "data": {
           "rule_id": "Rule"
         }
@@ -186,6 +302,8 @@
       "at_least_one_target": "Select at least one managed light",
       "target_not_managed": "Every target must be a managed light",
       "invalid_color_points": "Use value:R,G,B entries separated by semicolons, with at least two unique values",
+      "invalid_or_duplicate_color_point": "Use one finite value and an RGB color that does not duplicate another point",
+      "at_least_two_color_points": "Add at least two unique color points before saving",
       "zones_use_removed_lights": "A zone still uses one of the lights you are removing",
       "zone_without_targets": "Select at least one light for the zone",
       "target_in_multiple_zones": "A physical light cannot belong to multiple zones",
@@ -200,7 +318,9 @@
       "reserved_mode_name": "That name is reserved by the zone selector's No mode option"
     },
     "abort": {
-      "no_rules": "There are no rules to delete",
+      "no_rules": "There are no configured rules",
+      "rule_not_found": "The selected rule no longer exists",
+      "invalid_rule": "The selected rule type is not supported",
       "no_zones": "Create a zone first",
       "no_modes": "There are no configured modes"
     }

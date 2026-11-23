@@ -10,6 +10,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from custom_components.smart_led_manager.config_flow import (
     SmartLEDManagerConfigFlow,
     parse_color_points,
+    validate_color_points,
 )
 from custom_components.smart_led_manager.const import (
     CONF_LIGHTS,
@@ -40,6 +41,42 @@ class ConfigFlowHelperTests(unittest.TestCase):
         ):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 parse_color_points(invalid)
+
+    def test_visual_points_are_sorted_and_strictly_validated(self) -> None:
+        self.assertEqual(
+            validate_color_points(
+                [
+                    {"value": 20, "rgb": [0, 255, 0]},
+                    {"value": 10, "rgb": [0, 0, 255]},
+                ]
+            ),
+            [
+                {"value": 10.0, "rgb": [0, 0, 255]},
+                {"value": 20.0, "rgb": [0, 255, 0]},
+            ],
+        )
+        invalid_points = (
+            [{"value": 10, "rgb": [0, 0, 255]}],
+            [
+                {"value": 10, "rgb": [0, 0, 255]},
+                {"value": 10, "rgb": [255, 0, 0]},
+            ],
+            [
+                {"value": float("nan"), "rgb": [0, 0, 255]},
+                {"value": 20, "rgb": [255, 0, 0]},
+            ],
+            [
+                {"value": float("inf"), "rgb": [0, 0, 255]},
+                {"value": 20, "rgb": [255, 0, 0]},
+            ],
+            [
+                {"value": 10, "rgb": [0, 0, 256]},
+                {"value": 20, "rgb": [255, 0, 0]},
+            ],
+        )
+        for points in invalid_points:
+            with self.subTest(points=points), self.assertRaises(ValueError):
+                validate_color_points(points)
 
 
 class ConfigFlowTests(unittest.IsolatedAsyncioTestCase):

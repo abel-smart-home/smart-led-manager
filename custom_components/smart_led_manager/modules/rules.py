@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime
@@ -40,14 +41,19 @@ class RuleManager:
         self._cancel = cancel
         self._unsubscribe: Callable[[], None] | None = None
         self._pending: dict[str, Callable[[], None]] = {}
+        self._tasks: set[asyncio.Task[None]] = set()
         self._activated_at: dict[str, datetime] = {}
         self._last_numeric: dict[str, float] = {}
         self._last_numeric_update: dict[str, float] = {}
+        self._stopped = False
 
     async def async_setup(self) -> None:
         """Subscribe once and evaluate the current source states."""
+        self._stopped = False
         sources = {
-            str(rule["source"]) for rule in self._rules.values() if rule.get("source")
+            str(rule["source"])
+            for rule in self._rules.values()
+            if rule.get("source") and _is_enabled(rule)
         }
         if sources:
             self._unsubscribe = async_track_state_change_event(
@@ -58,29 +64,39 @@ class RuleManager:
 
     async def async_shutdown(self) -> None:
         """Unsubscribe and cancel deferred rule evaluations."""
+        self._stopped = True
         if self._unsubscribe is not None:
             self._unsubscribe()
             self._unsubscribe = None
         for unsubscribe in self._pending.values():
             unsubscribe()
         self._pending.clear()
+        tasks = tuple(self._tasks)
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        self._tasks.clear()
 
     @callback
     def _async_state_changed(self, event: Event) -> None:
         entity_id = event.data.get("entity_id")
         for rule in self._rules.values():
-            if rule.get("source") == entity_id:
-                self._hass.async_create_task(
-                    self._async_evaluate(rule),
-                    f"smart_led_manager_rule_{rule['id']}",
+            if rule.get("source") == entity_id and _is_enabled(rule):
+                self._create_task(
+                    self._async_evaluate(rule), f"smart_led_manager_rule_{rule['id']}"
                 )
 
     async def _async_evaluate(self, rule: Mapping[str, Any]) -> None:
-        if not frozenset(rule.get("targets", [])).intersection(
-            self._authorized_targets
-        ):
+        if self._stopped:
+            return
+        if not _is_enabled(rule):
+            await self._release(rule)
+            return
+        targets = frozenset(rule.get("targets", []))
+        if not targets or not targets.issubset(self._authorized_targets):
             _LOGGER.warning(
-                "Ignoring rule %s because it has no authorized targets",
+                "Ignoring rule %s because one or more targets are not authorized",
                 rule.get("id"),
             )
             await self._release(rule)
@@ -166,12 +182,29 @@ class RuleManager:
         @callback
         def _run(_now: datetime) -> None:
             self._pending.pop(rule_id, None)
-            self._hass.async_create_task(
+            if self._stopped:
+                return
+            self._create_task(
                 self._async_evaluate(rule),
                 f"smart_led_manager_deferred_rule_{rule_id}",
             )
 
         self._pending[rule_id] = async_call_later(self._hass, delay, _run)
+
+    def _create_task(self, coroutine: Awaitable[None], name: str) -> None:
+        """Own one bounded evaluation task until completion or shutdown."""
+        task = self._hass.async_create_task(coroutine, name)
+        self._tasks.add(task)
+        task.add_done_callback(self._task_done)
+
+    @callback
+    def _task_done(self, task: asyncio.Task[None]) -> None:
+        """Retrieve task failures so rule events never leak exceptions."""
+        self._tasks.discard(task)
+        if task.cancelled():
+            return
+        if error := task.exception():
+            _LOGGER.error("Rule evaluation failed", exc_info=error)
 
     def _request(
         self,
@@ -225,3 +258,8 @@ class RuleManager:
 
 def _request_id(rule: Mapping[str, Any]) -> str:
     return f"rule:{rule['id']}"
+
+
+def _is_enabled(rule: Mapping[str, Any]) -> bool:
+    """Treat pre-alpha.3 rules without an enabled field as enabled."""
+    return rule.get("enabled", True) is not False

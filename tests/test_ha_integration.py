@@ -16,6 +16,7 @@ from homeassistant.const import (
     SERVICE_TURN_OFF,
     SERVICE_TURN_ON,
     STATE_OFF,
+    STATE_ON,
 )
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import area_registry as ar
@@ -269,6 +270,7 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
             "rgb_color": [255, 0, 0],
             "brightness": 200,
             "transition": 0,
+            "enabled": True,
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
@@ -290,19 +292,24 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
             "source": "sensor.temperature",
             "targets": ["light.strip"],
             "priority": 40,
-            "points": "18:0,0,255;28:255,0,0",
             "mode": "interpolate",
             "brightness": 180,
             "transition": 1,
             "minimum_change": 0.5,
             "minimum_interval": 5,
+            "enabled": True,
         },
+    )
+    assert result["type"] is FlowResultType.MENU
+    assert result["step_id"] == "numeric_points"
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "save_numeric_rule"}
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     rules = result["data"][CONF_RULES]
     assert len(rules) == 2
     assert rules[1]["type"] == "numeric"
-    assert rules[1]["points"][0] == {"value": 18.0, "rgb": [0, 0, 255]}
+    assert rules[1]["points"][0] == {"value": 16.0, "rgb": [0, 0, 255]}
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(
@@ -317,6 +324,89 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     assert [rule["type"] for rule in result["data"][CONF_RULES]] == ["numeric"]
+
+
+async def test_rule_edit_and_delete_reload_rebuilds_only_current_intent(hass) -> None:
+    """Reload waits for the old catalog and reconstructs only saved rules."""
+    light_calls = []
+
+    async def _record_light_call(call) -> None:
+        light_calls.append(call)
+
+    hass.services.async_register("light", SERVICE_TURN_ON, _record_light_call)
+    for entity_id in ("light.one", "light.two"):
+        hass.states.async_set(
+            entity_id,
+            STATE_OFF,
+            {
+                ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+                ATTR_SUPPORTED_FEATURES: 0,
+            },
+        )
+    hass.states.async_set("binary_sensor.door", STATE_ON)
+    original = {
+        "id": "door",
+        "type": "state",
+        "name": "Puerta",
+        "source": "binary_sensor.door",
+        "operator": "equals",
+        "state": STATE_ON,
+        "targets": ["light.one"],
+        "priority": 40,
+        "rgb_color": [0, 0, 255],
+        "brightness": 200,
+        "transition": 0,
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-rule-reload",
+        data={CONF_LIGHTS: ["light.one", "light.two"]},
+        options={
+            CONF_RULES: [original],
+            CONF_TIE_BREAKER: "newest",
+            CONF_MIN_COMMAND_INTERVAL: 0,
+            CONF_MANUAL_POLICY: "service_only",
+        },
+    )
+    entry.add_to_hass(hass)
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    old_runtime = entry.runtime_data
+    assert (
+        await old_runtime.engine.async_winner("light.one")
+    ).request_id == "rule:door"
+
+    edited = {
+        **original,
+        "targets": ["light.two"],
+        "priority": 70,
+        "rgb_color": [255, 0, 0],
+    }
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**dict(entry.options), CONF_RULES: [edited]},
+    )
+    await hass.async_block_till_done()
+    current_runtime = entry.runtime_data
+
+    assert current_runtime is not old_runtime
+    assert old_runtime.status == "stopped"
+    assert old_runtime.rules._tasks == set()
+    assert await current_runtime.engine.async_winner("light.one") is None
+    winner = await current_runtime.engine.async_winner("light.two")
+    assert winner.request_id == "rule:door"
+    assert winner.priority == 70
+    assert winner.command.color == (255, 0, 0)
+    assert light_calls[-1].data["rgb_color"] == (255, 0, 0)
+
+    hass.config_entries.async_update_entry(
+        entry,
+        options={**dict(entry.options), CONF_RULES: []},
+    )
+    await hass.async_block_till_done()
+
+    assert await entry.runtime_data.engine.async_requests() == ()
 
 
 async def test_options_flow_creates_zone_and_mode_definitions(hass) -> None:

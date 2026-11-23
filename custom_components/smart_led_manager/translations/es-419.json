@@ -140,6 +140,9 @@
         "menu_options": {
           "add_state_rule": "Agregar regla de estado",
           "add_numeric_rule": "Agregar regla numérica",
+          "edit_rule": "Editar regla existente",
+          "duplicate_rule": "Duplicar regla",
+          "toggle_rule": "Activar o desactivar regla",
           "delete_rule": "Eliminar regla"
         }
       },
@@ -155,27 +158,140 @@
           "priority": "Prioridad",
           "rgb_color": "Color",
           "brightness": "Brillo",
-          "transition": "Transición"
+          "transition": "Transición",
+          "enabled": "Habilitada"
         }
       },
       "add_numeric_rule": {
         "title": "Agregar regla de color numérica",
-        "description": "Escribe al menos dos puntos separados por punto y coma como valor:R,G,B.",
+        "description": "Configura la regla y continúa al editor visual de puntos de color.",
         "data": {
           "name": "Nombre de la regla",
           "source": "Origen numérico",
           "targets": "Luces administradas",
           "priority": "Prioridad",
-          "points": "Puntos de referencia de color",
           "mode": "Cálculo del color",
           "brightness": "Brillo",
           "transition": "Transición",
           "minimum_change": "Variación numérica mínima",
-          "minimum_interval": "Intervalo mínimo de actualización"
+          "minimum_interval": "Intervalo mínimo de actualización",
+          "enabled": "Habilitada"
         }
+      },
+      "edit_rule": {
+        "title": "Elegir regla para editar",
+        "data": {"rule_id": "Regla"}
+      },
+      "duplicate_rule": {
+        "title": "Elegir regla para duplicar",
+        "description": "La copia recibe un identificador nuevo y comienza deshabilitada.",
+        "data": {"rule_id": "Regla"}
+      },
+      "toggle_rule": {
+        "title": "Activar o desactivar regla",
+        "data": {"rule_id": "Regla"}
+      },
+      "edit_state_rule": {
+        "title": "Editar regla de estado",
+        "description": "Se conserva el identificador estable de la regla.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Entidad de origen",
+          "operator": "Condición",
+          "state": "Valor del estado",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "enabled": "Habilitada"
+        }
+      },
+      "duplicate_state_rule": {
+        "title": "Revisar copia de regla de estado",
+        "description": "La regla nueva comienza deshabilitada y puede editarse antes de guardar.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Entidad de origen",
+          "operator": "Condición",
+          "state": "Valor del estado",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "enabled": "Habilitada"
+        }
+      },
+      "edit_numeric_rule": {
+        "title": "Editar regla numérica",
+        "description": "Continúa para revisar visualmente los puntos antes de guardar.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Origen numérico",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "mode": "Cálculo del color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "minimum_change": "Variación numérica mínima",
+          "minimum_interval": "Intervalo mínimo de actualización",
+          "enabled": "Habilitada"
+        }
+      },
+      "duplicate_numeric_rule": {
+        "title": "Revisar copia de regla numérica",
+        "description": "La regla nueva comienza deshabilitada. Continúa para revisar sus puntos.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Origen numérico",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "mode": "Cálculo del color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "minimum_change": "Variación numérica mínima",
+          "minimum_interval": "Intervalo mínimo de actualización",
+          "enabled": "Habilitada"
+        }
+      },
+      "numeric_points": {
+        "title": "Puntos de color visuales",
+        "description": "Unidad del sensor: {unit}\n\nPuntos actuales:\n{points}\n\nNada se aplica hasta elegir Guardar regla.",
+        "menu_options": {
+          "add_numeric_point": "Agregar punto",
+          "edit_numeric_point": "Editar punto",
+          "delete_numeric_point": "Eliminar punto",
+          "save_numeric_rule": "Guardar regla",
+          "cancel_numeric_rule": "Descartar cambios"
+        }
+      },
+      "add_numeric_point": {
+        "title": "Agregar punto de color",
+        "data": {"value": "Valor numérico", "rgb": "Color"}
+      },
+      "edit_numeric_point": {
+        "title": "Elegir punto para editar",
+        "data": {"point_index": "Punto de color"}
+      },
+      "edit_numeric_point_form": {
+        "title": "Editar punto de color",
+        "data": {"value": "Valor numérico", "rgb": "Color"}
+      },
+      "delete_numeric_point": {
+        "title": "Eliminar punto de color",
+        "data": {"point_index": "Punto de color"}
+      },
+      "save_numeric_rule": {
+        "title": "Faltan puntos de color",
+        "description": "Una regla numérica requiere al menos dos puntos únicos. Regresa al editor para agregar otro punto."
+      },
+      "cancel_numeric_rule": {
+        "title": "Descartar cambios de la regla numérica"
       },
       "delete_rule": {
         "title": "Eliminar regla",
+        "description": "La eliminación permanente libera la solicitud de la regla después de recargar la entrada.",
         "data": {
           "rule_id": "Regla"
         }
@@ -186,6 +302,8 @@
       "at_least_one_target": "Selecciona al menos una luz administrada",
       "target_not_managed": "Todos los destinos deben ser luces administradas",
       "invalid_color_points": "Usa entradas valor:R,G,B separadas por punto y coma, con al menos dos valores únicos",
+      "invalid_or_duplicate_color_point": "Usa un valor finito y un color RGB que no duplique otro punto",
+      "at_least_two_color_points": "Agrega al menos dos puntos de color únicos antes de guardar",
       "zones_use_removed_lights": "Una zona todavía usa una de las luces que intentas quitar",
       "zone_without_targets": "Selecciona al menos una luz para la zona",
       "target_in_multiple_zones": "Una luz física no puede pertenecer a varias zonas",
@@ -200,7 +318,9 @@
       "reserved_mode_name": "Ese nombre está reservado por la opción Sin modo del selector de zona"
     },
     "abort": {
-      "no_rules": "No hay reglas para eliminar",
+      "no_rules": "No hay reglas configuradas",
+      "rule_not_found": "La regla seleccionada ya no existe",
+      "invalid_rule": "El tipo de regla seleccionado no es compatible",
       "no_zones": "Primero crea una zona",
       "no_modes": "No hay modos configurados"
     }
