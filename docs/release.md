@@ -32,12 +32,14 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] Manifest, `hacs.json`, Python, changelog y notas coinciden para alpha.2.
 - [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
       excepciones.
-- [ ] Instalación, actualización, recarga, descarga y recuperación se prueban.
-      La instalación manual, recarga, reinicio de Core y recuperación están
-      registradas; eliminar la entrada y verificar su limpieza sigue pendiente.
+- [x] Instalación, actualización, recarga, descarga y recuperación se prueban.
+      La eliminación completa de la entrada y la ausencia de archivos
+      `smart_led_manager.*` se comprobaron en laboratorio HAOS; la evidencia
+      física Raspberry/Zigbee se conserva separada.
 - [ ] El propietario ejecuta y registra `docs/haos-test-plan.md`. La ejecución
-      alpha.2 es parcial: 10 casos M completos, 9 parciales y M-06 pendiente;
-      conserva cada subcomprobación faltante en el propio plan.
+      consolidada registra 16 casos M completos, 3 parciales y M-06 pendiente
+      con hardware físico. La simulación de M-06 con dos luces Demo fue
+      satisfactoria, pero no sustituye dos controladores Zigbee reales.
 - [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
       en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
       español. No se atribuye una prueba independiente al perfil `es`.
@@ -64,12 +66,14 @@ automatizadas; no está validada como versión regular ni autoriza Marketplace.
 F-08 de alpha.1 sigue aprobada para `unknown` y `unavailable`; no debe volver a
 marcarse pendiente.
 
-Alpha.2 tiene validación física parcial reportada con `8e21b28`: prioridades,
+Alpha.2 conserva validación física parcial reportada con `8e21b28`: prioridades,
 reinicio de Core, recuperación Zigbee, selector/interruptores y exposición
-Matter/Alexa funcionaron en el entorno registrado. No cierra M-06, la eliminación
-completa de M-16, los datos huérfanos de M-19 ni la reversión de M-20. La entidad
-residual observada al eliminar un modo en M-10 también debe evaluarse antes de
-una revisión final.
+Matter/Alexa funcionaron en Raspberry Pi/ZHA/GLEDOPTO. Las pruebas posteriores
+de laboratorio HAOS cerraron M-16, los estados diagnósticos de M-18, la
+recuperación semántica de M-19 y la actualización/reversión de M-20. M-06 sólo
+se simuló con dos luces Demo y continúa pendiente con dos controladores Zigbee
+reales. M-10, M-15 y M-17 permanecen parciales; la entidad residual de M-10 y
+la corrupción sintáctica total no probada deben seguir visibles.
 
 La publicación continúa bloqueada administrativamente hasta que el propietario
 la autorice de forma explícita; este documento no concede esa autorización.

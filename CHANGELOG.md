@@ -52,16 +52,23 @@ pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
   Assistant `2026.11.0` como con `2026.11.2`; la cobertura total fue
   `86.96 %`. Hassfest y HACS/Marketplace también aprobaron en el PR #2.
 
-### Validación física reportada por el propietario
+### Validación física y de laboratorio reportada por el propietario
 
 - El commit `8e21b28` se probó durante noviembre de 2026 en HAOS `18.5`, Core
-  `2026.11.2`, Raspberry Pi 5, ZHA y GLEDOPTO GL-C-007P. La evidencia
-  consolidada registra 10 casos M completos, 9 parciales y M-06 pendiente por
-  requerir una segunda luz; no equivale a validación física total.
-- Aprobaron en el alcance observado la selección exclusiva Cine/Lectura,
-  avisos de mayor prioridad, desactivación enmascarada, actualización de una
-  regla inferior, reinicio de Core, edición de modo, recuperación Zigbee con y
-  sin estado ZHA obsoleto, cambios rápidos y los tres desempates.
+  `2026.11.2`, Raspberry Pi 5, ZHA y GLEDOPTO GL-C-007P. Pruebas posteriores en
+  HAOS VirtualBox usaron dos luces RGBW/RGBWW de la integración Demo. La
+  consolidación registra 16 casos M completos, 3 parciales y M-06 pendiente
+  con hardware físico; no equivale a 16 pruebas completas sobre Zigbee.
+- La evidencia física cubre selección exclusiva Cine/Lectura, prioridades,
+  animaciones, reinicio de Core, recuperación Zigbee, cambios rápidos,
+  desempates, clasificación, traducción y exposición Alexa/Matter Hub. También
+  se confirmaron la repetición idempotente de modos y **Sin modo** sin una
+  solicitud inferior, sin atribuir un entorno no registrado a Zigbee físico.
+- El laboratorio comprobó dos zonas independientes con luces Demo, eliminación
+  de la entrada y del Store, la secuencia de diagnóstico
+  `winner → partial → winner → no_mode`, limpieza de solicitudes guardadas
+  huérfanas/no autorizadas y actualización/reversión alpha.1 ↔ alpha.2 sin
+  recrear la entrada.
 - La clasificación `service` apareció en **Integraciones** y el Options Flow se
   mostró en Español (Latinoamérica). La actualización conservó luces, reglas y
   modos; no se atribuye una prueba independiente al perfil `es`.
@@ -72,11 +79,11 @@ pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
 - Al eliminar un modo, Home Assistant conservó una entidad virtual residual
   marcada como no proporcionada; el propietario la eliminó manualmente. Queda
   pendiente evaluar una limpieza selectiva del Entity Registry.
-- Siguen pendientes o parciales la idempotencia animada explícita, dos zonas
-  físicas, la variante de **Sin modo** sin solicitud inferior, la eliminación
-  completa de la entrada, diagnósticos internos exhaustivos, datos huérfanos y
-  una reversión completa a alpha.1. Alpha.2 continúa **sin publicar** y como
-  candidata experimental.
+- M-10, M-15 y M-17 permanecen parciales. M-06 requiere dos controladores
+  Zigbee reales pese a la simulación satisfactoria; también siguen visibles la
+  entidad residual de M-10, la inyección adicional de configuración para M-15,
+  las regresiones heredadas de M-17 y la corrupción sintáctica total no probada.
+  Alpha.2 continúa **sin publicar** y como candidata experimental.
 
 ## [0.1.0-alpha.1] — Sin publicar
 

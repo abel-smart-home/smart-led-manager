@@ -64,7 +64,7 @@ fotosensibles presentes.
 | R-02 | Desconecta durante un aviso corto y reconecta tras su vencimiento. | El aviso obsoleto no se reproduce; cuando el dispositivo responda se aplica sólo la ganadora vigente. Los fallos transitorios se contienen y los intentos terminan de forma acotada, sin duplicar animaciones. | **Aprobada con `f283d36`, 7/7.** El aviso naranja venció desconectado; al reconectar se recuperó automáticamente el azul persistente y nunca reapareció el naranja. No hubo acciones adicionales ni excepciones sin manejar; sí advertencias controladas por fallos Zigbee. |
 | R-02-C | Cancela una solicitud durante la recuperación Zigbee y reconecta. | La solicitud cancelada no se reproduce; se aplica la ganadora vigente. | **Aprobada, 7/7.** Rojo P100 se canceló tras fallar desconectado; al reconectar regresó azul P80 y el rojo nunca apareció. Sin excepciones sin manejar. |
 | R-03 | Reinicia Home Assistant Core con solicitudes persistente y temporal. | Se recupera sólo lo válido; no hay temporizadores duplicados. | **Aprobada con `f283d36`, 7/7, para reinicio de Core.** Violeta persistente P95 sobrevivió; verde P70 quedó en espera y apareció al cancelar violeta. Limpieza correcta y sin errores. No se reinició todo HAOS. |
-| R-04 | Recarga y después elimina la entrada. | No quedan listeners, animaciones u órdenes tardías. | **Recarga aprobada en el alcance ejecutado, 8/8.** `homeassistant.reload_config_entry` detuvo `blink` naranja, recuperó azul persistente y no reapareció la animación en 30 s. La eliminación completa de la entrada y su limpieza posterior quedan pendientes. |
+| R-04 | Recarga y después elimina la entrada. | No quedan listeners, animaciones u órdenes tardías. | **Recarga aprobada en el alcance físico ejecutado, 8/8.** `homeassistant.reload_config_entry` detuvo `blink` naranja, recuperó azul persistente y no reapareció la animación en 30 s. La eliminación no se ejecutó entonces en la Raspberry Pi; posteriormente M-16 la aprobó en laboratorio HAOS para alpha.2. |
 | R-05 | Genera cambios rápidos de sensor y varias animaciones. | Deduplicación/rate limit evitan tormenta y HA sigue estable. | **Carga mixta aprobada con `f283d36`, 9/9.** Se ejecutaron 20 cambios sucesivos de un sensor numérico, una notificación `pulse` P95 y su interrupción por `blink` P98. Al finalizar los avisos se recuperó el control numérico y el estado final fue verde, correspondiente al último valor 25. No hubo colores atrasados, excepciones ni errores inesperados; los elementos temporales se eliminaron correctamente. No fue una prueba de estrés extremo con múltiples dispositivos. |
 | R-06 | Usa grupos Zigbee si están disponibles y observa multicast/unicast. | Sin duplicados inesperados; registrar comportamiento real. | Pendiente |
 
@@ -81,8 +81,10 @@ fotosensibles presentes.
   instancia nueva con la misma clave carga una lista vacía y no recupera
   solicitudes antiguas.
 
-Esta cobertura automatizada no sustituye la eliminación física de la entrada
-en una instancia aislada, que continúa pendiente para cerrar R-04.
+Esta cobertura automatizada no sustituyó en su momento la eliminación de la
+entrada. M-16 añadió después una eliminación completa en laboratorio HAOS para
+alpha.2, sin convertirla retroactivamente en una prueba Raspberry/Zigbee de
+R-04 sobre alpha.1.
 
 ## Incidencias encontradas y corregidas
 
@@ -103,7 +105,8 @@ de una comunicación Zigbee fallida y no deben ocultarse.
 ## Escenarios pendientes de alpha.1
 
 - F-02: dos tiras independientes y resolución simultánea por destino.
-- R-04: eliminación de la entrada y verificación de limpieza posterior.
+- R-04: eliminación física en la Raspberry Pi del registro alpha.1; M-16 ya
+  cubre la eliminación y limpieza de alpha.2 en laboratorio HAOS.
 - Estrés extremo adicional con simultaneidad intensa, múltiples dispositivos y
   varias tiras; no forma parte de la carga mixta aprobada en R-05.
 - R-06: grupos Zigbee y comportamiento multicast/unicast.
@@ -116,10 +119,12 @@ alpha.2 y se registra abajo; no se atribuye retroactivamente a alpha.1.
 
 ## Registro independiente de `0.1.0-alpha.2`
 
-Estos resultados fueron **reportados por el propietario** después de ejecutar
-las pruebas físicas durante noviembre de 2026. Codex no ejecutó las pruebas en
-HAOS. La fecha y hora exactas, el firmware del coordinador y el firmware del
-GLEDOPTO no fueron proporcionados y permanecen pendientes.
+Estos resultados fueron **reportados por el propietario** y reúnen dos capas de
+evidencia: las pruebas físicas de noviembre de 2026 sobre Raspberry Pi,
+ZHA/GLEDOPTO y pruebas posteriores de laboratorio en HAOS VirtualBox con luces
+Demo. Codex no ejecutó las pruebas en HAOS. La fecha y hora exactas, el firmware
+del coordinador y el firmware del GLEDOPTO no fueron proporcionados y
+permanecen pendientes.
 
 | Campo | Valor |
 |---|---|
@@ -131,26 +136,33 @@ GLEDOPTO no fueron proporcionados y permanecen pendientes.
 | Controlador y entidad | GLEDOPTO GL-C-007P; firmware pendiente; `light.gledopto_gl_c_007p` |
 | Catálogo probado | Zona Sala; modos Cine y Lectura |
 | Matter | Home-Assistant-Matter-Hub `2.0.60` |
-| Resultado general | **Validación física parcial: 10 casos completos, 9 parciales y 1 pendiente** |
+| Resultado general | **Validación consolidada: 16 casos completos, 3 parciales y 1 pendiente de hardware físico** |
 
-El contador operativo usado durante el seguimiento alcanzó 16 de 20 casos
-considerados funcionalmente cerrados. La clasificación documental anterior es
-más estricta: una prueba queda parcial cuando falta una variante o comprobación
-expresamente incluida en el plan, aunque su comportamiento principal haya sido
-satisfactorio.
+### Entornos y alcance de la evidencia
 
-## Resultados físicos M-01 a M-20
+| Capa | Entorno | Alcance |
+|---|---|---|
+| Hardware físico | Raspberry Pi 5, ZHA, Sonoff Dongle-P MG24 Plus y GLEDOPTO GL-C-007P | Evidencia física real de selección, prioridades, animaciones, recuperación Zigbee, reinicio de Core, traducción, clasificación y Alexa/Matter Hub descrita por caso. |
+| Laboratorio HAOS | HAOS en VirtualBox; integración Demo; `light.office_rgbw_lights` RGBW y `light.living_room_rgbww_lights` RGBWW | Varias zonas, estados de diagnóstico, eliminación de entrada/Store, recuperación de solicitudes guardadas y actualización/reversión. No prueba dos controladores Zigbee reales. |
+| Automatización | Pytest en la matriz de Home Assistant y validadores del PR | Regresiones de motor e integración, Hassfest y HACS/Marketplace. No sustituye ninguna comprobación visual o de hardware. |
 
-| ID | Estado | Evidencia física reportada | Alcance pendiente u observación |
+Las 16 pruebas completas son el resultado **consolidado** de esas capas. No
+representan 16 pruebas completas sobre Zigbee físico. Cuando la consolidación
+no identifica por separado el entorno de una repetición reportada, el registro
+no la atribuye a hardware adicional.
+
+## Resultados consolidados M-01 a M-20
+
+| ID | Estado | Evidencia reportada | Origen, alcance pendiente u observación |
 |---|---|---|---|
-| M-01 | **Parcial** | La activación mediante selector e interruptores funcionó y mantuvo sus estados sincronizados. | No consta una repetición explícita del mismo modo fijo y animado que demuestre visualmente que ninguna animación se reinicia. |
+| M-01 | **Completa** | Se repitió la activación del mismo modo fijo y de un modo animado `pulse`; ambos conservaron el comportamiento idempotente esperado. | Confirmación adicional del propietario; no se registra como una nueva prueba con dos dispositivos Zigbee. |
 | M-02 | **Completa** | Cine y Lectura se sustituyeron de forma exclusiva; al activar uno el otro pasó a OFF y el selector reflejó la selección. | No se midió latencia; no se atribuye una medición inexistente. |
 | M-03 | **Completa** | Cine P50 quedó seleccionado bajo una notificación roja P70; al vencer el aviso, Cine recuperó automáticamente el control físico. | — |
 | M-04 | **Completa** | Cine se desactivó mientras P70 ganaba y no reapareció al terminar la notificación. | — |
 | M-05 | **Completa** | La regla numérica P40 siguió procesando el sensor detrás de Cine P50 y, al liberar Cine, apareció el color del valor más reciente, no uno obsoleto. | La interfaz actual de puntos RGB es técnica y se propone mejorar en alpha.3. |
-| M-06 | **Pendiente** | No ejecutada: sólo había una tira física. | Requiere una segunda luz y dos zonas independientes. |
+| M-06 | **Pendiente de hardware físico; simulación satisfactoria** | En HAOS VirtualBox, dos zonas sobre `light.office_rgbw_lights` y `light.living_room_rgbww_lights` funcionaron independientemente, conservaron prioridades y recuperaron solicitudes inferiores. | Las dos entidades procedían de Demo. Falta repetir con dos controladores Zigbee reales. |
 | M-07 | **Completa** | Tras reiniciar Home Assistant Core, el modo seleccionado y su configuración se recuperaron sin reactivación manual. | No equivale a reiniciar todo HAOS. |
-| M-08 | **Parcial** | **Sin modo** desactivó la selección, sincronizó interruptores y liberó la intención sin ordenar un apagado físico forzado. M-05 cubre la recuperación de una regla inferior. | No consta como comprobación independiente la variante sin ninguna solicitud inferior. |
+| M-08 | **Completa** | **Sin modo** desactivó la selección, sincronizó interruptores y liberó la intención sin ordenar un apagado físico forzado. También se repitió sin ninguna solicitud inferior activa y funcionó correctamente. | M-05 conserva además la evidencia de recuperación de una regla inferior. |
 | M-09 | **Completa** | Se editó el color de Cine; tras guardar, recargar y reiniciar Core prevaleció la definición nueva y no reapareció el color anterior. | Guardar Options Flow recarga la entrada; no fue una edición en caliente sin interrupción. |
 | M-10 | **Parcial** | Un modo temporal activo se eliminó y dejó de estar disponible para Smart LED Manager. | Home Assistant conservó una entidad residual en su registro y el propietario la eliminó manualmente. La integración no limpió automáticamente ese registro. |
 | M-11 | **Completa** | Con el GLEDOPTO sin alimentación se alternó Cine/Lectura; al reconectar se aplicó únicamente el naranja de Lectura, que era la selección final. | Los fallos de comunicación durante la desconexión fueron esperados. |
@@ -158,11 +170,11 @@ satisfactorio.
 | M-13 | **Completa** | Alternancias rápidas mediante interruptores y selector dejaron como ganadora la última selección, con entidades sincronizadas y color correcto. | No fue estrés extremo ni multidispositivo. |
 | M-14 | **Completa** | Con solicitudes P50 se verificaron `newest`, `oldest` y `lexical`; al cancelar la ganadora se recuperó el modo correcto. | La configuración habitual quedó en `newest`. |
 | M-15 | **Parcial** | `light.luz_no_autorizada` fue rechazada y los selectores sólo ofrecieron la tira autorizada. Los dos registros WebSocket/script correspondían al mismo rechazo. | No se inyectaron datos alterados manualmente para intentar eludir la lista autorizada. |
-| M-16 | **Parcial** | Una recarga durante un modo `pulse` terminó correctamente, recuperó el modo persistente y no duplicó animaciones antiguas. | No se eliminó completamente la entrada; esa limpieza requiere respaldo y entorno controlado. |
+| M-16 | **Completa en laboratorio** | Además de la recarga con `pulse`, se eliminó la entrada después de usar un modo animado. Desaparecieron la integración y sus entidades virtuales sin errores; `/config/.storage` no conservó archivos `smart_led_manager.*`. | Ejecutada en laboratorio HAOS. No se atribuye a la Raspberry Pi ni a hardware Zigbee físico. |
 | M-17 | **Parcial** | `blink` rojo P70, `pulse` rojo y cancelación anticipada de un `pulse` de 60 s funcionaron; Cine recuperó el control sin órdenes rojas tardías. | No se repitió físicamente toda la batería alpha.1; el resto conserva su evidencia heredada y automatizada. |
-| M-18 | **Parcial** | Selector, interruptores y selección exclusiva permanecieron sincronizados incluso mientras una notificación superior controlaba la luz. | No se observaron de forma separada todos los diagnósticos internos `winner`, `masked` y `partial`. |
-| M-19 | **Parcial** | `activate_mode` rechazó `modo_inexistente_m19` con `Mode modo_inexistente_m19 does not exist`; Cine siguió operativo. | No se manipularon `.storage` ni datos internos para simular huérfanos o corrupción. |
-| M-20 | **Parcial** | La actualización manual conservó la entrada, luces, reglas y modos; también se verificaron las correcciones de clasificación y traducción. | Falta una reversión completa y controlada de alpha.2 a alpha.1. |
+| M-18 | **Completa en el alcance de diagnóstico** | En Raspberry Pi ya se habían observado `winner`, `masked` y `no_mode`. En VirtualBox, un modo P70 compartido entre dos luces Demo produjo `winner → partial → winner → no_mode`; durante `partial`, P90 controló Oficina mientras Sala conservó P70, y al cancelar P90 ambas recuperaron el modo. | Se confirmaron seis verificaciones. Los JSON originales de la ejecución VirtualBox no se adjuntaron y no se presenta como prueba física con dos Zigbee. |
+| M-19 | **Completa en el alcance de recuperación probado** | En VirtualBox se añadieron al Store `smart_led_manager:mode:orphan_m19` y `lab_m19_unmanaged` sobre `light.kitchen_lights`. Tras reiniciar Core ambas desaparecieron; `lab_m20_oficina` permaneció y las luces siguieron operativas. | El registro confirmó el rechazo del objetivo no administrado. No se probó corrupción completa de la sintaxis JSON. |
+| M-20 | **Completa en laboratorio** | Alpha.1 se configuró con una solicitud persistente P60 para Oficina y una regla numérica P40 para Sala. La actualización a alpha.2 aprobó siete comprobaciones y la reversión posterior del código a alpha.1, sin recrear la entrada, aprobó otras siete. | Conservó entrada, luces, solicitudes, regla y comportamiento anterior; la prueba fue HAOS VirtualBox, no hardware Zigbee físico. |
 
 ### Advertencia controlada de M-12
 
@@ -187,6 +199,21 @@ These lights are not authorized for Smart LED Manager: light.luz_no_autorizada
 Las entradas de registro de `homeassistant.components.websocket_api.http.connection`
 y `homeassistant.helpers.script.websocket_api_script` reflejaron el mismo
 rechazo deliberado; no fueron dos fallos independientes del motor.
+
+### Recuperación controlada de M-19
+
+Tras insertar en el almacenamiento de laboratorio una solicitud de modo
+huérfana y otra dirigida a una luz no administrada, el reinicio de Core retiró
+ambas sin afectar la solicitud válida. El registro mostró:
+
+```text
+Ignoring unauthorized or invalid stored request lab_m19_unmanaged: unmanaged targets: light.kitchen_lights
+```
+
+Esta evidencia cierra M-19 para la recuperación de solicitudes semánticamente
+inválidas o no autorizadas. No demuestra recuperación frente a un archivo JSON
+con sintaxis completamente corrupta, escenario que se conserva como prueba de
+endurecimiento separada.
 
 ### Eliminación de definición frente al registro de entidades
 
@@ -234,17 +261,14 @@ atribuye validación física a `es-419`.
 
 ## Pendientes consolidados de alpha.2
 
-- M-01: repetición explícita del mismo modo fijo y animado.
-- M-06: dos zonas sobre dos luces físicas independientes.
-- M-08: variante sin ninguna solicitud inferior.
+- M-06: repetir las dos zonas con dos controladores Zigbee físicos; la
+  simulación RGBW/RGBWW mediante Demo ya fue satisfactoria.
 - M-10: evaluar el ciclo de vida del Entity Registry tras eliminar modos.
 - M-15: configuración alterada en un entorno seguro, sin manipular la
   instalación principal.
-- M-16: eliminación completa de la entrada y comprobación de limpieza.
 - M-17: no se repitió toda la matriz física heredada de alpha.1.
-- M-18: observación específica de todos los estados de diagnóstico.
-- M-19: datos huérfanos/corruptos en una instancia aislada.
-- M-20: reversión completa y controlada a alpha.1.
+- Endurecimiento adicional: corrupción sintáctica completa de un archivo JSON;
+  M-19 ya cubre solicitudes guardadas huérfanas y no autorizadas.
 - Firmware del coordinador y del GLEDOPTO, y fecha/hora exacta de ejecución.
 - Estrés extremo multidispositivo, grupos Zigbee/R-06 y otros controladores.
 

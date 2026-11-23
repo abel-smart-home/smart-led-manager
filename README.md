@@ -7,10 +7,10 @@ motor de prioridades determinista.
 
 > **Estado:** `0.1.0-alpha.2` en desarrollo. Es un candidato experimental para
 > validación física, no una release publicada. Conserva la base alpha.1 probada
-> con HAOS/ZHA/GLEDOPTO y cuenta con validación física parcial de modos,
-> recuperación y exposición mediante Alexa/Matter Hub. Conserva casos y
-> variantes pendientes; no equivale a validación total ni autorización de
-> publicación.
+> con HAOS/ZHA/GLEDOPTO. La validación consolidada de alpha.2 registra 16 casos
+> M completos, 3 parciales y M-06 pendiente con dos controladores Zigbee reales,
+> combinando evidencia física y de laboratorio HAOS con luces Demo. No equivale
+> a 16 pruebas completas sobre Zigbee ni autoriza la publicación.
 
 ## Qué hace esta alfa
 

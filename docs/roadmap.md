@@ -29,12 +29,11 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - [x] Compatibilidad de carga con entradas y Store de alpha.1 sin migración de
   esquema.
 - [x] Pruebas automatizadas de los casos M-01 a M-20 aplicables al software.
-- [ ] Validación física **parcial** con `8e21b28`: selección exclusiva,
-  prioridades, reinicio de Core, recuperación Zigbee, animaciones,
-  clasificación como Integración, `es-419` y exposición mediante
-  Alexa/Matter Hub fueron satisfactorias. Permanecen las variantes y casos
-  aislados detallados en `docs/haos-test-plan.md`, especialmente M-06, M-16,
-  M-19 y M-20.
+- [ ] Validación consolidada **parcial en hardware físico**: 16 casos M están
+  completos sumando la evidencia Raspberry/Zigbee y el laboratorio HAOS, M-10,
+  M-15 y M-17 permanecen parciales, y M-06 sigue pendiente con dos
+  controladores Zigbee reales aunque aprobó la simulación con dos luces Demo.
+  `docs/haos-test-plan.md` separa explícitamente cada origen de evidencia.
 
 ## `0.1.0-alpha.3` — destinos y disparadores completos
 
