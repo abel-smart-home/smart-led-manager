@@ -232,6 +232,7 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         ) as logged:
             manager._create_task(failing_evaluation(), "failing_rule")
             await asyncio.sleep(0)
+            await asyncio.sleep(0)
 
         self.assertEqual(manager._tasks, set())
         logged.assert_called_once()
