@@ -75,6 +75,36 @@ La pre-release solo puede considerarse lista cuando:
 10. Ruff, pytest con cobertura, Hassfest y HACS/Marketplace deben aprobar antes
     de proponer el candidato para prueba física.
 
+## Criterios verificables de `0.1.0-alpha.3`, Bloque B
+
+1. El Options Flow permite agregar, editar, duplicar, activar/desactivar y
+   eliminar reglas de estado y numéricas sin YAML.
+2. Editar conserva el `id`; duplicar crea otro `id`, conserva la original,
+   propone un nombre diferenciable y deja la copia deshabilitada.
+3. Una regla heredada sin `enabled` continúa habilitada y editable sin
+   recrearse ni cambiar su formato de puntos.
+4. Nombre, origen, operador, estado, destinos autorizados, prioridad, color,
+   brillo, transición y estado habilitado son editables donde corresponda.
+5. El editor numérico nativo muestra puntos y unidad disponible, y permite
+   alta, edición y eliminación con valor numérico y selector RGB.
+6. Los puntos se ordenan; se rechazan duplicados, números no finitos, canales
+   inválidos y el guardado con menos de dos puntos.
+7. Los cambios intermedios no envían órdenes. Guardar recarga la ConfigEntry y
+   reevalúa la definición vigente; las solicitudes temporales no persistentes
+   pueden terminar durante esa recarga.
+8. Editar una regla activa reemplaza su intención incluso enmascarada. Cambiar
+   destinos libera los anteriores; desactivar o eliminar impide recuperaciones
+   tardías de esa regla.
+9. La descarga cancela y espera listeners, demoras y evaluaciones antiguas. No
+   quedan excepciones de tareas sin recuperar ni catálogos superpuestos.
+10. Cualquier regla que incluya un destino no autorizado se rechaza completa;
+    nunca se amplía implícitamente a otras luces.
+11. Prioridades, desempates, modos, dispositivos del Bloque A, persistencia y
+    `unique_id` existentes conservan su comportamiento.
+12. Ruff, pytest con cobertura de ramas, matriz Linux para Home Assistant
+    `2026.11.0`/`2026.11.2`, Hassfest, HACS/Marketplace, traducciones y JSON
+    deben aprobar antes de la validación manual.
+
 ## Requisitos no funcionales
 
 - Operación completamente local y asíncrona.

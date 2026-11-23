@@ -21,20 +21,24 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 
 - [x] La rama alpha.3 parte del SHA alpha.2 verificado
       `a14d9afb465c698c0354d18892ecac3537d5f6b4`, no de `main`.
+- [x] El Bloque B parte del HEAD aprobado del Bloque A
+      `fa9ecd650485e27ee1f1f22654972a1c47379c17` y conserva sus cambios.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
 - [x] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
-      pasan: 135 pruebas y cobertura de ramas `87.50 %` en ambas variantes.
+      pasan: 148 pruebas y cobertura de ramas `87.14 %` en ambas variantes.
 - [x] Hassfest y HACS/Marketplace Action pasan sin exclusiones engañosas.
 - [x] Manifest, Python, changelog y notas coinciden para alpha.3.
-- [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
-      excepciones.
+- [x] Traducciones `en`, `es` y `es-419` cubren flujos, entidades, acciones y
+      excepciones, incluido el administrador y editor de reglas.
 - [x] Instalación, actualización, recarga, descarga y recuperación se prueban.
       La eliminación completa de la entrada y la ausencia de archivos
       `smart_led_manager.*` se comprobaron en laboratorio HAOS; la evidencia
       física Raspberry/Zigbee se conserva separada.
-- [ ] El propietario ejecuta el bloque alpha.3 de `docs/haos-test-plan.md` en
-      VirtualBox y Raspberry Pi. Los resultados alpha.2 se conservan como base,
-      pero no prueban visualmente los nuevos dispositivos ni su limpieza.
+- [x] El propietario aprobó 8/8 pruebas del Bloque A en HAOS VirtualBox con
+      `fa9ecd650485e27ee1f1f22654972a1c47379c17`, reportadas el 23 de noviembre
+      de 2026. No se atribuyen logs o métricas no entregados.
+- [ ] El propietario repite el Bloque A en Raspberry Pi/ZHA/GLEDOPTO y ejecuta
+      el plan del Bloque B primero en VirtualBox y después en hardware físico.
 - [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
       en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
       español. No se atribuye una prueba independiente al perfil `es`.
@@ -46,6 +50,11 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 
 Una comprobación que no pueda ejecutarse se registra como pendiente con su
 motivo; no se sustituye por una afirmación de éxito.
+
+El pytest completo no se marca como aprobado en Windows: la dependencia
+`pytest-homeassistant` importa `fcntl`, disponible sólo en POSIX. Las tres
+pruebas síncronas del validador visual y Ruff sí se ejecutaron localmente; la
+evidencia completa corresponde a la matriz Linux indicada arriba.
 
 ## Base física heredada de alpha.1
 
@@ -110,14 +119,23 @@ Store/config entry requieren atención.
    alpha.3 del commit candidato y reinicia Core; no elimines la entrada.
 4. Comprueba que luces, reglas, zonas, modos, selección, `entity_id` y nombres
    personalizados siguen presentes.
-5. Asigna áreas desde **Configurar > Zonas** si lo deseas; no edites `.storage`
+5. Abre **Configurar > Reglas inteligentes**, edita una regla sin cambiar su
+   identidad y revisa el editor visual de puntos. Las copias empiezan
+   deshabilitadas; no las actives hasta comprobar destinos y prioridad.
+6. Asigna áreas desde **Configurar > Zonas** si lo deseas; no edites `.storage`
    ni registros internos.
-6. Ejecuta primero el plan VirtualBox y después el plan físico.
+7. Ejecuta primero el plan VirtualBox y después el plan físico.
 
 Alpha.3 migra el ConfigEntry de `1.1` a `1.2`, pero no cambia el Store. Volver
 a alpha.2 requiere restaurar la copia de seguridad completa: una versión
 anterior no está obligada a aceptar un `minor_version` futuro. Conserva la
 copia hasta verificar las entidades, sus dispositivos y la recuperación.
+
+Volver del Bloque B al código del Bloque A sin restaurar datos puede activar
+copias o reglas que estaban deshabilitadas, porque el código anterior no conoce
+`enabled`. La reversión segura es restaurar la copia de seguridad completa. Si
+no existe, elimina antes todas las copias y reglas deshabilitadas desde Bloque B
+y documenta una revisión manual; no se recomienda sustituir sólo el código.
 
 ## Camino a `0.1.0`
 

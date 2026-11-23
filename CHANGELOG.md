@@ -17,6 +17,20 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Migración de ConfigEntry `1.1` a `1.2` que añade el área opcional sin cambiar
   identificadores de zonas, modos o entidades.
 
+### Añadido — Bloque B
+
+- Administrador gráfico de reglas con alta, edición, duplicación, activación o
+  desactivación y eliminación desde el Options Flow nativo.
+- Edición de reglas de estado y numéricas conservando su `id` estable; las
+  copias reciben un identificador nuevo, un nombre diferenciable y comienzan
+  deshabilitadas.
+- Editor multipaso de puntos numéricos con `NumberSelector`, selector visual
+  RGB, unidad del sensor cuando está disponible, alta, edición, eliminación,
+  ordenamiento automático y validación de valores finitos, colores, duplicados
+  y mínimo de dos puntos.
+- Compatibilidad con reglas anteriores sin `enabled`, que continúan habilitadas
+  por defecto y conservan identificadores y formato persistente de puntos.
+
 ### Compatibilidad y correcciones
 
 - Se conservan los `unique_id` de alpha.2; Home Assistant reasocia las mismas
@@ -29,6 +43,16 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   registro; descargar la integración no ejecuta limpieza.
 - Un catálogo inválido desactiva la limpieza destructiva, y un dispositivo de
   zona borrada se conserva si otra entidad todavía lo referencia.
+- Las evaluaciones de reglas y sus demoras quedan bajo propiedad de
+  `RuleManager`: la descarga o recarga cancela y espera ese trabajo antes de
+  iniciar el catálogo nuevo, y recupera cualquier excepción de tarea para que
+  no quede como error sin observar.
+- Una regla que incluya cualquier destino ajeno a la lista autorizada se
+  rechaza completa. Editar destinos reemplaza la intención del mismo `id`,
+  incluso si está enmascarada; desactivar o eliminar evita que reaparezca.
+- Guardar una regla continúa recargando la ConfigEntry. Los cambios intermedios
+  del editor no envían órdenes; las solicitudes temporales no persistentes
+  pueden terminar durante esa recarga, como en alpha.2.
 
 ### Validación
 
@@ -36,8 +60,21 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   áreas, nombres, compatibilidad y limpieza selectiva. La matriz Linux aprobó
   135 pruebas y cobertura de ramas `87.50 %` en Home Assistant `2026.11.0` y
   `2026.11.2`; Ruff, Hassfest y HACS/Marketplace también aprobaron.
-- La comprobación visual y física en HAOS todavía debe ejecutarla el
-  propietario; no se hereda como aprobada de alpha.2.
+- El propietario reportó el 23 de noviembre de 2026 la aprobación 8/8 de A-01
+  a A-08 en HAOS VirtualBox con el Bloque A
+  `fa9ecd650485e27ee1f1f22654972a1c47379c17`. La evidencia es el resultado
+  comunicado por el propietario; no se atribuyen logs ni métricas no
+  entregados. La repetición física Raspberry Pi/ZHA/GLEDOPTO y los nombres por
+  Alexa/Matter permanecen pendientes.
+- El Bloque B añade regresiones automatizadas de edición, identidad,
+  duplicación deshabilitada, destinos, puntos visuales, reglas heredadas,
+  intención enmascarada, tareas diferidas y reconstrucción tras recarga. Su
+  validación manual en HAOS todavía está pendiente.
+- En Linux, 148 pruebas aprobaron con cobertura de ramas `87.14 %` tanto en
+  Home Assistant `2026.11.0` como en `2026.11.2`; Ruff, Hassfest y
+  HACS/Marketplace también aprobaron. El pytest completo no se atribuye al
+  entorno local Windows, donde `pytest-homeassistant` requiere el módulo POSIX
+  `fcntl`; la matriz Linux conserva la evidencia ejecutable.
 
 ## [0.1.0-alpha.2] — Sin publicar
 

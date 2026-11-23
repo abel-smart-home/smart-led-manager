@@ -11,7 +11,9 @@ La primera versión se diseña para RGB, RGBW, RGB+CCT y RGBWW sin lógica exclu
 1. **Modelo y motor puro** (`models.py`, `core/priority.py`, `core/engine.py`). Conservan solicitudes activas, validan tiempos/prioridades y resuelven un ganador independiente por destino bajo un bloqueo asíncrono.
 2. **Módulos** (`modules/`). Las reglas traducen estados y valores numéricos a
    solicitudes estables. `ModeManager` valida zonas/modos y representa la
-   selección de cada zona con una solicitud persistente protegida.
+   selección de cada zona con una solicitud persistente protegida. `RuleManager`
+   posee sus listeners, demoras y tareas de evaluación y las cancela y espera
+   antes de una recarga.
 3. **Orquestación** (`coordinator.py`). Posee suscripciones, historial acotado, persistencia, vencimientos, disponibilidad y ciclo de vida de la entrada.
 4. **Planificación** (`core/scheduler.py`). Cancela el trabajo del ganador anterior y ejecuta expiraciones/animaciones con tareas asíncronas por destino.
 5. **Proyección física** (`controllers/rgb.py`). Consulta el estado y capacidades reales, convierte la intención a `light.turn_on`/`light.turn_off`, deduplica y limita órdenes.
@@ -82,6 +84,15 @@ defecto. Alpha.3 migra el ConfigEntry de `1.1` a `1.2` y añade `area_id: null`
 a cada zona existente. No cambia `zone_id`, `mode_id`, los `unique_id` de las
 entidades ni el esquema serializado de `Request`.
 
+El Bloque B no requiere otra migración: `enabled` es opcional y su ausencia se
+interpreta como `true`. Las reglas conservan su `id` al editarse y las copias
+reciben uno nuevo. Los puntos permanecen en el formato de lista estructurada de
+alpha.1/alpha.2. El Options Flow guarda la definición completa y la recarga
+ordinaria descarta el motor en memoria anterior; el catálogo nuevo reevalúa las
+fuentes actuales. Las tareas de la instancia anterior se cancelan y esperan
+antes de crear listeners nuevos, por lo que no pueden reinsertar una solicitud
+obsoleta.
+
 El Device Registry contiene un dispositivo central identificado por
 `(smart_led_manager, entry_id)` y un dispositivo por zona identificado por
 `(smart_led_manager, entry_id:zone:zone_id)`. El sensor del motor permanece en
@@ -102,6 +113,9 @@ Al descargar la integración se eliminan listeners, se cancelan vencimientos/ani
 
 - **Estado:** igualdad o desigualdad sobre entidades persistentes (sensores binarios, interruptores, ayudantes, clima, alarma, presencia, persona y sol). La condición falsa libera su solicitud.
 - **Numérica:** N puntos ordenados, interpolación RGB o rango inferior, clamp en extremos, variación mínima e intervalo mínimo. `unknown`, `unavailable`, NaN e infinito liberan/ignoran la solicitud según corresponda.
+- **Administración:** alta, edición con identificador estable, copia inicialmente
+  deshabilitada, activación/desactivación y eliminación. El editor multipaso usa
+  selectores nativos y no aplica órdenes hasta guardar.
 - **Eventos/botones:** se activan mediante acciones explícitas en `alpha.1`; listeners de eventos y disparadores por dispositivo se añadirán sin fingir semántica de interruptor persistente.
 
 ## Animaciones iniciales

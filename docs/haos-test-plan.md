@@ -279,39 +279,76 @@ incluyendo fallos y limitaciones. Un fallo de hardware/integración externa debe
 distinguirse de un fallo del motor, pero no ocultarse. La autorización para
 fusionar o publicar sigue siendo una decisión separada.
 
-## Plan pendiente de `0.1.0-alpha.3`, Bloque A
+## `0.1.0-alpha.3`, Bloque A — resultado reportado
 
-Este bloque todavía **no tiene validación visual ni física**. Conserva la
-evidencia alpha.2, pero debe registrarse por separado sobre el SHA candidato.
+| Campo | Registro |
+|---|---|
+| Fecha del reporte | 23 de noviembre de 2026 |
+| Entorno | HAOS VirtualBox |
+| Versión | `0.1.0-alpha.3`, Bloque A |
+| SHA | `fa9ecd650485e27ee1f1f22654972a1c47379c17` |
+| Resultado | **8/8 aprobadas por reporte del propietario** |
+| Evidencia | Resultados comunicados por el propietario; no se recibieron ni se atribuyen logs o métricas adicionales. |
 
-### HAOS VirtualBox
+| Caso | Alcance | Resultado reportado |
+|---|---|---|
+| A-01 | Migración alpha.2 → alpha.3 | Aprobada |
+| A-02 | Organización de dispositivos | Aprobada |
+| A-03 | Conservación de entidades | Aprobada |
+| A-04 | Renombrar y asignar área | Aprobada |
+| A-05 | Exposición de switches | Aprobada |
+| A-06 | Eliminación selectiva | Aprobada |
+| A-07 | Persistencia y reinicio | Aprobada |
+| A-08 | Regresión de prioridades | Aprobada |
 
-1. Actualiza una copia de la entrada alpha.2 sin eliminarla y anota antes los
-   `entity_id`, nombres personalizados y modo seleccionado.
-2. Comprueba un dispositivo central con el sensor del motor y dispositivos
-   separados para Sala y Oficina con sus selectores/switches.
-3. Renombra Sala, asígnale y cambia un área; confirma que no se duplican el
-   dispositivo ni las entidades y que las luces Demo conservan sus áreas.
-4. Desactiva la exposición de un switch, recarga y vuelve a activarla; debe
-   recuperar el mismo `entity_id` y nombre personalizado.
-5. Elimina un modo temporal y confirma que su switch deja de existir también
-   en el Entity Registry. Después elimina una zona ya vacía y confirma que no
-   quedan selector ni dispositivo huérfanos.
-6. Reinicia Core y confirma la selección persistente, la ausencia de duplicados
-   y que no aparezcan animaciones o comandos tardíos.
+Este resultado cierra el plan VirtualBox del Bloque A, pero no convierte la
+ejecución en prueba física Zigbee. Continúan pendientes la repetición en
+Raspberry Pi 5/ZHA/GLEDOPTO, la comprobación física de nombres y control por
+Alexa/Matter Hub, M-06 con dos controladores Zigbee reales y las demás pruebas
+físicas parciales heredadas de alpha.2. Alpha.3 no está completamente validada
+ni publicada.
 
-### Raspberry Pi 5, ZHA y GLEDOPTO
+## Plan pendiente de `0.1.0-alpha.3`, Bloque B
 
-1. Repite la actualización sobre una copia de seguridad y verifica que la
-   entidad `light.gledopto_gl_c_007p` sigue perteneciendo sólo a ZHA.
-2. Confirma visualmente la distribución de dispositivos y nombres, activa Cine
-   y Lectura desde el dispositivo de zona y repite una prioridad superior.
-3. Reinicia Core y comprueba que el modo vigente y la recuperación Zigbee se
-   mantienen sin duplicar animaciones.
-4. Si se prueba Matter Hub/Alexa, registra por separado los nombres recibidos;
-   la presencia de nombres naturales en Home Assistant no demuestra aliases ni
-   compatibilidad general de voz.
+Usa una copia de seguridad o una instancia aislada. Registra SHA completo,
+fecha y hora, versión de Home Assistant, entorno y resultado real. Los tests y
+la simulación automatizada no cuentan como ejecución HAOS.
 
-No ejecutes la eliminación sobre la instalación principal sin una copia de
-seguridad. Registra versión, SHA, fecha/hora, entorno y resultado real; no
-marques este bloque como aprobado por anticipado.
+### HAOS VirtualBox — administrador y editor de reglas
+
+| Caso | Procedimiento | Resultado esperado | Estado |
+|---|---|---|---|
+| B-01 | Actualiza desde el Bloque A sin eliminar la entrada. Abre una regla de estado antigua. | Conserva `id`, valores, luces, zonas, modos, selectores, switches y solicitudes persistentes; la regla heredada aparece habilitada. | Pendiente |
+| B-02 | Edita nombre, origen, condición, prioridad, RGB y brillo de una regla de estado activa. | Tras guardar y recargar se aplica sólo la definición nueva; no aparece una intención anterior. | Pendiente |
+| B-03 | Edita origen, destino, prioridad, modo y límites de una regla numérica. | Conserva el mismo `id` y responde al origen nuevo, sin órdenes del origen anterior. | Pendiente |
+| B-04 | Agrega, edita y elimina puntos con el selector RGB; intenta duplicar un valor y dejar un solo punto. | Ordena automáticamente, muestra la unidad disponible y bloquea duplicados o menos de dos puntos. No exige cadenas RGB. | Pendiente |
+| B-05 | Abre el editor, cambia metadatos y puntos y elige **Descartar cambios**. | No cambia opciones ni envía órdenes físicas intermedias. | Pendiente |
+| B-06 | Duplica una regla, revisa su nombre e identificador y actívala después de ajustar prioridad/destino. | La original queda intacta; la copia usa `id` nuevo y comienza deshabilitada. | Pendiente |
+| B-07 | Mantén una regla inferior enmascarada por un modo superior; edita color, prioridad y destino, luego libera el modo. | No hay destello intermedio; aparece únicamente la intención editada vigente en el destino nuevo. | Pendiente |
+| B-08 | Cambia los destinos de Sala a Oficina; después deshabilita y elimina la regla activa. | Sala deja de recibir la regla, Oficina recibe la vigente y, al deshabilitar/eliminar, no hay recuperación tardía. | Pendiente |
+| B-09 | Reinicia Core con una regla habilitada, otra deshabilitada y un modo persistente. | Se reconstruyen sólo intenciones vigentes; no se duplican listeners, solicitudes, animaciones ni entidades. | Pendiente |
+| B-10 | Provoca una actualización numérica dentro del intervalo mínimo y guarda otra definición antes de la evaluación diferida. | La tarea del catálogo anterior termina durante la recarga y no reintroduce la solicitud obsoleta. | Pendiente |
+
+Comprueba también que una notificación temporal activa puede terminar durante
+la recarga: es la política documentada, no una edición completamente en
+caliente. Si se observa una orden después de descartar el flujo o una regla
+vieja reaparece, registra el log y detén la prueba.
+
+### Raspberry Pi 5, ZHA y GLEDOPTO — repetición física separada
+
+1. Repite B-02, B-04, B-07 y B-08 sobre
+   `light.gledopto_gl_c_007p`, registrando cada orden visible y cualquier
+   advertencia ZHA.
+2. Cambia entre Sala y Oficina sólo si ambas tienen controladores reales. No
+   marques M-06 completo usando dos entidades Demo o un único controlador.
+3. Durante una recarga confirma que no queda una animación anterior ni se
+   reproduce una regla eliminada al reconectar el controlador.
+4. Reinicia Core y confirma la regla habilitada vigente, la regla deshabilitada
+   ausente y la selección de modo persistente.
+5. Si se prueba Matter Hub/Alexa, registra por separado los nombres y acciones
+   recibidos. La organización correcta en Home Assistant no demuestra por sí
+   sola compatibilidad de voz.
+
+No ejecutes eliminaciones sobre la instalación principal sin copia de
+seguridad. La validación de Bloque B permanece pendiente hasta que el
+propietario reporte estos resultados; no hereda el 8/8 del Bloque A.

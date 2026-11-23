@@ -10,7 +10,10 @@ motor de prioridades determinista.
 > con HAOS/ZHA/GLEDOPTO. La validación consolidada de alpha.2 registra 16 casos
 > M completos, 3 parciales y M-06 pendiente con dos controladores Zigbee reales,
 > combinando evidencia física y de laboratorio HAOS con luces Demo. No equivale
-> a 16 pruebas completas sobre Zigbee ni autoriza la publicación.
+> a 16 pruebas completas sobre Zigbee ni autoriza la publicación. El propietario
+> aprobó 8/8 pruebas del Bloque A de alpha.3 en HAOS VirtualBox sobre
+> `fa9ecd650485e27ee1f1f22654972a1c47379c17`; la validación manual del Bloque B
+> y la repetición física en Raspberry Pi/ZHA/GLEDOPTO siguen pendientes.
 
 ## Qué hace esta alfa
 
@@ -21,6 +24,10 @@ motor de prioridades determinista.
   ocultas, para mostrar la vigente al terminar la solicitud superior.
 - Admite reglas de estado y reglas numéricas de color con N puntos,
   interpolación o rangos.
+- Administra reglas desde el Options Flow: editar sin cambiar su identificador,
+  duplicar como copia inicialmente deshabilitada, activar/desactivar y eliminar.
+  Los puntos numéricos se agregan, editan, ordenan y colorean con controles
+  nativos, sin escribir cadenas RGB.
 - Permite crear zonas no superpuestas y modos persistentes por zona. Cada zona
   expone un `select`; un modo puede exponer además un `switch` opcional para
   paneles o puentes, sin depender de Alexa o Matter.
@@ -65,7 +72,8 @@ desarrollo y pruebas. Copia
 reinicia Home Assistant y agrega **Smart LED Manager** desde **Ajustes >
 Dispositivos y servicios > Añadir integración**. Selecciona sólo las luces que
 quieras delegar al motor. Después abre **Configurar > Zonas** y **Configurar >
-Modos de iluminación** para crear el catálogo; no hace falta YAML.
+Modos de iluminación** o **Configurar > Reglas inteligentes** para crear el
+catálogo; no hace falta YAML ni introducir puntos RGB como texto.
 
 Cuando haya una release compatible, Marketplace de Home Assistant 2026.11+
 será el canal previsto. Consulta la [guía de instalación](docs/installation.md)

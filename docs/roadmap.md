@@ -47,20 +47,33 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
   ejecuta limpieza durante la descarga.
 - [x] Nombres naturales mediante nombre de dispositivo y `has_entity_name`, sin
   aliases ni dependencias de servicios de voz.
+- [x] Validación del propietario 8/8 en HAOS VirtualBox (A-01 a A-08) con
+  `fa9ecd650485e27ee1f1f22654972a1c47379c17`, reportada el 23 de noviembre de
+  2026. La repetición física Raspberry Pi/ZHA/GLEDOPTO y los nombres mediante
+  Alexa/Matter siguen pendientes.
 
-### Bloques B, C y D — alcance aprobado pendiente
+### Bloque B — administración de reglas
+
+- [x] Alta, edición con `id` estable, duplicación con `id` nuevo y copia
+  deshabilitada, activación/desactivación y eliminación de reglas.
+- [x] Editor numérico multipaso con valor, unidad disponible, selector RGB,
+  alta/baja, ordenamiento y validación mediante controles nativos.
+- [x] Reconciliación por recarga: tareas/listeners antiguos cancelados y
+  esperados, destinos reemplazados y reglas deshabilitadas/eliminadas sin
+  intención tardía.
+- [x] Compatibilidad de reglas alpha.1/alpha.2 sin migración de esquema y
+  rechazo completo de cualquier catálogo con destinos no autorizados.
+- [ ] Validación manual del Bloque B en HAOS VirtualBox y posterior repetición
+  separada con Raspberry Pi/ZHA/GLEDOPTO.
+
+### Bloques C y D — alcance aprobado pendiente
 
 - Áreas, etiquetas, grupos compatibles y “todas las administradas”, con expansión acíclica y deduplicación.
-- Edición y duplicación de reglas con identificadores estables, reconciliación
-  de solicitudes activas y ausencia de intenciones obsoletas; condiciones
-  compuestas, horarios y duración mínima.
+- Condiciones compuestas, horarios y duración mínima.
 - Histéresis numérica, unidades y políticas por debajo/encima/rango.
 - Botones, `event`, `input_button` y device triggers con semántica real de evento.
 - Política de reintento y verificación física configurables.
 - Política temporal opcional de pausa/reanudación además del vencimiento en tiempo real.
-- Editor visual de puntos numéricos con valor, unidad cuando esté disponible,
-  selector de color, alta/baja, ordenamiento, validación y vista previa si el
-  Options Flow nativo lo permite.
 - Nombres y aliases naturales para voz, breves y opcionalmente cualificados por
   zona, sin cambiar los `unique_id` existentes; el Bloque A cubre los nombres
   nativos y deja pendiente la gestión explícita de aliases.

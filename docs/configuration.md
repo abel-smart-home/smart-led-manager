@@ -83,8 +83,9 @@ o recarga temporal no elimina registros.
 
 La regla está activa mientras una entidad persistente cumpla una igualdad o
 desigualdad. Configura nombre, origen, operador, valor, luces administradas,
-prioridad, RGB, brillo y transición. Cuando la condición deja de cumplirse se
-libera la solicitud y el motor calcula de nuevo el ganador de cada luz.
+prioridad, RGB, brillo, transición y si queda habilitada. Cuando la condición
+deja de cumplirse se libera la solicitud y el motor calcula de nuevo el ganador
+de cada luz.
 
 Ejemplos: un `input_boolean` para modo cine, un `binary_sensor` de puerta, el
 estado de una persona o el estado de `sun`. Para botones o eventos de un solo
@@ -93,23 +94,18 @@ persistente.
 
 ## Regla numérica
 
-Define al menos dos puntos con el formato:
+Define al menos dos puntos desde el editor visual. Cada punto combina un campo
+numérico con el selector RGB nativo de Home Assistant. El resumen muestra la
+unidad publicada por la entidad cuando está disponible; permite agregar,
+elegir y editar o eliminar puntos. Los valores se ordenan automáticamente y no
+se aceptan duplicados, NaN, infinito ni canales fuera de `0..255`.
 
-```text
-16:0,0,255;20:0,255,255;24:0,255,0;28:255,255,0;32:255,128,0;36:255,0,0
-```
-
-Cada entrada es `valor:R,G,B`. Los valores se ordenan y los extremos se
-limitan al primer/último color. El modo `interpolate` mezcla linealmente los
-puntos contiguos; `ranges` usa el rango inferior más próximo. **Variación
-mínima** y **intervalo mínimo** evitan ruido y exceso de órdenes.
-
-El primer número es el valor de la entidad de origen y los tres siguientes son
-los canales rojo, verde y azul de `0..255`; `;` separa los puntos. Fuera de los
-extremos se usa el color del punto más cercano. Alpha.3 propone sustituir esta
-cadena técnica por un editor con valor, unidad visible cuando sea posible,
-selector de color, ordenamiento y validación, siempre que pueda implementarse
-de forma segura con el Options Flow nativo.
+El formato guardado continúa siendo una lista compatible con alpha.1/alpha.2,
+por ejemplo `[{"value": 20, "rgb": [0, 0, 255]}, ...]`; no hace falta escribir
+ni mantener una cadena técnica. El modo `interpolate` mezcla linealmente los
+puntos contiguos; `ranges` usa el rango inferior más próximo. Fuera de los
+extremos se usa el color del punto más cercano. **Variación mínima** e
+**intervalo mínimo** evitan ruido y exceso de órdenes.
 
 `unknown`, `unavailable`, NaN e infinito nunca se convierten en cero ni en un
 color válido. Comprueba que la entidad de origen publique un valor numérico
@@ -135,11 +131,27 @@ sin capacidad de color conserva un error diagnosticable en lugar de recibir
 datos inválidos. Cuando una luz está `unavailable`, se conserva la intención,
 pero al regresar se vuelve a comprobar qué solicitud sigue vigente.
 
-## Estado actual de edición
+## Administración de reglas
 
-La alfa permite crear, editar y eliminar zonas y modos; las reglas todavía se
-agregan y eliminan mediante options flow. La edición o duplicación directa de
-reglas, destinos por área/etiqueta, condiciones compuestas, horarios y
-disparadores de eventos pertenecen a incrementos posteriores. El área opcional
-de una zona sólo organiza su dispositivo virtual; no expande destinos. Elimina
-y vuelve a crear una regla para cambiarla en este bloque.
+Desde **Configurar > Reglas inteligentes** se puede agregar, editar, duplicar,
+activar o desactivar y eliminar una regla. Editar conserva el `id` interno,
+aunque cambie el nombre, origen, destinos, prioridad o color. Una copia recibe
+un `id` nuevo, añade `(2)` al nombre inicial y queda deshabilitada para evitar
+un conflicto accidental; revisa sus campos antes de activarla. Las reglas de
+alpha.1/alpha.2 que no contienen `enabled` se consideran habilitadas.
+
+El editor numérico es multipaso. Los cambios de metadatos y puntos permanecen
+en el flujo hasta elegir **Guardar regla**; **Descartar cambios** vuelve al menú
+sin alterar las opciones. No hay vista previa física durante la edición: el
+selector permite ver el color, pero ninguna orden se envía antes del guardado.
+Guardar recarga la entrada, cancela y espera evaluaciones antiguas y reconstruye
+la solicitud desde la definición y el estado actuales. Una regla activa que
+cambia de destinos deja de participar en los anteriores; una deshabilitada o
+eliminada no reaparece al terminar una solicitud superior.
+
+La recarga no es edición completamente en caliente. Conserva solicitudes
+persistentes válidas y selecciones de modo, pero una notificación temporal no
+persistente puede terminar. Destinos por área/etiqueta, condiciones compuestas,
+horarios, duración mínima, histéresis, eventos y políticas configurables de
+recuperación o pausa/reanudación siguen reservados a los Bloques C y D. El área
+opcional de una zona sólo organiza su dispositivo virtual; no expande destinos.
