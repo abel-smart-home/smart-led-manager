@@ -6,8 +6,10 @@ import unittest
 
 from custom_components.smart_led_manager.core.color import (
     ColorPoint,
+    evaluate_rgb,
     hex_to_rgb,
     interpolate_rgb,
+    normalize_color_points,
     parse_numeric_state,
     rgb_to_hex,
 )
@@ -38,6 +40,37 @@ class ColorTests(unittest.TestCase):
     def test_range_mode_uses_lower_threshold(self) -> None:
         self.assertEqual(interpolate_rgb(19.99, POINTS, mode="ranges"), (0, 0, 255))
         self.assertEqual(interpolate_rgb(20, POINTS, mode="ranges"), (0, 255, 255))
+
+    def test_evaluation_reports_exact_interval_and_clamping(self) -> None:
+        below = evaluate_rgb(10, POINTS)
+        between = evaluate_rgb(18, POINTS)
+        exact = evaluate_rgb(20, POINTS)
+        above = evaluate_rgb(30, POINTS)
+
+        self.assertEqual((below.relation, below.lower, below.upper), ("below", 16, 16))
+        self.assertEqual(between.color, (0, 128, 255))
+        self.assertEqual(
+            (between.relation, between.lower, between.upper, between.ratio),
+            ("between", 16, 20, 0.5),
+        )
+        self.assertEqual((exact.relation, exact.lower), ("point", 20))
+        self.assertEqual((above.relation, above.lower), ("above", 24))
+
+    def test_persisted_points_are_validated_and_sorted(self) -> None:
+        points = normalize_color_points(
+            [
+                {"value": 2, "rgb": [255, 255, 255]},
+                {"value": -1, "rgb": [0, 0, 0]},
+            ]
+        )
+        self.assertEqual([point["value"] for point in points], [-1.0, 2.0])
+        with self.assertRaisesRegex(ValueError, "unique"):
+            normalize_color_points(
+                [
+                    {"value": 1, "rgb": [0, 0, 0]},
+                    {"value": 1, "rgb": [255, 255, 255]},
+                ]
+            )
 
     def test_duplicate_reference_value_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unique"):

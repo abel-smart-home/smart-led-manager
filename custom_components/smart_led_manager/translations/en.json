@@ -138,6 +138,7 @@
       "rules": {
         "title": "Smart rules",
         "menu_options": {
+          "open_visual_editor": "Open advanced visual editor",
           "add_state_rule": "Add state rule",
           "add_numeric_rule": "Add numeric rule",
           "edit_rule": "Edit existing rule",
@@ -145,6 +146,10 @@
           "toggle_rule": "Enable or disable rule",
           "delete_rule": "Delete rule"
         }
+      },
+      "open_visual_editor": {
+        "title": "Advanced visual editor",
+        "description": "Open **Smart LED Manager** in the administrator sidebar or visit `{path}`. This supported local panel edits existing numeric rules. The native editor remains available here."
       },
       "add_state_rule": {
         "title": "Add state rule",

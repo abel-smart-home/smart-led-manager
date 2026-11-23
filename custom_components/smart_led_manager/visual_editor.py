@@ -1,0 +1,363 @@
+"""Administrator-only local visual editor for numeric color rules."""
+
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import json
+import logging
+from copy import deepcopy
+from pathlib import Path
+from typing import Any
+
+import probatio
+from homeassistant.components import frontend, panel_custom, websocket_api
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT
+from homeassistant.core import HomeAssistant, callback
+
+from .const import CONF_LIGHTS, CONF_RULES, DOMAIN, RULE_TYPE_NUMERIC, VERSION
+from .core.color import (
+    ColorPoint,
+    evaluate_rgb,
+    normalize_color_points,
+    parse_numeric_state,
+    rgb_to_hex,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+PANEL_PATH = "smart-led-manager-editor"
+STATIC_URL = "/smart_led_manager_frontend"
+_FRONTEND_PATH = Path(__file__).parent / "frontend"
+
+_DATA_COMMANDS = "visual_editor_commands_registered"
+_DATA_LOCK = "visual_editor_save_lock"
+_DATA_PANEL = "visual_editor_panel_registered"
+_DATA_PANEL_ENTRY = "visual_editor_panel_entry"
+_DATA_STATIC = "visual_editor_static_registered"
+
+
+class VisualEditorError(ValueError):
+    """A client-visible editor request error."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+async def async_setup_visual_editor(hass: HomeAssistant) -> None:
+    """Register static files and authenticated WebSocket commands once."""
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    domain_data.setdefault(_DATA_LOCK, asyncio.Lock())
+    if not domain_data.get(_DATA_COMMANDS):
+        websocket_api.async_register_command(hass, websocket_get_numeric_rules)
+        websocket_api.async_register_command(hass, websocket_preview_numeric_rule)
+        websocket_api.async_register_command(hass, websocket_save_numeric_rule)
+        domain_data[_DATA_COMMANDS] = True
+    if not domain_data.get(_DATA_STATIC):
+        await hass.http.async_register_static_paths(
+            [
+                StaticPathConfig(
+                    STATIC_URL,
+                    str(_FRONTEND_PATH),
+                    cache_headers=False,
+                )
+            ]
+        )
+        domain_data[_DATA_STATIC] = True
+
+
+async def async_register_visual_editor_panel(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Expose the editor in the administrator sidebar for the loaded entry."""
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if (
+        domain_data.get(_DATA_PANEL)
+        and domain_data.get(_DATA_PANEL_ENTRY) == entry.entry_id
+    ):
+        return
+    if domain_data.get(_DATA_PANEL):
+        frontend.async_remove_panel(hass, PANEL_PATH, warn_if_unknown=False)
+    await panel_custom.async_register_panel(
+        hass,
+        frontend_url_path=PANEL_PATH,
+        webcomponent_name="smart-led-manager-visual-editor",
+        sidebar_title="Smart LED Manager",
+        sidebar_icon="mdi:led-strip-variant",
+        module_url=f"{STATIC_URL}/visual-editor-panel.mjs?v={VERSION}",
+        config={"entry_id": entry.entry_id},
+        require_admin=True,
+        handle_safe_area=True,
+    )
+    domain_data[_DATA_PANEL] = True
+    domain_data[_DATA_PANEL_ENTRY] = entry.entry_id
+
+
+@callback
+def async_remove_visual_editor_panel(hass: HomeAssistant) -> None:
+    """Remove the visible panel when the config entry is unloaded."""
+
+    domain_data = hass.data.get(DOMAIN, {})
+    if not domain_data.get(_DATA_PANEL):
+        return
+    frontend.async_remove_panel(hass, PANEL_PATH, warn_if_unknown=False)
+    domain_data[_DATA_PANEL] = False
+    domain_data.pop(_DATA_PANEL_ENTRY, None)
+
+
+def _options_revision(options: object) -> str:
+    """Return a deterministic optimistic-concurrency token."""
+
+    encoded = json.dumps(
+        options,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry:
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None or entry.domain != DOMAIN:
+        raise VisualEditorError(
+            "entry_not_found", "Smart LED Manager config entry was not found"
+        )
+    return entry
+
+
+def _authorized_targets(entry: ConfigEntry) -> frozenset[str]:
+    raw = entry.options.get(CONF_LIGHTS, entry.data.get(CONF_LIGHTS, []))
+    if not isinstance(raw, (list, tuple)) or not all(
+        isinstance(item, str) and item for item in raw
+    ):
+        raise VisualEditorError("invalid_options", "Managed lights are invalid")
+    return frozenset(raw)
+
+
+def _numeric_rule(entry: ConfigEntry, rule_id: str) -> dict[str, Any]:
+    rules = entry.options.get(CONF_RULES, [])
+    if not isinstance(rules, list):
+        raise VisualEditorError("invalid_options", "Configured rules are invalid")
+    matches = [
+        rule
+        for rule in rules
+        if isinstance(rule, dict) and str(rule.get("id")) == rule_id
+    ]
+    if len(matches) != 1:
+        raise VisualEditorError("rule_not_found", "Numeric rule was not found")
+    rule = matches[0]
+    if rule.get("type") != RULE_TYPE_NUMERIC:
+        raise VisualEditorError("invalid_rule", "Selected rule is not numeric")
+    targets = rule.get("targets")
+    if (
+        not isinstance(targets, list)
+        or not targets
+        or not all(isinstance(target, str) for target in targets)
+        or not set(targets).issubset(_authorized_targets(entry))
+    ):
+        raise VisualEditorError(
+            "unauthorized_targets", "Rule contains a light that is not managed"
+        )
+    return rule
+
+
+def _validated_mode(value: object) -> str:
+    if value not in {"interpolate", "ranges"}:
+        raise VisualEditorError(
+            "invalid_mode", "Mode must be 'interpolate' or 'ranges'"
+        )
+    return str(value)
+
+
+def _validated_points(raw: object) -> list[dict[str, Any]]:
+    try:
+        return normalize_color_points(raw)
+    except ValueError as err:
+        raise VisualEditorError("invalid_points", str(err)) from err
+
+
+def _rule_payload(hass: HomeAssistant, entry: ConfigEntry, rule: dict[str, Any]):
+    rule_id = rule.get("id")
+    source = rule.get("source")
+    if not isinstance(rule_id, str) or not rule_id:
+        raise VisualEditorError("invalid_rule", "Numeric rule identifier is invalid")
+    if not isinstance(source, str) or not source:
+        raise VisualEditorError("invalid_rule", "Numeric rule source is invalid")
+    _numeric_rule(entry, rule_id)
+    payload = deepcopy(rule)
+    payload["points"] = _validated_points(rule.get("points"))
+    payload["mode"] = _validated_mode(rule.get("mode", "interpolate"))
+    state = hass.states.get(source)
+    unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) if state else None
+    return {
+        "rule": payload,
+        "unit": unit if isinstance(unit, str) and unit else None,
+    }
+
+
+def _send_editor_error(
+    connection: websocket_api.ActiveConnection,
+    msg_id: int,
+    err: VisualEditorError,
+) -> None:
+    connection.send_error(msg_id, err.code, str(err))
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/rules/get",
+        probatio.Required("entry_id"): str,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_get_numeric_rules(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return validated numeric rules and a concurrency revision."""
+
+    try:
+        entry = _entry(hass, msg["entry_id"])
+        rules = entry.options.get(CONF_RULES, [])
+        if not isinstance(rules, list):
+            raise VisualEditorError("invalid_options", "Configured rules are invalid")
+        payload = [
+            _rule_payload(hass, entry, rule)
+            for rule in rules
+            if isinstance(rule, dict) and rule.get("type") == RULE_TYPE_NUMERIC
+        ]
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    connection.send_result(
+        msg["id"],
+        {
+            "entry_id": entry.entry_id,
+            "revision": _options_revision(entry.options),
+            "rules": payload,
+        },
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/rules/preview",
+        probatio.Required("entry_id"): str,
+        probatio.Required("rule_id"): str,
+        probatio.Required("mode"): str,
+        probatio.Required("points"): list,
+        probatio.Required("values"): list,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_preview_numeric_rule(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Simulate draft points with the production algorithm and no light I/O."""
+
+    try:
+        entry = _entry(hass, msg["entry_id"])
+        _numeric_rule(entry, msg["rule_id"])
+        mode = _validated_mode(msg["mode"])
+        raw_points = _validated_points(msg["points"])
+        points = tuple(
+            ColorPoint(point["value"], tuple(point["rgb"])) for point in raw_points
+        )
+        if not 1 <= len(msg["values"]) <= 201:
+            raise VisualEditorError(
+                "invalid_values", "Preview requires between 1 and 201 values"
+            )
+        values: list[float] = []
+        for raw_value in msg["values"]:
+            value = parse_numeric_state(raw_value)
+            if value is None:
+                raise VisualEditorError(
+                    "invalid_values", "Preview values must be finite numbers"
+                )
+            values.append(value)
+        results = []
+        for value in values:
+            evaluation = evaluate_rgb(value, points, mode=mode)
+            results.append(
+                {
+                    "value": value,
+                    "rgb": list(evaluation.color),
+                    "hex": rgb_to_hex(evaluation.color),
+                    "relation": evaluation.relation,
+                    "lower": evaluation.lower,
+                    "upper": evaluation.upper,
+                    "ratio": evaluation.ratio,
+                }
+            )
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    connection.send_result(msg["id"], {"results": results})
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/rules/save",
+        probatio.Required("entry_id"): str,
+        probatio.Required("rule_id"): str,
+        probatio.Required("revision"): str,
+        probatio.Required("mode"): str,
+        probatio.Required("points"): list,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_save_numeric_rule(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Persist only a numeric rule's mode and points after revision checking."""
+
+    try:
+        lock: asyncio.Lock = hass.data[DOMAIN][_DATA_LOCK]
+        async with lock:
+            entry = _entry(hass, msg["entry_id"])
+            current_revision = _options_revision(entry.options)
+            if msg["revision"] != current_revision:
+                raise VisualEditorError(
+                    "conflict",
+                    "Configuration changed in another session; reload before saving",
+                )
+            mode = _validated_mode(msg["mode"])
+            points = _validated_points(msg["points"])
+            current = _numeric_rule(entry, msg["rule_id"])
+            options = deepcopy(dict(entry.options))
+            rules = deepcopy(list(options.get(CONF_RULES, [])))
+            for index, rule in enumerate(rules):
+                if isinstance(rule, dict) and rule.get("id") == current["id"]:
+                    rules[index]["mode"] = mode
+                    rules[index]["points"] = points
+                    saved_rule = deepcopy(rules[index])
+                    break
+            else:
+                raise VisualEditorError("rule_not_found", "Numeric rule was not found")
+            options[CONF_RULES] = rules
+            hass.config_entries.async_update_entry(entry, options=options)
+            revision = _options_revision(options)
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    except Exception:  # pragma: no cover - defensive HA transport boundary
+        _LOGGER.exception("Unexpected visual editor save failure")
+        connection.send_error(
+            msg["id"], "internal_error", "Unexpected error while saving the rule"
+        )
+        return
+    connection.send_result(msg["id"], {"revision": revision, "rule": saved_rule})

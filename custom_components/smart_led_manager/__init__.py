@@ -16,6 +16,11 @@ from .coordinator import SmartLEDCoordinator, SmartLEDManagerConfigEntry
 from .registry import async_reconcile_registries
 from .services import async_setup_services
 from .storage import SmartLEDStorage
+from .visual_editor import (
+    async_register_visual_editor_panel,
+    async_remove_visual_editor_panel,
+    async_setup_visual_editor,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,6 +34,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     if not domain_data.get("services_registered"):
         async_setup_services(hass)
         domain_data["services_registered"] = True
+    await async_setup_visual_editor(hass)
     return True
 
 
@@ -50,6 +56,7 @@ async def async_setup_entry(
     )
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    await async_register_visual_editor_panel(hass, entry)
     return True
 
 
@@ -61,6 +68,7 @@ async def async_unload_entry(
         return False
     await entry.runtime_data.async_shutdown()
     hass.data.get(DOMAIN, {}).get("entries", {}).pop(entry.entry_id, None)
+    async_remove_visual_editor_panel(hass)
     return True
 
 
@@ -70,6 +78,7 @@ async def async_remove_entry(
     """Remove retained storage after the entry has unloaded."""
     storage = SmartLEDStorage(hass, entry.entry_id)
     await storage.async_remove()
+    async_remove_visual_editor_panel(hass)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

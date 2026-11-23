@@ -138,6 +138,7 @@
       "rules": {
         "title": "Reglas inteligentes",
         "menu_options": {
+          "open_visual_editor": "Abrir editor gráfico avanzado",
           "add_state_rule": "Agregar regla de estado",
           "add_numeric_rule": "Agregar regla numérica",
           "edit_rule": "Editar regla existente",
@@ -145,6 +146,10 @@
           "toggle_rule": "Activar o desactivar regla",
           "delete_rule": "Eliminar regla"
         }
+      },
+      "open_visual_editor": {
+        "title": "Editor gráfico avanzado",
+        "description": "Abre **Smart LED Manager** en la barra lateral de administrador o visita `{path}`. Este panel local compatible edita reglas numéricas existentes. El editor nativo sigue disponible aquí."
       },
       "add_state_rule": {
         "title": "Agregar regla de estado",

@@ -132,6 +132,7 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             rules["menu_options"],
             [
+                "open_visual_editor",
                 "add_state_rule",
                 "add_numeric_rule",
                 "edit_rule",
@@ -140,6 +141,15 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
                 "delete_rule",
             ],
         )
+
+        visual_access = await flow.async_step_open_visual_editor()
+        self.assertEqual(visual_access["type"], FlowResultType.FORM)
+        self.assertEqual(
+            visual_access["description_placeholders"]["path"],
+            "/smart-led-manager-editor",
+        )
+        returned = await flow.async_step_open_visual_editor({})
+        self.assertEqual(returned["step_id"], "rules")
 
     async def test_lights_preserve_zone_integrity_and_advanced_settings(self) -> None:
         flow, _ = _flow(options={CONF_ZONES: [_zone()]})

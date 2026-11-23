@@ -82,13 +82,20 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_domain_setup_registers_actions_once(self) -> None:
         hass = _Hass()
-        with patch(
-            "custom_components.smart_led_manager.async_setup_services"
-        ) as setup_services:
+        with (
+            patch(
+                "custom_components.smart_led_manager.async_setup_services"
+            ) as setup_services,
+            patch(
+                "custom_components.smart_led_manager.async_setup_visual_editor",
+                new=AsyncMock(),
+            ) as setup_visual_editor,
+        ):
             self.assertTrue(await async_setup(hass, {}))
             self.assertTrue(await async_setup(hass, {}))
 
         setup_services.assert_called_once_with(hass)
+        self.assertEqual(setup_visual_editor.await_count, 2)
         self.assertEqual(hass.data[DOMAIN]["entries"], {})
 
     async def test_entry_setup_and_successful_unload(self) -> None:
@@ -108,6 +115,10 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             patch(
                 "custom_components.smart_led_manager.async_reconcile_registries"
             ) as reconcile,
+            patch(
+                "custom_components.smart_led_manager.async_register_visual_editor_panel",
+                new=AsyncMock(),
+            ) as register_panel,
         ):
             self.assertTrue(await async_setup_entry(hass, entry))
 
@@ -116,9 +127,14 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(entry.runtime_data, coordinator)
         self.assertIs(hass.data[DOMAIN]["entries"][entry.entry_id], coordinator)
         self.assertEqual(len(entry.unload_callbacks), 1)
+        register_panel.assert_awaited_once_with(hass, entry)
 
-        self.assertTrue(await async_unload_entry(hass, entry))
+        with patch(
+            "custom_components.smart_led_manager.async_remove_visual_editor_panel"
+        ) as remove_panel:
+            self.assertTrue(await async_unload_entry(hass, entry))
         coordinator.async_shutdown.assert_awaited_once_with()
+        remove_panel.assert_called_once_with(hass)
         self.assertNotIn(entry.entry_id, hass.data[DOMAIN]["entries"])
 
     async def test_failed_platform_unload_keeps_runtime_loaded(self) -> None:

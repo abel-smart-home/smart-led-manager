@@ -34,3 +34,16 @@ jobs:
         run: ruff check .
       - name: Test
         run: pytest --cov --cov-report=term-missing --cov-report=xml
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Test frontend model
+        run: node --test tests/frontend/*.test.mjs

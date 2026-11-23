@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 import re
 from collections.abc import Mapping
 from copy import deepcopy
@@ -33,6 +32,7 @@ from .const import (
     RULE_TYPE_NUMERIC,
     RULE_TYPE_STATE,
 )
+from .core.color import normalize_color_points
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 
 _STATE_SOURCE_DOMAINS = [
@@ -112,36 +112,7 @@ def parse_color_points(raw: str) -> list[dict[str, Any]]:
 
 def validate_color_points(raw: object, *, minimum: int = 2) -> list[dict[str, Any]]:
     """Validate the persisted visual point format and return it sorted."""
-    if not isinstance(raw, (list, tuple)):
-        raise ValueError("color points must be a list")
-    points = [_validate_color_point(point) for point in raw]
-    if len(points) < minimum:
-        raise ValueError(f"at least {minimum} color points are required")
-    values = [point["value"] for point in points]
-    if len(values) != len(set(values)):
-        raise ValueError("duplicate color point")
-    return sorted(points, key=lambda point: point["value"])
-
-
-def _validate_color_point(raw: object) -> dict[str, Any]:
-    """Validate one finite numeric value and one RGB triplet."""
-    if not isinstance(raw, Mapping):
-        raise ValueError("color point must be an object")
-    try:
-        value = float(raw["value"])
-        rgb = list(raw["rgb"])
-    except (KeyError, TypeError, ValueError) as err:
-        raise ValueError("invalid color point") from err
-    if not math.isfinite(value):
-        raise ValueError("color point value must be finite")
-    if len(rgb) != 3 or any(
-        isinstance(channel, bool)
-        or not isinstance(channel, int)
-        or not 0 <= channel <= 255
-        for channel in rgb
-    ):
-        raise ValueError("RGB channel out of range")
-    return {"value": value, "rgb": rgb}
+    return normalize_color_points(raw, minimum=minimum)
 
 
 class SmartLEDManagerConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -366,6 +337,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         return self.async_show_menu(
             step_id="rules",
             menu_options=[
+                "open_visual_editor",
                 "add_state_rule",
                 "add_numeric_rule",
                 "edit_rule",
@@ -373,6 +345,20 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
                 "toggle_rule",
                 "delete_rule",
             ],
+        )
+
+    async def async_step_open_visual_editor(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Document the supported sidebar route without using private navigation."""
+        if user_input is not None:
+            return await self.async_step_rules()
+        return self.async_show_form(
+            step_id="open_visual_editor",
+            data_schema=probatio.Schema({}),
+            description_placeholders={
+                "path": "/smart-led-manager-editor",
+            },
         )
 
     async def async_step_zones(
