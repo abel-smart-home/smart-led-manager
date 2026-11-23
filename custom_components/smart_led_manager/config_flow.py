@@ -999,11 +999,15 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
                 errors["targets"] = error
             else:
                 rule = dict(user_input)
+                if self._rule_operation == "duplicate":
+                    rule["enabled"] = False
                 rule.update({"id": current["id"], "type": RULE_TYPE_STATE})
                 return self._save_rule(rule)
         return self.async_show_form(
             step_id=step_id,
-            data_schema=self._state_rule_schema(current),
+            data_schema=self._state_rule_schema(
+                current, include_enabled=self._rule_operation != "duplicate"
+            ),
             errors=errors,
         )
 
@@ -1023,8 +1027,11 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             if error is not None:
                 errors["targets"] = error
             else:
+                submitted = dict(user_input)
+                if self._rule_operation == "duplicate":
+                    submitted["enabled"] = False
                 self._numeric_rule_draft = {
-                    **user_input,
+                    **submitted,
                     "id": current["id"],
                     "type": RULE_TYPE_NUMERIC,
                     "points": points,
@@ -1047,95 +1054,101 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
                 )
         return self.async_show_form(
             step_id=step_id,
-            data_schema=self._numeric_rule_schema(current),
+            data_schema=self._numeric_rule_schema(
+                current, include_enabled=self._rule_operation != "duplicate"
+            ),
             errors=errors,
         )
 
-    def _state_rule_schema(self, current: Mapping[str, Any]) -> probatio.Schema:
-        return probatio.Schema(
-            {
-                probatio.Required(
-                    "name", default=current.get("name", "")
-                ): selector.TextSelector(),
-                probatio.Required(
-                    "source", default=current.get("source", "")
-                ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=_STATE_SOURCE_DOMAINS)
-                ),
-                probatio.Required(
-                    "operator", default=current.get("operator", "equals")
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=["equals", "not_equals"],
-                        translation_key="state_operator",
-                    )
-                ),
-                probatio.Required(
-                    "state", default=current.get("state", "")
-                ): selector.TextSelector(),
-                probatio.Required(
-                    "targets", default=list(current.get("targets", []))
-                ): _light_selector(entities=self._lights()),
-                probatio.Required(
-                    "priority", default=current.get("priority", 40)
-                ): _number_selector(0, 100),
-                probatio.Required(
-                    "rgb_color", default=current.get("rgb_color", [0, 0, 255])
-                ): selector.ColorRGBSelector(),
-                probatio.Required(
-                    "brightness", default=current.get("brightness", 255)
-                ): _number_selector(1, 255),
-                probatio.Required(
-                    "transition", default=current.get("transition", 0)
-                ): _number_selector(0, 300, step=0.1),
-                probatio.Required(
-                    "enabled", default=self._rule_enabled(current)
-                ): selector.BooleanSelector(),
-            }
-        )
+    def _state_rule_schema(
+        self, current: Mapping[str, Any], *, include_enabled: bool = True
+    ) -> probatio.Schema:
+        fields: dict[Any, Any] = {
+            probatio.Required(
+                "name", default=current.get("name", "")
+            ): selector.TextSelector(),
+            probatio.Required(
+                "source", default=current.get("source", "")
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=_STATE_SOURCE_DOMAINS)
+            ),
+            probatio.Required(
+                "operator", default=current.get("operator", "equals")
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=["equals", "not_equals"],
+                    translation_key="state_operator",
+                )
+            ),
+            probatio.Required(
+                "state", default=current.get("state", "")
+            ): selector.TextSelector(),
+            probatio.Required(
+                "targets", default=list(current.get("targets", []))
+            ): _light_selector(entities=self._lights()),
+            probatio.Required(
+                "priority", default=current.get("priority", 40)
+            ): _number_selector(0, 100),
+            probatio.Required(
+                "rgb_color", default=current.get("rgb_color", [0, 0, 255])
+            ): selector.ColorRGBSelector(),
+            probatio.Required(
+                "brightness", default=current.get("brightness", 255)
+            ): _number_selector(1, 255),
+            probatio.Required(
+                "transition", default=current.get("transition", 0)
+            ): _number_selector(0, 300, step=0.1),
+        }
+        if include_enabled:
+            fields[
+                probatio.Required("enabled", default=self._rule_enabled(current))
+            ] = selector.BooleanSelector()
+        return probatio.Schema(fields)
 
-    def _numeric_rule_schema(self, current: Mapping[str, Any]) -> probatio.Schema:
-        return probatio.Schema(
-            {
-                probatio.Required(
-                    "name", default=current.get("name", "")
-                ): selector.TextSelector(),
-                probatio.Required(
-                    "source", default=current.get("source", "")
-                ): selector.EntitySelector(
-                    selector.EntitySelectorConfig(domain=_NUMERIC_SOURCE_DOMAINS)
-                ),
-                probatio.Required(
-                    "targets", default=list(current.get("targets", []))
-                ): _light_selector(entities=self._lights()),
-                probatio.Required(
-                    "priority", default=current.get("priority", 40)
-                ): _number_selector(0, 100),
-                probatio.Required(
-                    "mode", default=current.get("mode", "interpolate")
-                ): selector.SelectSelector(
-                    selector.SelectSelectorConfig(
-                        options=["interpolate", "ranges"],
-                        translation_key="numeric_mode",
-                    )
-                ),
-                probatio.Required(
-                    "brightness", default=current.get("brightness", 255)
-                ): _number_selector(1, 255),
-                probatio.Required(
-                    "transition", default=current.get("transition", 1)
-                ): _number_selector(0, 300, step=0.1),
-                probatio.Required(
-                    "minimum_change", default=current.get("minimum_change", 0.1)
-                ): _number_selector(0, 100000, step="any"),
-                probatio.Required(
-                    "minimum_interval", default=current.get("minimum_interval", 5)
-                ): _number_selector(0, 3600, step=0.5),
-                probatio.Required(
-                    "enabled", default=self._rule_enabled(current)
-                ): selector.BooleanSelector(),
-            }
-        )
+    def _numeric_rule_schema(
+        self, current: Mapping[str, Any], *, include_enabled: bool = True
+    ) -> probatio.Schema:
+        fields: dict[Any, Any] = {
+            probatio.Required(
+                "name", default=current.get("name", "")
+            ): selector.TextSelector(),
+            probatio.Required(
+                "source", default=current.get("source", "")
+            ): selector.EntitySelector(
+                selector.EntitySelectorConfig(domain=_NUMERIC_SOURCE_DOMAINS)
+            ),
+            probatio.Required(
+                "targets", default=list(current.get("targets", []))
+            ): _light_selector(entities=self._lights()),
+            probatio.Required(
+                "priority", default=current.get("priority", 40)
+            ): _number_selector(0, 100),
+            probatio.Required(
+                "mode", default=current.get("mode", "interpolate")
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=["interpolate", "ranges"],
+                    translation_key="numeric_mode",
+                )
+            ),
+            probatio.Required(
+                "brightness", default=current.get("brightness", 255)
+            ): _number_selector(1, 255),
+            probatio.Required(
+                "transition", default=current.get("transition", 1)
+            ): _number_selector(0, 300, step=0.1),
+            probatio.Required(
+                "minimum_change", default=current.get("minimum_change", 0.1)
+            ): _number_selector(0, 100000, step="any"),
+            probatio.Required(
+                "minimum_interval", default=current.get("minimum_interval", 5)
+            ): _number_selector(0, 3600, step=0.5),
+        }
+        if include_enabled:
+            fields[
+                probatio.Required("enabled", default=self._rule_enabled(current))
+            ] = selector.BooleanSelector()
+        return probatio.Schema(fields)
 
     def _numeric_point_schema(
         self,

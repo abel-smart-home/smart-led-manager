@@ -396,6 +396,8 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         entry.options = edited["data"]
         duplicated_form = await flow.async_step_duplicate_rule({"rule_id": "door"})
         duplicate_defaults = duplicated_form["data_schema"]({})
+        self.assertNotIn("enabled", duplicate_defaults)
+        duplicate_defaults["enabled"] = True
         duplicated = await flow.async_step_duplicate_state_rule(duplicate_defaults)
 
         self.assertEqual(selected["step_id"], "edit_state_rule")
@@ -484,6 +486,8 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
 
         form = await flow.async_step_duplicate_rule({"rule_id": "temperature"})
         defaults = form["data_schema"]({})
+        self.assertNotIn("enabled", defaults)
+        defaults["enabled"] = True
         editor = await flow.async_step_duplicate_numeric_rule(defaults)
         self.assertFalse(flow._numeric_rule_draft["enabled"])
         flow._numeric_rule_draft["points"] = [{"value": 18.0, "rgb": [0, 0, 255]}]
