@@ -22,9 +22,9 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] La rama alpha.3 parte del SHA alpha.2 verificado
       `a14d9afb465c698c0354d18892ecac3537d5f6b4`, no de `main`.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
-- [ ] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
-      pasan con la nueva migración y los registros de dispositivos/entidades.
-- [ ] Hassfest y HACS/Marketplace Action pasan sin exclusiones engañosas.
+- [x] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
+      pasan: 135 pruebas y cobertura de ramas `87.50 %` en ambas variantes.
+- [x] Hassfest y HACS/Marketplace Action pasan sin exclusiones engañosas.
 - [x] Manifest, Python, changelog y notas coinciden para alpha.3.
 - [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
       excepciones.

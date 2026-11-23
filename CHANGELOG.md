@@ -30,12 +30,14 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Un catálogo inválido desactiva la limpieza destructiva, y un dispositivo de
   zona borrada se conserva si otra entidad todavía lo referencia.
 
-### Validación pendiente
+### Validación
 
 - El Bloque A tiene cobertura automatizada para migración, dispositivos,
-  áreas, nombres, compatibilidad y limpieza selectiva. La comprobación visual
-  y física en HAOS todavía debe ejecutarla el propietario; no se hereda como
-  aprobada de alpha.2.
+  áreas, nombres, compatibilidad y limpieza selectiva. La matriz Linux aprobó
+  135 pruebas y cobertura de ramas `87.50 %` en Home Assistant `2026.11.0` y
+  `2026.11.2`; Ruff, Hassfest y HACS/Marketplace también aprobaron.
+- La comprobación visual y física en HAOS todavía debe ejecutarla el
+  propietario; no se hereda como aprobada de alpha.2.
 
 ## [0.1.0-alpha.2] — Sin publicar
 
