@@ -24,10 +24,10 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] El Bloque B parte del HEAD aprobado del Bloque A
       `fa9ecd650485e27ee1f1f22654972a1c47379c17` y conserva sus cambios.
 - [x] El Bloque B.1 parte exactamente del HEAD del Bloque B
-      `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe`; el commit funcional del panel
-      y su compatibilidad con runtime sin frontend quedan en
-      `6cabf0a0b82fb70acfddb0f528abd93557936860`; la cobertura frontend adicional
-      queda en `3cf0192ea89dc2aac5a00c403d557daf6fccd12c`.
+      `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe`; el conjunto funcional del panel,
+      la compatibilidad con runtime sin frontend, la cobertura frontend y el
+      rechazo de campos numéricos vacíos quedan en
+      `1d8926bcf8307a480d585174cfb7eb8550fb816a`.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
 - [x] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
       pasan para B.1: 157 pruebas y cobertura de ramas `87.21 %` en ambas
