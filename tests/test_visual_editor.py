@@ -8,6 +8,7 @@ from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+from homeassistant.components import frontend
 from homeassistant.exceptions import Unauthorized
 
 from custom_components.smart_led_manager.const import (
@@ -314,6 +315,7 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
     async def test_static_commands_and_panel_lifecycle(self) -> None:
         entry = _Entry()
         hass = _Hass(entry)
+        hass.data[frontend.DATA_PANELS] = {}
         hass.http = SimpleNamespace(async_register_static_paths=AsyncMock())
         with (
             patch(

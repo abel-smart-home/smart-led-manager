@@ -1,11 +1,11 @@
 {
   "domain": "smart_led_manager",
   "name": "Smart LED Manager",
-  "after_dependencies": ["light"],
+  "after_dependencies": ["light", "panel_custom"],
   "categories": ["helpers", "lighting.led_strips_controllers"],
   "codeowners": ["@Platibolo"],
   "config_flow": true,
-  "dependencies": ["http", "panel_custom", "websocket_api"],
+  "dependencies": ["http", "websocket_api"],
   "documentation": "https://github.com/abel-smart-home/smart-led-manager",
   "integration_type": "service",
   "iot_class": "calculated",

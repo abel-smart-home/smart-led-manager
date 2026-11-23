@@ -76,6 +76,9 @@ async def async_register_visual_editor_panel(
     """Expose the editor in the administrator sidebar for the loaded entry."""
 
     domain_data = hass.data.setdefault(DOMAIN, {})
+    if frontend.DATA_PANELS not in hass.data:
+        _LOGGER.debug("Frontend is not loaded; visual editor panel is unavailable")
+        return
     if (
         domain_data.get(_DATA_PANEL)
         and domain_data.get(_DATA_PANEL_ENTRY) == entry.entry_id
@@ -102,7 +105,7 @@ async def async_register_visual_editor_panel(
 def async_remove_visual_editor_panel(hass: HomeAssistant) -> None:
     """Remove the visible panel when the config entry is unloaded."""
 
-    domain_data = hass.data.get(DOMAIN, {})
+    domain_data = getattr(hass, "data", {}).get(DOMAIN, {})
     if not domain_data.get(_DATA_PANEL):
         return
     frontend.async_remove_panel(hass, PANEL_PATH, warn_if_unknown=False)
