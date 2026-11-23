@@ -32,7 +32,7 @@ def test_manifest_classifies_manager_as_service() -> None:
 
     assert manifest["integration_type"] == "service"
     assert manifest["single_config_entry"] is True
-    assert manifest["version"] == "0.1.0-alpha.2"
+    assert manifest["version"] == "0.1.0-alpha.3"
 
 
 def test_latin_american_spanish_catalog_is_complete() -> None:

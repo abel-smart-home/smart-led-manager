@@ -8,8 +8,8 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
 from .coordinator import SmartLEDCoordinator
+from .registry import central_device_info
 
 
 async def async_setup_entry(
@@ -34,12 +34,7 @@ class SmartLEDManagerStatusSensor(SensorEntity):
         self._coordinator = coordinator
         self._entry = entry
         self._attr_unique_id = f"{entry.entry_id}_engine_status"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Smart LED Manager",
-            "manufacturer": "abel-smart-home",
-            "model": "Priority engine",
-        }
+        self._attr_device_info = central_device_info(entry.entry_id)
 
     @property
     def native_value(self) -> str:

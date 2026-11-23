@@ -15,8 +15,10 @@ la contenga.
 
 Una zona agrupa una o más luces administradas. Cada luz física puede pertenecer
 a una sola zona, aunque una instalación puede tener tantas zonas como necesite.
-Desde **Configurar > Zonas** puedes crear, renombrar, cambiar luces o eliminar
-una zona; primero debes eliminar sus modos.
+Desde **Configurar > Zonas** puedes crear, renombrar, cambiar luces, asociar de
+forma opcional un área de Home Assistant o eliminar una zona; primero debes
+eliminar sus modos. El área afecta sólo al dispositivo virtual de la zona, no
+a las luces físicas administradas.
 
 Un modo pertenece a una zona y controla un subconjunto no vacío de sus luces.
 Desde **Configurar > Modos de iluminación** puedes crear, editar o eliminar:
@@ -50,15 +52,19 @@ selección. Smart LED Manager no se comunica directamente con Matter Hub ni con
 Alexa, y el estado del `switch` expresa intención lógica, no confirmación del
 color físico.
 
-Actualmente los selectores e interruptores se agrupan bajo un único dispositivo
-virtual Smart LED Manager. Alexa puede heredar nombres como **Smart LED Manager
-Cine**, que el propietario tuvo que acortar manualmente. Alpha.3 estudiará un
-dispositivo por zona y nombres o aliases naturales sin cambiar los `unique_id`.
+Alpha.3 crea un dispositivo virtual por zona. El dispositivo central Smart LED
+Manager conserva el sensor del motor; **Sala**, por ejemplo, contiene su
+selector **Modo** y switches breves como **Cine** o **Lectura**. La combinación
+oficial de nombre de dispositivo y `has_entity_name` aporta contexto sin cambiar
+los `unique_id`. Los nombres personalizados existentes no se sobrescriben.
+Smart LED Manager no crea aliases ni supone cómo los consumirá Matter Hub.
 
-Al eliminar un modo se retiran su definición y solicitud. Home Assistant puede
-conservar su registro de entidad como “ya no proporcionada”; esto se observó en
-M-10 y la entidad se eliminó manualmente. Una futura limpieza debe ser selectiva
-y no borrar registros indiscriminadamente.
+Al eliminar permanentemente un modo se retiran su definición, su solicitud y
+el registro de su switch de esa entrada. Desactivar **Exponer como switch** no
+equivale a borrar el modo: el registro se conserva para que el mismo `entity_id`
+regrese si se reactiva. Elimina o actualiza antes las automatizaciones, paneles
+y exposiciones de voz que referencien una entidad que vas a borrar. La descarga
+o recarga temporal no elimina registros.
 
 ## Ajustes del motor
 
@@ -133,8 +139,7 @@ pero al regresar se vuelve a comprobar qué solicitud sigue vigente.
 
 La alfa permite crear, editar y eliminar zonas y modos; las reglas todavía se
 agregan y eliminan mediante options flow. La edición o duplicación directa de
-reglas, condiciones compuestas, áreas/etiquetas, horarios y disparadores de
-eventos pertenecen a incrementos posteriores. Elimina y vuelve a crear una
-regla para cambiarla en esta versión. Alpha.3 deberá conservar un identificador
-estable al editarla y reconciliar cualquier solicitud activa para no dejar una
-intención obsoleta.
+reglas, destinos por área/etiqueta, condiciones compuestas, horarios y
+disparadores de eventos pertenecen a incrementos posteriores. El área opcional
+de una zona sólo organiza su dispositivo virtual; no expande destinos. Elimina
+y vuelve a crear una regla para cambiarla en este bloque.

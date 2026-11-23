@@ -65,7 +65,8 @@
         "description": "Cada luz física solo puede pertenecer a una zona.",
         "data": {
           "name": "Nombre",
-          "targets": "Luces de la zona"
+          "targets": "Luces de la zona",
+          "area_id": "Área opcional de Home Assistant"
         }
       },
       "edit_zone": {
@@ -76,7 +77,8 @@
         "title": "Editar zona",
         "data": {
           "name": "Nombre",
-          "targets": "Luces de la zona"
+          "targets": "Luces de la zona",
+          "area_id": "Área opcional de Home Assistant"
         }
       },
       "delete_zone": {
@@ -194,6 +196,7 @@
       "zone_has_modes": "Elimina primero los modos de esta zona",
       "invalid_mode": "La definición del modo no es válida",
       "invalid_zone": "La definición de la zona no es válida",
+      "area_not_found": "El área seleccionada de Home Assistant ya no existe",
       "reserved_mode_name": "Ese nombre está reservado por la opción Sin modo del selector de zona"
     },
     "abort": {
@@ -247,7 +250,7 @@
   "entity": {
     "select": {
       "zone_mode": {
-        "name": "Modo de {zone}",
+        "name": "Modo",
         "state": {
           "none": "Sin modo"
         }

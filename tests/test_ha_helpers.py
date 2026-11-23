@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 from custom_components.smart_led_manager import async_migrate_entry
+from custom_components.smart_led_manager.const import CONF_ZONES
 from custom_components.smart_led_manager.diagnostics import (
     async_get_config_entry_diagnostics,
 )
@@ -19,13 +20,35 @@ class HomeAssistantHelperTests(unittest.IsolatedAsyncioTestCase):
     async def test_migration_accepts_v1_and_rejects_unknown_version(self) -> None:
         config_entries = SimpleNamespace(async_update_entry=Mock())
         hass = SimpleNamespace(config_entries=config_entries)
-        entry = SimpleNamespace(version=1)
+        entry = SimpleNamespace(
+            version=1,
+            minor_version=1,
+            options={
+                CONF_ZONES: [
+                    {
+                        "zone_id": "living",
+                        "name": "Sala",
+                        "targets": ["light.strip"],
+                    }
+                ]
+            },
+        )
 
         self.assertTrue(await async_migrate_entry(hass, entry))
         config_entries.async_update_entry.assert_called_once_with(
             entry,
+            options={
+                CONF_ZONES: [
+                    {
+                        "zone_id": "living",
+                        "name": "Sala",
+                        "targets": ["light.strip"],
+                        "area_id": None,
+                    }
+                ]
+            },
             version=1,
-            minor_version=1,
+            minor_version=2,
         )
         self.assertFalse(await async_migrate_entry(hass, SimpleNamespace(version=99)))
 

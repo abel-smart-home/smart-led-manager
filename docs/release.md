@@ -4,13 +4,13 @@ Este documento describe el camino; no autoriza ninguna acción. Fusionar a
 `main`, crear una etiqueta, publicar una release o enviar el catálogo de
 Marketplace requiere aprobación explícita del propietario.
 
-## Identidad de `0.1.0-alpha.2`
+## Identidad de `0.1.0-alpha.3`
 
 | Lugar | Valor |
 |---|---|
-| `manifest.json` y changelog | `0.1.0-alpha.2` |
-| `pyproject.toml` (PEP 440) | `0.1.0a2` |
-| Nombre de archivo opcional | `smart-led-manager-0.1.0-alpha.2.zip` |
+| `manifest.json` y changelog | `0.1.0-alpha.3` |
+| `pyproject.toml` (PEP 440) | `0.1.0a3` |
+| Nombre de archivo opcional | `smart-led-manager-0.1.0-alpha.3.zip` |
 | Release | Pre-release, nunca estable |
 
 La etiqueta final debe usar la convención aprobada y comprobarse con HACS
@@ -19,27 +19,22 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 
 ## Puertas del candidato
 
-- [x] El diff local contiene sólo el incremento alpha.2 y preserva la base
-      remota verificada de alpha.1.
+- [x] La rama alpha.3 parte del SHA alpha.2 verificado
+      `a14d9afb465c698c0354d18892ecac3537d5f6b4`, no de `main`.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
-- [x] `pytest --cov` pasa localmente: 123 pruebas y 27 subpruebas, cobertura de
-      ramas `85.14 %`; 7 pruebas HA se omiten en Windows y se reservan a CI
-      Linux.
-- [x] La matriz de CI prueba Home Assistant `2026.11.0` y `2026.11.2`: 130
-      pruebas aprobadas en Linux y cobertura total `86.96 %` en ambas.
-- [x] Hassfest y HACS/Marketplace Action pasan sin `ignore` ni supresiones
-      engañosas en el PR #2.
-- [x] Manifest, `hacs.json`, Python, changelog y notas coinciden para alpha.2.
+- [ ] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
+      pasan con la nueva migración y los registros de dispositivos/entidades.
+- [ ] Hassfest y HACS/Marketplace Action pasan sin exclusiones engañosas.
+- [x] Manifest, Python, changelog y notas coinciden para alpha.3.
 - [x] Traducciones inglesa y española cubren flujos, entidades, acciones y
       excepciones.
 - [x] Instalación, actualización, recarga, descarga y recuperación se prueban.
       La eliminación completa de la entrada y la ausencia de archivos
       `smart_led_manager.*` se comprobaron en laboratorio HAOS; la evidencia
       física Raspberry/Zigbee se conserva separada.
-- [ ] El propietario ejecuta y registra `docs/haos-test-plan.md`. La ejecución
-      consolidada registra 16 casos M completos, 3 parciales y M-06 pendiente
-      con hardware físico. La simulación de M-06 con dos luces Demo fue
-      satisfactoria, pero no sustituye dos controladores Zigbee reales.
+- [ ] El propietario ejecuta el bloque alpha.3 de `docs/haos-test-plan.md` en
+      VirtualBox y Raspberry Pi. Los resultados alpha.2 se conservan como base,
+      pero no prueban visualmente los nuevos dispositivos ni su limpieza.
 - [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
       en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
       español. No se atribuye una prueba independiente al perfil `es`.
@@ -106,25 +101,23 @@ la promoción y prepara un nuevo parche; no muevas ni reutilices silenciosamente
 una etiqueta existente. Indica cómo volver a la versión anterior y qué datos de
 Store/config entry requieren atención.
 
-### Actualización manual segura desde alpha.1
+### Actualización manual segura desde alpha.2
 
 1. Crea una copia de seguridad de Home Assistant y conserva una copia de la
-   carpeta alpha.1.
+   carpeta alpha.2.
 2. Descarga o recarga Smart LED Manager para detener animaciones y tareas.
 3. Sustituye únicamente `custom_components/smart_led_manager/` por el contenido
-   alpha.2 del commit candidato y reinicia Core.
-4. Comprueba que las luces, reglas y ajustes anteriores siguen presentes.
-5. Crea zonas y modos desde **Configurar**; no edites `.storage` ni inventes
-   identificadores a mano.
-6. Ejecuta primero los casos sin animación y después el plan físico de modos.
+   alpha.3 del commit candidato y reinicia Core; no elimines la entrada.
+4. Comprueba que luces, reglas, zonas, modos, selección, `entity_id` y nombres
+   personalizados siguen presentes.
+5. Asigna áreas desde **Configurar > Zonas** si lo deseas; no edites `.storage`
+   ni registros internos.
+6. Ejecuta primero el plan VirtualBox y después el plan físico.
 
-Alpha.2 no requiere migración de ConfigEntry ni del Store. Si es necesario
-volver a alpha.1, desactiva todos los modos o elige **Sin modo**, descarga la
-entrada, restaura la carpeta alpha.1 y reinicia Core. Alpha.1 ignora las claves
-de opciones `zones`/`modes`; antes de una reversión prolongada conviene eliminar
-los modos desde alpha.2 para que no quede una solicitud persistente de módulo
-desconocido compitiendo en el Store. Conserva la copia de seguridad hasta
-verificar luces, reglas, tareas y almacenamiento.
+Alpha.3 migra el ConfigEntry de `1.1` a `1.2`, pero no cambia el Store. Volver
+a alpha.2 requiere restaurar la copia de seguridad completa: una versión
+anterior no está obligada a aceptar un `minor_version` futuro. Conserva la
+copia hasta verificar las entidades, sus dispositivos y la recuperación.
 
 ## Camino a `0.1.0`
 

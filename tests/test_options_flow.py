@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -11,6 +12,7 @@ from custom_components.smart_led_manager.config_flow import (
     SmartLEDManagerOptionsFlow,
 )
 from custom_components.smart_led_manager.const import (
+    CONF_AREA_ID,
     CONF_LIGHTS,
     CONF_MODES,
     CONF_RULES,
@@ -167,6 +169,36 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(result["errors"]["base"], "mode_target_outside_zone")
+
+    async def test_zone_accepts_only_an_existing_optional_area(self) -> None:
+        flow, _ = _flow()
+        areas = SimpleNamespace(
+            async_get_area=lambda area_id: (
+                SimpleNamespace(id=area_id) if area_id == "living_room" else None
+            )
+        )
+
+        with patch(
+            "custom_components.smart_led_manager.config_flow.ar.async_get",
+            return_value=areas,
+        ):
+            missing = await flow.async_step_add_zone(
+                {
+                    "name": "Sala",
+                    "targets": ["light.one"],
+                    CONF_AREA_ID: "missing",
+                }
+            )
+            created = await flow.async_step_add_zone(
+                {
+                    "name": "Sala",
+                    "targets": ["light.one"],
+                    CONF_AREA_ID: "living_room",
+                }
+            )
+
+        self.assertEqual(missing["errors"]["base"], "area_not_found")
+        self.assertEqual(created["data"][CONF_ZONES][0][CONF_AREA_ID], "living_room")
 
     async def test_mode_create_edit_delete_and_validation(self) -> None:
         flow, entry = _flow(options={CONF_ZONES: [_zone()], CONF_MODES: []})

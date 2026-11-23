@@ -7,8 +7,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
 from .coordinator import SmartLEDCoordinator
+from .registry import mode_switch_unique_id, zone_device_info
 
 
 async def async_setup_entry(
@@ -42,14 +42,10 @@ class SmartLEDModeSwitch(SwitchEntity):
         self._coordinator = coordinator
         self._mode_id = mode_id
         mode = coordinator.modes.mode(mode_id)
+        zone = coordinator.modes.zone(mode.zone_id)
         self._attr_name = mode.name
-        self._attr_unique_id = f"{entry.entry_id}_mode_{mode_id}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Smart LED Manager",
-            "manufacturer": "abel-smart-home",
-            "model": "Priority engine",
-        }
+        self._attr_unique_id = mode_switch_unique_id(entry.entry_id, mode_id)
+        self._attr_device_info = zone_device_info(entry.entry_id, zone)
 
     @property
     def is_on(self) -> bool:

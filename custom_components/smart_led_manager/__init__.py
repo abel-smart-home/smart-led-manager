@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
+from copy import deepcopy
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, PLATFORMS
+from .const import CONF_AREA_ID, CONF_ZONES, DOMAIN, PLATFORMS
 from .coordinator import SmartLEDCoordinator, SmartLEDManagerConfigEntry
+from .registry import async_reconcile_registries
 from .services import async_setup_services
 from .storage import SmartLEDStorage
 
@@ -35,6 +38,12 @@ async def async_setup_entry(
     """Set up one config entry."""
     coordinator = SmartLEDCoordinator(hass, entry)
     await coordinator.async_initialize()
+    async_reconcile_registries(
+        hass,
+        entry,
+        coordinator.modes,
+        cleanup=coordinator.catalog_valid,
+    )
     entry.runtime_data = coordinator
     hass.data.setdefault(DOMAIN, {}).setdefault("entries", {})[entry.entry_id] = (
         coordinator
@@ -64,16 +73,28 @@ async def async_remove_entry(
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Migrate config-entry data when future schema versions require it."""
-    if entry.version == 1:
+    """Add optional zone areas without changing stable zone or entity IDs."""
+    if entry.version != 1:
+        _LOGGER.error("Unsupported Smart LED Manager config version %s", entry.version)
+        return False
+    if entry.minor_version < 2:
+        options = deepcopy(dict(entry.options))
+        zones: list[object] = []
+        for raw_zone in options.get(CONF_ZONES, []):
+            if isinstance(raw_zone, Mapping):
+                zone = dict(raw_zone)
+                zone.setdefault(CONF_AREA_ID, None)
+                zones.append(zone)
+            else:
+                zones.append(raw_zone)
+        options[CONF_ZONES] = zones
         hass.config_entries.async_update_entry(
             entry,
+            options=options,
             version=1,
-            minor_version=1,
+            minor_version=2,
         )
-        return True
-    _LOGGER.error("Unsupported Smart LED Manager config version %s", entry.version)
-    return False
+    return True
 
 
 async def _async_update_listener(

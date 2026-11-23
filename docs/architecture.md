@@ -16,9 +16,10 @@ La primera versión se diseña para RGB, RGBW, RGB+CCT y RGBWW sin lógica exclu
 4. **Planificación** (`core/scheduler.py`). Cancela el trabajo del ganador anterior y ejecuta expiraciones/animaciones con tareas asíncronas por destino.
 5. **Proyección física** (`controllers/rgb.py`). Consulta el estado y capacidades reales, convierte la intención a `light.turn_on`/`light.turn_off`, deduplica y limita órdenes.
 6. **Superficie Home Assistant** (`config_flow.py`, `services.py`, `select.py`,
-   `switch.py`, `sensor.py`, `diagnostics.py`). Ofrece configuración nativa,
+   `switch.py`, `sensor.py`, `registry.py`, `diagnostics.py`). Ofrece configuración nativa,
    acciones con selectores, un selector por zona, interruptores de modo
-   opcionales, diagnóstico y una entidad de estado del motor.
+   opcionales, dispositivos virtuales estables por zona, diagnóstico y una
+   entidad de estado del motor.
 
 ```text
 reglas / modos / acciones / control manual
@@ -76,9 +77,24 @@ comando desde la definición vigente, conservando la antigüedad válida para el
 desempate. Después se vuelven a evaluar fuentes y ganador actual. Nunca se
 restaura una definición borrada ni se recrean temporizadores duplicados.
 
-Alpha.2 añade claves opcionales `zones` y `modes` con listas vacías por defecto;
-no modifica la versión del config entry ni el esquema serializado de
-`Request`, de modo que una entrada alpha.1 se carga sin migración destructiva.
+Alpha.2 añadió claves opcionales `zones` y `modes` con listas vacías por
+defecto. Alpha.3 migra el ConfigEntry de `1.1` a `1.2` y añade `area_id: null`
+a cada zona existente. No cambia `zone_id`, `mode_id`, los `unique_id` de las
+entidades ni el esquema serializado de `Request`.
+
+El Device Registry contiene un dispositivo central identificado por
+`(smart_led_manager, entry_id)` y un dispositivo por zona identificado por
+`(smart_led_manager, entry_id:zone:zone_id)`. El sensor del motor permanece en
+el central; los selectores e interruptores se asocian a su zona. Renombrar una
+zona actualiza el nombre del mismo dispositivo. El área opcional se aplica sólo
+al dispositivo virtual mediante la API oficial y nunca a las luces físicas.
+
+La reconciliación del Entity Registry se ejecuta al cargar una entrada válida.
+Retira únicamente selectores de zonas y switches de modos cuya definición ya
+no existe en esa misma entrada. Un modo que conserva su definición pero deja
+de exponerse no se borra del registro; una descarga temporal tampoco limpia.
+Si el catálogo está dañado, se omite la limpieza. No se escriben archivos
+internos de `.storage` directamente.
 
 Al descargar la integración se eliminan listeners, se cancelan vencimientos/animaciones/tareas de controlador y se vacía el registro de runtime. La política de descarga no fuerza restauraciones físicas ciegas.
 

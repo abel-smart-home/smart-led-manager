@@ -51,6 +51,30 @@ La pre-release solo puede considerarse lista cuando:
 12. La exposición opcional de interruptores no equivale a validación de Alexa o
     Matter Hub; esa evidencia sólo puede registrarla el propietario en HAOS.
 
+## Criterios verificables de `0.1.0-alpha.3`, Bloque A
+
+1. La integración conserva una ConfigEntry, un coordinador, un motor y la lista
+   explícita de luces autorizadas.
+2. El dispositivo central conserva el sensor del motor y cada zona obtiene un
+   dispositivo virtual estable basado en `entry_id` y `zone_id`.
+3. El selector y los switches opcionales de cada modo pertenecen al dispositivo
+   de su zona; renombrar una zona no recrea el dispositivo.
+4. Una zona puede asociarse a un área existente mediante APIs oficiales sin
+   cambiar áreas ni registros de las luces físicas.
+5. La migración desde alpha.2 conserva `unique_id`, `entity_id`, nombres
+   personalizados, automatizaciones, opciones, selección y Store.
+6. Desactivar la exposición conserva el registro del switch. Eliminar una
+   definición limpia sólo el registro exacto de esa entrada y nunca entidades
+   ajenas o todavía referenciadas al dispositivo.
+7. Una descarga temporal no limpia registros y un catálogo inválido desactiva
+   la limpieza destructiva.
+8. Los nombres predeterminados usan el contrato oficial `has_entity_name`; no
+   se crean aliases ni dependencias de Alexa o Matter.
+9. Las regresiones de prioridades, sincronización, persistencia e idempotencia
+   de alpha.1 y alpha.2 siguen aprobando.
+10. Ruff, pytest con cobertura, Hassfest y HACS/Marketplace deben aprobar antes
+    de proponer el candidato para prueba física.
+
 ## Requisitos no funcionales
 
 - Operación completamente local y asíncrona.

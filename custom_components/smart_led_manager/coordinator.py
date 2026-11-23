@@ -82,6 +82,7 @@ class SmartLEDCoordinator:
         self.expiry = DeadlineScheduler()
         self.storage = SmartLEDStorage(hass, entry.entry_id)
         catalog_error: str | None = None
+        self.catalog_valid = True
         try:
             self.modes = ModeManager(
                 self.engine,
@@ -90,6 +91,7 @@ class SmartLEDCoordinator:
                 self.targets.authorized,
             )
         except ModeValidationError as err:
+            self.catalog_valid = False
             catalog_error = f"Invalid mode catalog ignored: {err.key}"
             _LOGGER.error("%s", catalog_error)
             self.modes = ModeManager(self.engine, [], [], self.targets.authorized)

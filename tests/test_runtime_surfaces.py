@@ -14,7 +14,7 @@ from custom_components.smart_led_manager import (
     async_setup_entry,
     async_unload_entry,
 )
-from custom_components.smart_led_manager.const import DOMAIN
+from custom_components.smart_led_manager.const import CONF_ZONES, DOMAIN
 from custom_components.smart_led_manager.diagnostics import (
     async_get_config_entry_diagnostics,
 )
@@ -55,12 +55,18 @@ class _Hass:
 
 
 class _Entry:
-    def __init__(self, *, version: int = 1) -> None:
+    def __init__(
+        self,
+        *,
+        version: int = 1,
+        minor_version: int = 1,
+        options: dict[str, object] | None = None,
+    ) -> None:
         self.entry_id = "entry-1"
         self.version = version
-        self.minor_version = 1
+        self.minor_version = minor_version
         self.data = {"lights": ["light.strip"]}
-        self.options: dict[str, object] = {}
+        self.options = options or {}
         self.runtime_data = None
         self.unload_callbacks: list[object] = []
 
@@ -91,14 +97,22 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         coordinator = SimpleNamespace(
             async_initialize=AsyncMock(),
             async_shutdown=AsyncMock(),
+            modes=Mock(),
+            catalog_valid=True,
         )
-        with patch(
-            "custom_components.smart_led_manager.SmartLEDCoordinator",
-            return_value=coordinator,
+        with (
+            patch(
+                "custom_components.smart_led_manager.SmartLEDCoordinator",
+                return_value=coordinator,
+            ),
+            patch(
+                "custom_components.smart_led_manager.async_reconcile_registries"
+            ) as reconcile,
         ):
             self.assertTrue(await async_setup_entry(hass, entry))
 
         coordinator.async_initialize.assert_awaited_once_with()
+        reconcile.assert_called_once_with(hass, entry, coordinator.modes, cleanup=True)
         self.assertIs(entry.runtime_data, coordinator)
         self.assertIs(hass.data[DOMAIN]["entries"][entry.entry_id], coordinator)
         self.assertEqual(len(entry.unload_callbacks), 1)
@@ -131,8 +145,25 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         storage_type.assert_called_once_with(hass, entry.entry_id)
         storage.async_remove.assert_awaited_once_with()
 
+        entry = _Entry(
+            options={
+                CONF_ZONES: [
+                    {
+                        "zone_id": "living",
+                        "name": "Sala",
+                        "targets": ["light.strip"],
+                    }
+                ]
+            }
+        )
         self.assertTrue(await async_migrate_entry(hass, entry))
-        self.assertEqual(hass.config_entries.updated[-1][1]["minor_version"], 1)
+        changes = hass.config_entries.updated[-1][1]
+        self.assertEqual(changes["minor_version"], 2)
+        self.assertIsNone(changes["options"][CONF_ZONES][0]["area_id"])
+        current = _Entry(minor_version=2)
+        update_count = len(hass.config_entries.updated)
+        self.assertTrue(await async_migrate_entry(hass, current))
+        self.assertEqual(len(hass.config_entries.updated), update_count)
         self.assertFalse(await async_migrate_entry(hass, _Entry(version=99)))
         await _async_update_listener(hass, entry)
         self.assertEqual(hass.config_entries.reloaded, [entry.entry_id])
@@ -171,7 +202,7 @@ class DiagnosticSurfaceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(sensor.extra_state_attributes["request_count"], 2)
         self.assertEqual(sensor.extra_state_attributes["active_targets"], 1)
         self.assertEqual(sensor.extra_state_attributes["tie_breaker"], "newest")
-        self.assertEqual(sensor.device_info["identifiers"], {(DOMAIN, "entry-1")})
+        self.assertEqual(sensor.device_info.identifiers, {(DOMAIN, "entry-1")})
 
     async def test_downloadable_diagnostics_contains_runtime(self) -> None:
         runtime = {"status": "idle", "history": []}

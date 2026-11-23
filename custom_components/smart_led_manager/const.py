@@ -8,11 +8,12 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "smart_led_manager"
 NAME: Final = "Smart LED Manager"
-VERSION: Final = "0.1.0-alpha.2"
+VERSION: Final = "0.1.0-alpha.3"
 
 CONF_LIGHTS: Final = "lights"
 CONF_ZONES: Final = "zones"
 CONF_MODES: Final = "modes"
+CONF_AREA_ID: Final = "area_id"
 CONF_RULES: Final = "rules"
 CONF_TIE_BREAKER: Final = "tie_breaker"
 CONF_MIN_COMMAND_INTERVAL: Final = "min_command_interval"

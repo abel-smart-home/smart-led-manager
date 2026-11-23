@@ -5,7 +5,7 @@ Home Assistant. Coordina solicitudes de color, brillo, escenas y avisos sobre
 entidades `light` existentes, y decide cuál debe verse en cada luz mediante un
 motor de prioridades determinista.
 
-> **Estado:** `0.1.0-alpha.2` en desarrollo. Es un candidato experimental para
+> **Estado:** `0.1.0-alpha.3` en desarrollo. Es un candidato experimental para
 > validación física, no una release publicada. Conserva la base alpha.1 probada
 > con HAOS/ZHA/GLEDOPTO. La validación consolidada de alpha.2 registra 16 casos
 > M completos, 3 parciales y M-06 pendiente con dos controladores Zigbee reales,
@@ -49,8 +49,8 @@ independiente del perfil `es`.
 | Componente | Versión de esta alfa |
 |---|---|
 | Home Assistant | `2026.11.0` o posterior |
-| Versión del manifest/release | `0.1.0-alpha.2` |
-| Versión de paquete Python | `0.1.0a2` |
+| Versión del manifest/release | `0.1.0-alpha.3` |
+| Versión de paquete Python | `0.1.0a3` |
 | Configuración ordinaria | Interfaz gráfica; YAML no requerido |
 | Operación | Local, asíncrona y sin servicio externo |
 

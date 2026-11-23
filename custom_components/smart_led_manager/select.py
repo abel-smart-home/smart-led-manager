@@ -7,8 +7,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN
 from .coordinator import SmartLEDCoordinator
+from .registry import zone_device_info, zone_select_unique_id
 
 NO_MODE_OPTION = "none"
 
@@ -44,14 +44,8 @@ class SmartLEDZoneModeSelect(SelectEntity):
         self._zone_id = zone_id
         zone = coordinator.modes.zone(zone_id)
         self._attr_translation_key = "zone_mode"
-        self._attr_translation_placeholders = {"zone": zone.name}
-        self._attr_unique_id = f"{entry.entry_id}_zone_{zone_id}_mode"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, entry.entry_id)},
-            "name": "Smart LED Manager",
-            "manufacturer": "abel-smart-home",
-            "model": "Priority engine",
-        }
+        self._attr_unique_id = zone_select_unique_id(entry.entry_id, zone_id)
+        self._attr_device_info = zone_device_info(entry.entry_id, zone)
 
     @property
     def options(self) -> list[str]:

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from ..const import MODULE_MODE
+from ..const import CONF_AREA_ID, MODULE_MODE
 from ..core.engine import PriorityEngine
 from ..models import (
     AnimationKind,
@@ -42,6 +42,7 @@ class ZoneDefinition:
     zone_id: str
     name: str
     targets: frozenset[str]
+    area_id: str | None = None
 
     @classmethod
     def from_dict(cls, value: Mapping[str, Any]) -> ZoneDefinition:
@@ -49,7 +50,8 @@ class ZoneDefinition:
         zone_id = _required_text(value.get("zone_id"), "invalid_zone")
         name = _required_text(value.get("name"), "invalid_zone")
         targets = _targets(value.get("targets"), "zone_without_targets")
-        return cls(zone_id=zone_id, name=name, targets=targets)
+        area_id = _optional_text(value.get(CONF_AREA_ID), "invalid_zone")
+        return cls(zone_id=zone_id, name=name, targets=targets, area_id=area_id)
 
     def to_dict(self) -> dict[str, Any]:
         """Return JSON-compatible options data."""
@@ -57,6 +59,7 @@ class ZoneDefinition:
             "zone_id": self.zone_id,
             "name": self.name,
             "targets": sorted(self.targets),
+            CONF_AREA_ID: self.area_id,
         }
 
 
@@ -509,6 +512,12 @@ def _required_text(value: object, error_key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ModeValidationError(error_key)
     return value.strip()
+
+
+def _optional_text(value: object, error_key: str) -> str | None:
+    if value is None or value == "":
+        return None
+    return _required_text(value, error_key)
 
 
 def _targets(value: object, error_key: str) -> frozenset[str]:

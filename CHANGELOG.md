@@ -2,8 +2,40 @@
 
 Este proyecto sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/)
 y usa versionado semántico. La versión del manifest conserva la forma de
-pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
-(`0.1.0a2`).
+pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
+(`0.1.0a3`).
+
+## [0.1.0-alpha.3] — Sin publicar
+
+### Añadido — Bloque A
+
+- Un dispositivo virtual estable por zona, identificado por `entry_id` y
+  `zone_id`, con su selector de modo y los interruptores opcionales de sus
+  modos. El dispositivo central conserva únicamente el diagnóstico del motor.
+- Asociación opcional del dispositivo de zona con un área existente de Home
+  Assistant, sin cambiar las áreas de las luces físicas.
+- Migración de ConfigEntry `1.1` a `1.2` que añade el área opcional sin cambiar
+  identificadores de zonas, modos o entidades.
+
+### Compatibilidad y correcciones
+
+- Se conservan los `unique_id` de alpha.2; Home Assistant reasocia las mismas
+  entidades a los dispositivos de zona y mantiene `entity_id`, nombres
+  personalizados y referencias existentes.
+- Los nombres propios de entidad usan `has_entity_name`: el dispositivo aporta
+  el contexto de zona y cada modo conserva su nombre breve.
+- Al eliminar permanentemente un modo o una zona se limpian sólo los registros
+  exactos de esa entrada. Desactivar la exposición de un modo conserva su
+  registro; descargar la integración no ejecuta limpieza.
+- Un catálogo inválido desactiva la limpieza destructiva, y un dispositivo de
+  zona borrada se conserva si otra entidad todavía lo referencia.
+
+### Validación pendiente
+
+- El Bloque A tiene cobertura automatizada para migración, dispositivos,
+  áreas, nombres, compatibilidad y limpieza selectiva. La comprobación visual
+  y física en HAOS todavía debe ejecutarla el propietario; no se hereda como
+  aprobada de alpha.2.
 
 ## [0.1.0-alpha.2] — Sin publicar
 
@@ -160,3 +192,4 @@ pre-release (`0.1.0-alpha.2`) y `pyproject.toml` usa su equivalente PEP 440
 
 [0.1.0-alpha.1]: https://github.com/abel-smart-home/smart-led-manager/compare/main...feat/v0.1.0-alpha.1
 [0.1.0-alpha.2]: https://github.com/abel-smart-home/smart-led-manager/compare/feat/v0.1.0-alpha.1...feat/v0.1.0-alpha.2-modes
+[0.1.0-alpha.3]: https://github.com/abel-smart-home/smart-led-manager/compare/feat/v0.1.0-alpha.2-modes...feat/v0.1.0-alpha.3-zone-devices

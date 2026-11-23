@@ -278,3 +278,40 @@ Adjunta este archivo actualizado o un informe equivalente al PR candidato,
 incluyendo fallos y limitaciones. Un fallo de hardware/integración externa debe
 distinguirse de un fallo del motor, pero no ocultarse. La autorización para
 fusionar o publicar sigue siendo una decisión separada.
+
+## Plan pendiente de `0.1.0-alpha.3`, Bloque A
+
+Este bloque todavía **no tiene validación visual ni física**. Conserva la
+evidencia alpha.2, pero debe registrarse por separado sobre el SHA candidato.
+
+### HAOS VirtualBox
+
+1. Actualiza una copia de la entrada alpha.2 sin eliminarla y anota antes los
+   `entity_id`, nombres personalizados y modo seleccionado.
+2. Comprueba un dispositivo central con el sensor del motor y dispositivos
+   separados para Sala y Oficina con sus selectores/switches.
+3. Renombra Sala, asígnale y cambia un área; confirma que no se duplican el
+   dispositivo ni las entidades y que las luces Demo conservan sus áreas.
+4. Desactiva la exposición de un switch, recarga y vuelve a activarla; debe
+   recuperar el mismo `entity_id` y nombre personalizado.
+5. Elimina un modo temporal y confirma que su switch deja de existir también
+   en el Entity Registry. Después elimina una zona ya vacía y confirma que no
+   quedan selector ni dispositivo huérfanos.
+6. Reinicia Core y confirma la selección persistente, la ausencia de duplicados
+   y que no aparezcan animaciones o comandos tardíos.
+
+### Raspberry Pi 5, ZHA y GLEDOPTO
+
+1. Repite la actualización sobre una copia de seguridad y verifica que la
+   entidad `light.gledopto_gl_c_007p` sigue perteneciendo sólo a ZHA.
+2. Confirma visualmente la distribución de dispositivos y nombres, activa Cine
+   y Lectura desde el dispositivo de zona y repite una prioridad superior.
+3. Reinicia Core y comprueba que el modo vigente y la recuperación Zigbee se
+   mantienen sin duplicar animaciones.
+4. Si se prueba Matter Hub/Alexa, registra por separado los nombres recibidos;
+   la presencia de nombres naturales en Home Assistant no demuestra aliases ni
+   compatibilidad general de voz.
+
+No ejecutes la eliminación sobre la instalación principal sin una copia de
+seguridad. Registra versión, SHA, fecha/hora, entorno y resultado real; no
+marques este bloque como aprobado por anticipado.

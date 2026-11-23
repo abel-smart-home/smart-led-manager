@@ -10,9 +10,11 @@ from uuid import uuid4
 import probatio
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_AREA_ID,
     CONF_LIGHTS,
     CONF_MANUAL_POLICY,
     CONF_MIN_COMMAND_INTERVAL,
@@ -101,7 +103,7 @@ class SmartLEDManagerConfigFlow(ConfigFlow, domain=DOMAIN):
     """Configure Smart LED Manager."""
 
     VERSION = 1
-    MINOR_VERSION = 1
+    MINOR_VERSION = 2
 
     @staticmethod
     @callback
@@ -512,14 +514,21 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         )
 
     def _zone_schema(self, current: dict[str, Any] | None = None) -> probatio.Schema:
+        current = current or {}
+        area_marker = (
+            probatio.Optional(CONF_AREA_ID, default=current[CONF_AREA_ID])
+            if current.get(CONF_AREA_ID)
+            else probatio.Optional(CONF_AREA_ID)
+        )
         return probatio.Schema(
             {
                 probatio.Required(
-                    "name", default=current.get("name", "") if current else ""
+                    "name", default=current.get("name", "")
                 ): selector.TextSelector(),
                 probatio.Required(
-                    "targets", default=current.get("targets", []) if current else []
+                    "targets", default=current.get("targets", [])
                 ): _light_selector(entities=self._lights()),
+                area_marker: selector.AreaSelector(),
             }
         )
 
@@ -586,6 +595,11 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         zone = ZoneDefinition.from_dict({**user_input, "zone_id": zone_id})
         if not zone.targets.issubset(self._lights()):
             raise ModeValidationError("target_not_managed")
+        if (
+            zone.area_id is not None
+            and ar.async_get(self.hass).async_get_area(zone.area_id) is None
+        ):
+            raise ModeValidationError("area_not_found")
         for other in self._zones():
             if other["zone_id"] != zone_id and zone.targets.intersection(
                 other.get("targets", [])

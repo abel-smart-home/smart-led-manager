@@ -18,10 +18,14 @@ from homeassistant.const import (
     STATE_OFF,
 )
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
 from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.smart_led_manager.const import (
+    CONF_AREA_ID,
     CONF_LIGHTS,
     CONF_MANUAL_POLICY,
     CONF_MIN_COMMAND_INTERVAL,
@@ -32,6 +36,12 @@ from custom_components.smart_led_manager.const import (
     DOMAIN,
     SERVICE_CANCEL,
     SERVICE_NOTIFY,
+)
+from custom_components.smart_led_manager.registry import (
+    central_device_identifier,
+    mode_switch_unique_id,
+    zone_device_identifier,
+    zone_select_unique_id,
 )
 
 pytestmark = [
@@ -371,3 +381,118 @@ async def test_options_flow_creates_zone_and_mode_definitions(hass) -> None:
     assert mode["name"] == "Lectura"
     assert mode["rgb_color"] == [255, 180, 80]
     assert mode["expose_switch"] is True
+
+
+async def test_alpha2_entities_migrate_to_stable_zone_devices(hass) -> None:
+    """Existing entity IDs and custom names survive their device reassociation."""
+    hass.states.async_set(
+        "light.one",
+        STATE_OFF,
+        {
+            ATTR_SUPPORTED_COLOR_MODES: [ColorMode.RGB],
+            ATTR_SUPPORTED_FEATURES: 0,
+        },
+    )
+    area = ar.async_get(hass).async_create("Sala")
+    zone = {
+        "zone_id": "living",
+        "name": "Sala",
+        "targets": ["light.one"],
+        CONF_AREA_ID: area.id,
+    }
+    mode = {
+        "mode_id": "cinema",
+        "zone_id": "living",
+        "name": "Cine",
+        "targets": ["light.one"],
+        "priority": 50,
+        "rgb_color": [0, 0, 255],
+        "brightness": 180,
+        "transition": 1,
+        "allow_turn_on": True,
+        "animation": "fixed",
+        "period": 1,
+        "expose_switch": True,
+    }
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id=f"{DOMAIN}-alpha2-migration",
+        minor_version=1,
+        data={CONF_LIGHTS: ["light.one"]},
+        options={
+            CONF_RULES: [],
+            CONF_ZONES: [zone],
+            CONF_MODES: [mode],
+            CONF_TIE_BREAKER: "newest",
+            CONF_MIN_COMMAND_INTERVAL: 0,
+            CONF_MANUAL_POLICY: "service_only",
+        },
+    )
+    entry.add_to_hass(hass)
+    devices = dr.async_get(hass)
+    entities = er.async_get(hass)
+    central = devices.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={central_device_identifier(entry.entry_id)},
+        name="Smart LED Manager",
+    )
+    old_select = entities.async_get_or_create(
+        "select",
+        DOMAIN,
+        zone_select_unique_id(entry.entry_id, "living"),
+        config_entry=entry,
+        device_id=central.id,
+        original_name="Modo de Sala",
+    )
+    old_switch = entities.async_get_or_create(
+        "switch",
+        DOMAIN,
+        mode_switch_unique_id(entry.entry_id, "cinema"),
+        config_entry=entry,
+        device_id=central.id,
+        original_name="Cine",
+    )
+    entities.async_update_entity(old_switch.entity_id, name="Cine personalizado")
+
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    migrated_select = entities.async_get(old_select.entity_id)
+    migrated_switch = entities.async_get(old_switch.entity_id)
+    zone_device = devices.async_get_device_by_identifier(
+        zone_device_identifier(entry.entry_id, "living"), entry.entry_id
+    )
+    central_device = devices.async_get_device_by_identifier(
+        central_device_identifier(entry.entry_id), entry.entry_id
+    )
+    assert zone_device is not None
+    assert central_device is not None
+    assert zone_device.name == "Sala"
+    assert zone_device.area_id == area.id
+    assert migrated_select is not None
+    assert migrated_switch is not None
+    assert migrated_select.entity_id == old_select.entity_id
+    assert migrated_switch.entity_id == old_switch.entity_id
+    assert migrated_select.device_id == zone_device.id
+    assert migrated_switch.device_id == zone_device.id
+    assert migrated_switch.name == "Cine personalizado"
+    assert (
+        entities.async_get_entity_id(
+            "sensor", DOMAIN, f"{entry.entry_id}_engine_status"
+        )
+        is not None
+    )
+    sensor_id = entities.async_get_entity_id(
+        "sensor", DOMAIN, f"{entry.entry_id}_engine_status"
+    )
+    assert entities.async_get(sensor_id).device_id == central_device.id
+    assert (
+        len(
+            [
+                item
+                for item in er.async_entries_for_config_entry(entities, entry.entry_id)
+                if item.unique_id == old_select.unique_id
+            ]
+        )
+        == 1
+    )

@@ -15,6 +15,7 @@ from custom_components.smart_led_manager.modules.modes import (
     ModeManager,
     ModeValidationError,
 )
+from custom_components.smart_led_manager.registry import zone_device_identifier
 from custom_components.smart_led_manager.select import (
     NO_MODE_OPTION,
     SmartLEDZoneModeSelect,
@@ -32,11 +33,13 @@ def _zone(
     zone_id: str = "living",
     name: str = "Sala",
     targets: list[str] | None = None,
+    area_id: str | None = None,
 ) -> dict[str, object]:
     return {
         "zone_id": zone_id,
         "name": name,
         "targets": targets or ["light.one"],
+        "area_id": area_id,
     }
 
 
@@ -132,6 +135,14 @@ class ModeManagerTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(ModeValidationError):
             self._manager(zones=[_zone(targets=["light.unauthorized"])])
+
+    def test_zone_area_round_trips_without_affecting_identity(self) -> None:
+        manager = self._manager(zones=[_zone(area_id="living_room")])
+
+        zone = manager.zone("living")
+
+        self.assertEqual(zone.area_id, "living_room")
+        self.assertEqual(zone.to_dict()["area_id"], "living_room")
 
     async def test_activation_builds_one_persistent_canonical_request(self) -> None:
         engine = PriorityEngine()
@@ -393,6 +404,11 @@ class ModeEntityTests(unittest.IsolatedAsyncioTestCase):
         entity = SmartLEDZoneModeSelect(coordinator, entry, "living")
 
         self.assertEqual(entity.unique_id, "entry-1_zone_living_mode")
+        self.assertEqual(
+            entity.device_info.identifiers,
+            {zone_device_identifier("entry-1", "living")},
+        )
+        self.assertTrue(entity.has_entity_name)
         self.assertEqual(entity.options, [NO_MODE_OPTION, "Azul", "Rojo"])
         self.assertEqual(entity.current_option, NO_MODE_OPTION)
         await entity.async_select_option("Rojo")
@@ -415,6 +431,11 @@ class ModeEntityTests(unittest.IsolatedAsyncioTestCase):
         entity = SmartLEDModeSwitch(coordinator, entry, "blue")
 
         self.assertEqual(entity.unique_id, "entry-1_mode_blue")
+        self.assertEqual(
+            entity.device_info.identifiers,
+            {zone_device_identifier("entry-1", "living")},
+        )
+        self.assertTrue(entity.has_entity_name)
         self.assertFalse(entity.is_on)
         await entity.async_turn_on()
         await entity.async_turn_off()

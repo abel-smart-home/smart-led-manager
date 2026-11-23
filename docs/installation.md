@@ -51,7 +51,7 @@ secundario si la release declara y prueba esa compatibilidad.
 
 ## Actualización manual
 
-Para actualizar esta corrección desde un alpha.2 anterior sin perder la entrada:
+Para actualizar desde alpha.2 a alpha.3 sin perder la entrada:
 
 1. Crea una copia de seguridad de Home Assistant y conserva una copia de la
    carpeta instalada.
@@ -61,18 +61,23 @@ Para actualizar esta corrección desde un alpha.2 anterior sin perder la entrada
    candidato; no mezcles archivos de distintos commits.
 4. Inicia Core de nuevo. El mismo dominio y ConfigEntry conservan el `entry_id`,
    luces autorizadas, opciones, reglas, zonas, modos y solicitudes del Store.
-5. Verifica que la entrada existente aparezca en **Ajustes > Dispositivos y
-   servicios > Integraciones** y no en **Ayudantes**. El propietario confirmó
-   esta clasificación con `8e21b28` en HAOS `2026.11.2`.
+5. Verifica que el dispositivo central conserve el sensor del motor y que cada
+   zona tenga su dispositivo con el mismo selector y switches. Los `entity_id`
+   y nombres personalizados deben permanecer iguales.
 6. Abre **Configurar** con el perfil en Español o Español (Latinoamérica). Si el
    navegador conservaba recursos anteriores, recarga la página sin caché o
    cierra y vuelve a abrir la aplicación.
+7. Asigna un área opcional desde la edición de la zona. No edites archivos de
+   `.storage` ni cambies el área de las luces físicas para completar esta
+   prueba.
 
 La interfaz `es-419` fue comprobada físicamente; el catálogo `es` tiene
 cobertura automatizada, pero no una ejecución física independiente registrada.
 
-El cambio de `integration_type` es metadato del manifest: no requiere una
-migración del ConfigEntry ni del almacenamiento persistente.
+La migración alpha.3 añade un campo de área opcional a cada zona, conserva sus
+identificadores y no cambia el almacenamiento de solicitudes. Para volver a
+alpha.2 restaura la copia de seguridad completa; no sustituyas sólo el código
+después de migrar a un `minor_version` más reciente.
 
 ## Desinstalación
 

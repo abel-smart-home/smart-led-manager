@@ -63,7 +63,11 @@
       "add_zone": {
         "title": "Create zone",
         "description": "Each physical light can belong to only one zone.",
-        "data": {"name": "Name", "targets": "Zone lights"}
+        "data": {
+          "name": "Name",
+          "targets": "Zone lights",
+          "area_id": "Optional Home Assistant area"
+        }
       },
       "edit_zone": {
         "title": "Choose zone",
@@ -71,7 +75,11 @@
       },
       "edit_zone_form": {
         "title": "Edit zone",
-        "data": {"name": "Name", "targets": "Zone lights"}
+        "data": {
+          "name": "Name",
+          "targets": "Zone lights",
+          "area_id": "Optional Home Assistant area"
+        }
       },
       "delete_zone": {
         "title": "Delete zone",
@@ -188,6 +196,7 @@
       "zone_has_modes": "Delete this zone's modes first",
       "invalid_mode": "The mode definition is invalid",
       "invalid_zone": "The zone definition is invalid",
+      "area_not_found": "The selected Home Assistant area no longer exists",
       "reserved_mode_name": "That name is reserved by the zone selector's No mode option"
     },
     "abort": {
@@ -241,7 +250,7 @@
   "entity": {
     "select": {
       "zone_mode": {
-        "name": "{zone} mode",
+        "name": "Mode",
         "state": {
           "none": "No mode"
         }

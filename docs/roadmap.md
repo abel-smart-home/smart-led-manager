@@ -37,6 +37,19 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 
 ## `0.1.0-alpha.3` — destinos y disparadores completos
 
+### Bloque A — dispositivos por zona
+
+- [x] Un dispositivo virtual por zona bajo una sola integración, entrada y
+  motor, con asociación opcional a un área y migración que conserva
+  `unique_id`, `entity_id` y nombres personalizados.
+- [x] Ciclo de vida selectivo del Entity Registry: elimina definiciones
+  permanentes de la entrada correcta, conserva switches sólo ocultos y no
+  ejecuta limpieza durante la descarga.
+- [x] Nombres naturales mediante nombre de dispositivo y `has_entity_name`, sin
+  aliases ni dependencias de servicios de voz.
+
+### Bloques B, C y D — alcance aprobado pendiente
+
 - Áreas, etiquetas, grupos compatibles y “todas las administradas”, con expansión acíclica y deduplicación.
 - Edición y duplicación de reglas con identificadores estables, reconciliación
   de solicitudes activas y ausencia de intenciones obsoletas; condiciones
@@ -45,18 +58,12 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - Botones, `event`, `input_button` y device triggers con semántica real de evento.
 - Política de reintento y verificación física configurables.
 - Política temporal opcional de pausa/reanudación además del vencimiento en tiempo real.
-- Un dispositivo virtual por zona, bajo una sola integración, entrada y motor;
-  asociación opcional a áreas y migración que preserve `unique_id` y
-  automatizaciones. No convertir zonas en entradas independientes sin un
-  rediseño aprobado.
 - Editor visual de puntos numéricos con valor, unidad cuando esté disponible,
   selector de color, alta/baja, ordenamiento, validación y vista previa si el
   Options Flow nativo lo permite.
-- Ciclo de vida selectivo del Entity Registry al eliminar un modo, distinguiendo
-  la retirada de definición/plataforma de una eliminación persistente y sin
-  borrar entidades ajenas o todavía referenciadas.
 - Nombres y aliases naturales para voz, breves y opcionalmente cualificados por
-  zona, sin cambiar los `unique_id` existentes.
+  zona, sin cambiar los `unique_id` existentes; el Bloque A cubre los nombres
+  nativos y deja pendiente la gestión explícita de aliases.
 
 ## `0.1.0-beta.1` — módulos funcionales
 
