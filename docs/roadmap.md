@@ -78,7 +78,14 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
 - [x] Guardado mínimo con validación Python, destinos autorizados, conservación
   de `id`/campos y rechazo explícito de concurrencia obsoleta.
 - [x] Editor nativo del Bloque B conservado como alternativa.
-- [ ] B1-01 a B1-10 en HAOS VirtualBox y repetición física Zigbee separada.
+- [x] Centro de administración inicial, enlace desde Options Flow y visibilidad
+  lateral persistente sin duplicar ruta ni backend.
+- [x] Estabilidad del formulario ante actualizaciones globales, simulaciones
+  concurrentes, valor vacío y ConfigEntry descargada.
+- [ ] B1-01/B1-02 parcialmente comprobadas en HAOS VirtualBox: tras corregir el
+  error inicial `MappingProxyType`, cargó una regla existente con barra y
+  distribución correctas. Falta completar B1-01 a B1-10 y la repetición física
+  Zigbee separada.
 
 El Bloque B.1 adelanta únicamente esta superficie especializada por la
 limitación de usabilidad observada y aprobada por el propietario. No absorbe el

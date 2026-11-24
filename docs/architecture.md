@@ -99,15 +99,19 @@ obsoleta.
 El Bloque B.1 añade una superficie de configuración; no añade otro motor de
 reglas. Home Assistant sirve los módulos ES incluidos en `frontend/` mediante
 `StaticPathConfig` y registra un panel personalizado local con
-`panel_custom.async_register_panel`. El panel lateral exige administrador y
-también cada comando WebSocket aplica `require_admin`, por lo que ocultar la
-interfaz no constituye la barrera de seguridad.
+`panel_custom.async_register_panel`. La ruta exige administrador; el título
+lateral puede omitirse mediante una opción persistente sin retirar el panel ni
+duplicar backend. Cada comando WebSocket también aplica `require_admin`, por lo
+que ocultar la interfaz no constituye la barrera de seguridad.
 
-El frontend mantiene un borrador de `mode` y `points`. Agregar, modificar,
-eliminar, simular, restaurar o descartar no toca ConfigEntry, Store, motor ni
-servicios `light.*`. La simulación envía el borrador al backend, que llama a
-`core/color.py`; el navegador sólo calcula geometría de presentación. Así no
-existe una segunda implementación de interpolación o rangos.
+La pantalla inicial actúa como centro modular: identidad y versión, reglas
+numéricas y enlace a la configuración nativa. No implementa todavía las
+secciones futuras. El frontend mantiene un borrador de `mode` y `points`.
+Agregar, modificar, eliminar, simular, restaurar o descartar no toca
+ConfigEntry, Store, motor ni servicios `light.*`. La simulación envía el
+borrador al backend, que llama a `core/color.py`; el navegador sólo calcula
+geometría de presentación. Así no existe una segunda implementación de
+interpolación o rangos.
 
 Al guardar, `visual_editor.py` vuelve a comprobar la entrada, el tipo y `id` de
 la regla, sus destinos contra las luces autorizadas, el modo, valores finitos,
@@ -121,7 +125,8 @@ Al descargar se retira el panel visible y se cancelan las tareas normales del
 coordinador. Los manejadores WebSocket y la ruta estática, registrados una sola
 vez a nivel de integración, no crean tareas ni conservan catálogos; Home
 Assistant no ofrece una API pública para desregistrarlos durante la misma
-ejecución. Sin la ConfigEntry cargada responden `entry_not_found`. Un reinicio
+ejecución. Sin la ConfigEntry cargada responden `entry_not_loaded`; un
+identificador inexistente responde `entry_not_found`. Un reinicio
 de Core elimina esos registros junto con el runtime completo.
 
 El Device Registry contiene un dispositivo central identificado por

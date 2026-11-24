@@ -367,8 +367,8 @@ real. Las pruebas automatizadas no cuentan como ejecución visual HAOS.
 
 | Caso | Procedimiento | Resultado esperado | Estado |
 |---|---|---|---|
-| B1-01 | Actualiza la carpeta completa sin eliminar la entrada, reinicia Core e inicia sesión como administrador. | Smart LED Manager aparece en la barra lateral; `/smart-led-manager-editor` abre el panel sin YAML, CDN ni error de carga. Un usuario no administrador no puede acceder. | Pendiente |
-| B1-02 | Abre una regla numérica creada en el Bloque B. | Aparecen el mismo nombre, `id`, origen, estado, unidad, modo y puntos; prioridad, destinos y brillo se muestran sin alterarse. | Pendiente |
+| B1-01 | Actualiza la carpeta completa sin eliminar la entrada, reinicia Core e inicia sesión como administrador. | Smart LED Manager aparece en la barra lateral; `/smart-led-manager-editor` abre el panel sin YAML, CDN ni error de carga. Un usuario no administrador no puede acceder. | **Parcial**: el primer intento falló por serialización de `MappingProxyType`. Tras la corrección manual en `9ba3b0c`, el propietario confirmó que el panel carga en HAOS VirtualBox. Falta comprobar usuario no administrador y el recorrido completo. |
+| B1-02 | Abre una regla numérica creada en el Bloque B. | Aparecen el mismo nombre, `id`, origen, estado, unidad, modo y puntos; prioridad, destinos y brillo se muestran sin alterarse. | **Parcial**: se confirmó una regla existente y la representación correcta de barra de color y distribución numérica. No se atribuye todavía la revisión completa de todos los metadatos. |
 | B1-03 | Revisa una curva con intervalos desiguales, negativos y decimales en tema claro y oscuro, escritorio y móvil. | Barra, eje, marcas y etiquetas respetan posiciones reales; los datos siguen legibles y utilizables con teclado y tacto. | Pendiente |
 | B1-04 | Agrega un punto, cambia valor/color, selecciona desde barra y gráfica, elimina otro y prueba duplicado/NaN/menos de dos. | Ordena automáticamente; RGB/hex y muestra coinciden; validación impide guardar datos inválidos sin perder el borrador. | Pendiente |
 | B1-05 | Simula valores exactos, intermedios y fuera de extremos en `interpolate` y `ranges`. | Color, RGB/hex y punto/intervalo coinciden con la regla; no se envían órdenes `light.*` ni cambia la tira. | Pendiente |
@@ -377,6 +377,13 @@ real. Las pruebas automatizadas no cuentan como ejecución visual HAOS.
 | B1-08 | Abre la misma regla en dos sesiones; guarda en la primera y luego intenta guardar el borrador antiguo. | La segunda recibe conflicto claro, no sobrescribe y puede recargar la configuración vigente. | Pendiente |
 | B1-09 | Reinicia Core, descarga/recarga y elimina la entrada en la instancia aislada. | El panel reaparece sólo con entrada cargada; no quedan tareas, animaciones ni panel visible tras descargar/eliminar, y una instalación nueva no muestra reglas antiguas. | Pendiente |
 | B1-10 | Edita la misma regla con el editor nativo y repite una prioridad/modo/notificación del Bloque B. | Ambos editores siguen disponibles, el formato heredado continúa compatible y no hay regresión de prioridades, modos, zonas o recuperación. | Pendiente |
+
+La iteración de centralización añade al recorrido pendiente: enlace interno
+desde **Centro de administración**, visibilidad lateral activada/desactivada sin
+perder `/smart-led-manager-editor`, regreso al inicio, nombres amigables,
+estados separados de carga/vacío/error, conservación de foco, simulación vacía
+y respuestas concurrentes. La evidencia visual confirmada no aprueba por sí
+sola estos puntos nuevos.
 
 ### Repetición física separada
 

@@ -51,6 +51,14 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   conflictos concurrentes.
 - El editor nativo del Bloque B permanece disponible. El Options Flow documenta
   la ruta oficial del panel sin depender de APIs privadas de navegación.
+- Centro de administración inicial con identidad y versión instalada, acceso al
+  editor de reglas numéricas y enlace a la configuración nativa. El menú
+  principal del Options Flow ofrece un enlace interno Markdown compatible.
+- Opción persistente **Mostrar Smart LED Manager en la barra lateral**, activada
+  por defecto. Al ocultarla, la ruta administrativa permanece disponible sin
+  registrar otro panel, motor o catálogo.
+- Nombres amigables de sensores y luces en la vista habitual; los `entity_id` y
+  el identificador interno de la regla quedan en información técnica desplegable.
 
 ### Compatibilidad y correcciones
 
@@ -74,6 +82,14 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Guardar una regla continúa recargando la ConfigEntry. Los cambios intermedios
   del editor no envían órdenes; las solicitudes temporales no persistentes
   pueden terminar durante esa recarga, como en alpha.2.
+- Se corrigió la serialización de `MappingProxyType` de ConfigEntry al calcular
+  la revisión, leer y guardar reglas, incluidos mapas anidados. El primer intento
+  B1-01 falló por ese motivo y el propietario confirmó que el panel corregido ya
+  carga una regla numérica existente y muestra su barra y distribución.
+- El panel ya no se reconstruye con cada actualización global de `hass`, ignora
+  respuestas de simulación obsoletas, no interpreta una entrada vacía como cero
+  y distingue carga, catálogo vacío y error de WebSocket. Los comandos rechazan
+  explícitamente una ConfigEntry descargada.
 
 ### Validación
 
@@ -97,8 +113,10 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - El Bloque B.1 cubre backend y modelo frontend: lectura, borradores, edición y
   ordenamiento de puntos, simulación exacta, guardado conservador, rechazo de
   datos inválidos y destinos no autorizados, conflictos concurrentes,
-  autorización administrativa y ciclo de vida del panel. B1-01 a B1-10
-  permanecen pendientes de ejecución real por el propietario en HAOS.
+  autorización administrativa y ciclo de vida del panel. El propietario
+  confirmó parcialmente B1-01/B1-02: tras corregir la serialización inicial, el
+  panel cargó en HAOS VirtualBox una regla existente con barra y distribución
+  correctas. No se consideran aprobados los casos completos restantes.
 - El commit del Bloque B cerró 148 pruebas con cobertura de ramas `87.14 %` en
   Home Assistant `2026.11.0` como en `2026.11.2`; Ruff, Hassfest y
   HACS/Marketplace también aprobaron. El pytest completo no se atribuye al

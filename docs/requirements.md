@@ -138,6 +138,15 @@ La pre-release solo puede considerarse lista cuando:
     preservación, seguridad, concurrencia, reglas heredadas y ciclo de vida; la
     validación visual real se registra sólo cuando el propietario ejecuta
     B1-01 a B1-10 en HAOS.
+13. El Options Flow ofrece un enlace interno al centro de administración y una
+    opción persistente, activada por defecto, para mostrar u ocultar el acceso
+    lateral sin retirar la ruta ni crear un segundo panel o backend.
+14. La pantalla inicial identifica producto y versión y sólo enlaza superficies
+    reales: reglas numéricas y configuración nativa. Los nombres amigables son
+    primarios y los identificadores técnicos quedan bajo detalle avanzado.
+15. Actualizaciones ordinarias de `hass` no reconstruyen el formulario; valores
+    de simulación vacíos no equivalen a cero, respuestas antiguas no reemplazan
+    resultados recientes y un error de carga no se presenta como catálogo vacío.
 
 ## Requisitos no funcionales
 

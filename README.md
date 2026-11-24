@@ -30,8 +30,9 @@ motor de prioridades determinista.
   duplicar como copia inicialmente deshabilitada, activar/desactivar y eliminar.
   Los puntos numéricos se agregan, editan, ordenan y colorean con controles
   nativos, sin escribir cadenas RGB.
-- Incluye un editor gráfico avanzado local y exclusivo para administradores en
-  la barra lateral. Permite editar puntos con selector de color, ver su
+- Incluye un centro de administración local y exclusivo para administradores,
+  con acceso opcional desde la barra lateral y ruta estable. Permite editar
+  puntos con selector de color, ver su
   distribución numérica real y simular exactamente interpolación o rangos sin
   enviar órdenes físicas. El editor nativo del Options Flow continúa
   disponible como alternativa.
@@ -83,12 +84,14 @@ Modos de iluminación** o **Configurar > Reglas inteligentes** para crear el
 catálogo; no hace falta YAML ni introducir puntos RGB como texto.
 
 Para editar gráficamente una regla numérica existente, abre **Smart LED
-Manager** en la barra lateral con una cuenta administradora, o visita
-`/smart-led-manager-editor`. **Configurar > Reglas inteligentes > Abrir editor
-gráfico avanzado** documenta la misma ruta; Home Assistant no ofrece una API
-pública para navegar directamente desde el Options Flow. El panel, sus módulos
-JavaScript y el backend WebSocket se sirven localmente: no usa CDN, nube ni un
-paso de compilación para el usuario.
+Manager** en la barra lateral con una cuenta administradora, visita
+`/smart-led-manager-editor` o usa el enlace de **Configurar > Centro de
+administración**. La misma pantalla permite mostrar u ocultar el acceso lateral
+sin deshabilitar la ruta. **Configurar > Reglas inteligentes > Abrir editor
+gráfico avanzado** conserva otro enlace al centro; Home Assistant no ofrece una
+API pública para redirigir automáticamente desde el Options Flow. El panel, sus
+módulos JavaScript y el backend WebSocket se sirven localmente: no usa CDN,
+nube ni un paso de compilación para el usuario.
 
 Cuando haya una release compatible, Marketplace de Home Assistant 2026.11+
 será el canal previsto. Consulta la [guía de instalación](docs/installation.md)

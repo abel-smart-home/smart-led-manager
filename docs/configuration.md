@@ -151,16 +151,21 @@ eliminada no reaparece al terminar una solicitud superior.
 
 ### Editor gráfico avanzado B.1
 
-Una cuenta administradora puede abrir **Smart LED Manager** en la barra lateral
-o entrar directamente en `/smart-led-manager-editor`. Desde **Configurar >
-Reglas inteligentes > Abrir editor gráfico avanzado** se muestra esa ruta; el
-Options Flow no intenta forzar navegación con una API interna de Home
+Una cuenta administradora puede abrir **Smart LED Manager** en la barra lateral,
+entrar directamente en `/smart-led-manager-editor` o seguir el enlace interno
+de **Configurar > Centro de administración**. Esa pantalla también permite
+mostrar u ocultar el acceso lateral; ocultarlo no elimina la ruta. **Configurar
+> Reglas inteligentes > Abrir editor gráfico avanzado** conserva otro enlace.
+El Options Flow no intenta forzar navegación con una API interna de Home
 Assistant. El editor nativo anterior continúa disponible para crear reglas y
 editar todos sus metadatos.
 
-El panel avanzado edita reglas numéricas existentes. Primero muestra nombre,
-origen y estado; al elegir una regla carga su unidad, prioridad, destinos,
-brillo e identificador como información de sólo lectura. En B.1 sólo cambia:
+El panel abre en un centro modular que muestra identidad y versión, acceso a las
+reglas numéricas y acceso a la configuración nativa de la integración. No
+simula secciones futuras. En el catálogo usa primero los nombres amigables de
+sensores y luces; los `entity_id` y el `id` interno permanecen en información
+técnica desplegable. Al elegir una regla carga unidad, prioridad, destinos y
+brillo como información de sólo lectura. En B.1 sólo cambia:
 
 - `interpolate` o `ranges`;
 - valor numérico y color de cada punto;
@@ -182,6 +187,12 @@ la recarga normal de la entrada. Si el Options Flow u otra pestaña cambió la
 configuración después de cargarla, el panel rechaza el guardado como conflicto:
 elige **Recargar configuración**, revisa la versión nueva y repite la edición.
 No se combinan silenciosamente dos borradores.
+
+Las actualizaciones ordinarias de estados de Home Assistant no reconstruyen el
+formulario ni quitan el foco. Una respuesta antigua del simulador se descarta
+si ya existe una solicitud posterior; un valor vacío no se evalúa como cero. Si
+la entrada se descarga, el catálogo muestra el error y ofrece recargar en lugar
+de presentarlo como vacío.
 
 La recarga no es edición completamente en caliente. Conserva solicitudes
 persistentes válidas y selecciones de modo, pero una notificación temporal no

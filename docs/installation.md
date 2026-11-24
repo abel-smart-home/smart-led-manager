@@ -77,8 +77,9 @@ sin perder la entrada:
 9. Asigna un área opcional desde la edición de la zona. No edites archivos de
    `.storage` ni cambies el área de las luces físicas para completar esta
    prueba.
-10. Con una cuenta administradora abre **Smart LED Manager** en la barra lateral
-    o entra en `/smart-led-manager-editor`. Si el panel no aparece, comprueba
+10. Con una cuenta administradora abre **Configurar > Centro de administración**
+    y sigue el enlace interno, usa la barra lateral o entra en
+    `/smart-led-manager-editor`. Si el panel no aparece, comprueba
     que copiaste `frontend/`, reinicia Core y recarga el navegador sin caché.
 11. Simula un valor antes de guardar: la luz no debe cambiar. Guarda después una
     edición controlada, espera la recarga normal y confirma que la regla
@@ -86,18 +87,21 @@ sin perder la entrada:
 
 ## Acceso al editor gráfico B.1
 
-El panel se registra automáticamente cuando carga la única ConfigEntry y se
-muestra sólo a administradores. No requiere añadir un recurso Lovelace ni
-configuración YAML. Hay dos referencias de acceso:
+El panel se registra automáticamente cuando carga la única ConfigEntry y exige
+administrador. No requiere añadir un recurso Lovelace ni configuración YAML.
+Hay tres referencias de acceso:
 
 1. **Barra lateral > Smart LED Manager**.
 2. **Ajustes > Dispositivos y servicios > Smart LED Manager > Configurar >
-   Reglas inteligentes > Abrir editor gráfico avanzado**, donde se documenta
-   la ruta `/smart-led-manager-editor`.
+   Centro de administración**, con enlace interno y el ajuste **Mostrar Smart
+   LED Manager en la barra lateral**.
+3. **Configurar > Reglas inteligentes > Abrir editor gráfico avanzado**, que
+   conserva otro enlace al mismo centro.
 
-La segunda pantalla no abre el panel automáticamente: Home Assistant 2026.11 no
-ofrece una API pública estable para navegar desde un Options Flow. Copia la
-ruta o usa la barra lateral. El panel sólo edita puntos y modo de reglas
+Home Assistant 2026.11 no ofrece una API pública estable para redirigir
+automáticamente desde un Options Flow; usa el enlace Markdown compatible. Si
+se oculta la entrada lateral, `/smart-led-manager-editor` continúa disponible.
+El panel sólo edita puntos y modo de reglas
 numéricas existentes; para crear una regla o cambiar origen, prioridad,
 destinos y otros metadatos usa el editor nativo.
 

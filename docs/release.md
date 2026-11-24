@@ -48,6 +48,10 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
       entregadas.
 - [ ] El propietario ejecuta B1-01 a B1-10 en HAOS VirtualBox y repite los
       Bloques A/B/B.1 en Raspberry Pi/ZHA/GLEDOPTO donde corresponda.
+      B1-01/B1-02 tienen evidencia parcial: el primer arranque falló al
+      serializar `MappingProxyType`; con la corrección del propietario el panel
+      cargó una regla existente y mostró barra y distribución. No se extrapola
+      esa comprobación al resto de casos.
 - [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
       en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
       español. No se atribuye una prueba independiente al perfil `es`.
@@ -132,9 +136,10 @@ Store/config entry requieren atención.
 5. Abre **Configurar > Reglas inteligentes**, edita una regla sin cambiar su
    identidad y revisa el editor visual de puntos. Las copias empiezan
    deshabilitadas; no las actives hasta comprobar destinos y prioridad.
-6. Con una cuenta administradora abre **Smart LED Manager** en la barra lateral
-   o `/smart-led-manager-editor`. Simula antes de guardar y verifica que no se
-   envíen órdenes físicas durante el borrador.
+6. Con una cuenta administradora abre **Configurar > Centro de administración**
+   y usa su enlace, la barra lateral o `/smart-led-manager-editor`. Decide si
+   deseas mantener visible el acceso lateral. Simula antes de guardar y
+   verifica que no se envíen órdenes físicas durante el borrador.
 7. Asigna áreas desde **Configurar > Zonas** si lo deseas; no edites `.storage`
    ni registros internos.
 8. Ejecuta primero B1-01 a B1-10 en VirtualBox y después el plan físico.
