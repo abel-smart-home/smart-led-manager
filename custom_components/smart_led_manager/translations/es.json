@@ -11,7 +11,8 @@
       }
     },
     "error": {
-      "at_least_one_light": "Selecciona al menos una luz"
+      "at_least_one_light": "Selecciona al menos una luz",
+      "group_not_authorized": "Selecciona luces individuales. Los grupos no se pueden autorizar como luces."
     },
     "abort": {
       "already_configured": "Smart LED Manager ya está configurado"
@@ -79,7 +80,9 @@
       },
       "edit_zone": {
         "title": "Elegir zona",
-        "data": {"zone_id": "Zona"}
+        "data": {
+          "zone_id": "Zona"
+        }
       },
       "edit_zone_form": {
         "title": "Editar zona",
@@ -92,7 +95,9 @@
       "delete_zone": {
         "title": "Eliminar zona",
         "description": "Primero elimina los modos de la zona.",
-        "data": {"zone_id": "Zona"}
+        "data": {
+          "zone_id": "Zona"
+        }
       },
       "modes": {
         "title": "Administrar modos",
@@ -121,7 +126,9 @@
       },
       "edit_mode": {
         "title": "Elegir modo",
-        "data": {"mode_id": "Modo"}
+        "data": {
+          "mode_id": "Modo"
+        }
       },
       "edit_mode_form": {
         "title": "Editar modo de iluminación",
@@ -141,7 +148,9 @@
       },
       "delete_mode": {
         "title": "Eliminar modo",
-        "data": {"mode_id": "Modo"}
+        "data": {
+          "mode_id": "Modo"
+        }
       },
       "rules": {
         "title": "Reglas inteligentes",
@@ -183,7 +192,13 @@
           "schedule": "Horario local",
           "for_seconds": "Permanencia mínima",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)"
         }
       },
       "add_numeric_rule": {
@@ -210,7 +225,19 @@
           "schedule": "Horario local",
           "for_seconds": "Permanencia mínima",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)",
+          "activation_operator": "Activación numérica",
+          "activation_threshold": "Umbral",
+          "activation_lower": "Límite inferior",
+          "activation_upper": "Límite superior",
+          "activation_hysteresis": "Histéresis",
+          "rgb_color": "Color RGB fijo"
         }
       },
       "add_event_rule": {
@@ -234,21 +261,32 @@
           "conditions": "Árbol de condiciones adicional",
           "schedule": "Horario local",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración."
         }
       },
       "edit_rule": {
         "title": "Elegir regla para editar",
-        "data": {"rule_id": "Regla"}
+        "data": {
+          "rule_id": "Regla"
+        }
       },
       "duplicate_rule": {
         "title": "Elegir regla para duplicar",
         "description": "La copia recibe un identificador nuevo y comienza deshabilitada.",
-        "data": {"rule_id": "Regla"}
+        "data": {
+          "rule_id": "Regla"
+        }
       },
       "toggle_rule": {
         "title": "Activar o desactivar regla",
-        "data": {"rule_id": "Regla"}
+        "data": {
+          "rule_id": "Regla"
+        }
       },
       "edit_state_rule": {
         "title": "Editar regla de estado",
@@ -273,7 +311,13 @@
           "schedule": "Horario local",
           "for_seconds": "Permanencia mínima",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)"
         }
       },
       "duplicate_state_rule": {
@@ -299,7 +343,13 @@
           "schedule": "Horario local",
           "for_seconds": "Permanencia mínima",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)"
         }
       },
       "edit_numeric_rule": {
@@ -326,7 +376,19 @@
           "schedule": "Horario local",
           "for_seconds": "Permanencia mínima",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)",
+          "activation_operator": "Activación numérica",
+          "activation_threshold": "Umbral",
+          "activation_lower": "Límite inferior",
+          "activation_upper": "Límite superior",
+          "activation_hysteresis": "Histéresis",
+          "rgb_color": "Color RGB fijo"
         }
       },
       "duplicate_numeric_rule": {
@@ -353,7 +415,19 @@
           "schedule": "Horario local",
           "for_seconds": "Permanencia mínima",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)",
+          "activation_operator": "Activación numérica",
+          "activation_threshold": "Umbral",
+          "activation_lower": "Límite inferior",
+          "activation_upper": "Límite superior",
+          "activation_hysteresis": "Histéresis",
+          "rgb_color": "Color RGB fijo"
         }
       },
       "edit_event_rule": {
@@ -377,7 +451,12 @@
           "conditions": "Árbol de condiciones adicional",
           "schedule": "Horario local",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración."
         }
       },
       "duplicate_event_rule": {
@@ -401,7 +480,12 @@
           "conditions": "Árbol de condiciones adicional",
           "schedule": "Horario local",
           "animation": "Animación",
-          "period": "Periodo de animación"
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración."
         }
       },
       "numeric_points": {
@@ -417,19 +501,29 @@
       },
       "add_numeric_point": {
         "title": "Agregar punto de color",
-        "data": {"value": "Valor numérico", "rgb": "Color"}
+        "data": {
+          "value": "Valor numérico",
+          "rgb": "Color"
+        }
       },
       "edit_numeric_point": {
         "title": "Elegir punto para editar",
-        "data": {"point_index": "Punto de color"}
+        "data": {
+          "point_index": "Punto de color"
+        }
       },
       "edit_numeric_point_form": {
         "title": "Editar punto de color",
-        "data": {"value": "Valor numérico", "rgb": "Color"}
+        "data": {
+          "value": "Valor numérico",
+          "rgb": "Color"
+        }
       },
       "delete_numeric_point": {
         "title": "Eliminar punto de color",
-        "data": {"point_index": "Punto de color"}
+        "data": {
+          "point_index": "Punto de color"
+        }
       },
       "save_numeric_rule": {
         "title": "Faltan puntos de color",
@@ -464,7 +558,9 @@
       "invalid_mode": "La definición del modo no es válida",
       "invalid_zone": "La definición de la zona no es válida",
       "area_not_found": "El área seleccionada de Home Assistant ya no existe",
-      "reserved_mode_name": "Ese nombre está reservado por la opción Sin modo del selector de zona"
+      "reserved_mode_name": "Ese nombre está reservado por la opción Sin modo del selector de zona",
+      "group_not_authorized": "Selecciona luces individuales. Los grupos no se pueden autorizar como luces.",
+      "unsupported_condition": "Usa los tipos de condición compatibles o edita esta regla en el centro de administración."
     },
     "abort": {
       "no_rules": "No hay reglas configuradas",
@@ -499,7 +595,8 @@
     "numeric_mode": {
       "options": {
         "interpolate": "Interpolación gradual",
-        "ranges": "Rango inferior más cercano"
+        "ranges": "Rango inferior más cercano",
+        "fixed": "Color fijo"
       }
     },
     "animation": {
@@ -514,6 +611,26 @@
         "fixed": "Fijo",
         "blink": "Parpadeo",
         "pulse": "Pulsación"
+      }
+    },
+    "activation_operator": {
+      "options": {
+        "none": "Siempre",
+        "above": "Por encima",
+        "below": "Por debajo",
+        "inside": "Dentro",
+        "outside": "Fuera"
+      }
+    },
+    "rule_weekdays": {
+      "options": {
+        "mon": "Lunes",
+        "tue": "Martes",
+        "wed": "Miércoles",
+        "thu": "Jueves",
+        "fri": "Viernes",
+        "sat": "Sábado",
+        "sun": "Domingo"
       }
     }
   },

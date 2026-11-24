@@ -18,6 +18,7 @@ from .services import async_setup_services
 from .storage import SmartLEDStorage
 from .visual_editor import (
     async_register_visual_editor_panel,
+    async_reload_visual_editor_entry,
     async_remove_visual_editor_panel,
     async_setup_visual_editor,
 )
@@ -68,7 +69,12 @@ async def async_unload_entry(
         return False
     await entry.runtime_data.async_shutdown()
     hass.data.get(DOMAIN, {}).get("entries", {}).pop(entry.entry_id, None)
-    async_remove_visual_editor_panel(hass)
+    async_remove_visual_editor_panel(
+        hass,
+        unloading_entry=entry.entry_id
+        if not getattr(entry, "disabled_by", None)
+        else None,
+    )
     return True
 
 
@@ -110,4 +116,4 @@ async def _async_update_listener(
     hass: HomeAssistant, entry: SmartLEDManagerConfigEntry
 ) -> None:
     """Reload atomically after an options-flow change."""
-    await hass.config_entries.async_reload(entry.entry_id)
+    await async_reload_visual_editor_entry(hass, entry)

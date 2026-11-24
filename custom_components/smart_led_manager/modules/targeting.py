@@ -9,7 +9,10 @@ from typing import Any
 from homeassistant.const import ATTR_AREA_ID, ATTR_ENTITY_ID, ATTR_LABEL_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import label_registry as lr
+from homeassistant.helpers.group import get_group_entities
 from homeassistant.helpers.target import (
     TargetSelection,
     async_extract_referenced_entity_ids,
@@ -41,6 +44,30 @@ class ResolvedTargets:
     targets: frozenset[str]
     excluded: frozenset[str] = frozenset()
     groups: frozenset[str] = frozenset()
+    duplicates: frozenset[str] = frozenset()
+
+
+def is_aggregate_light(hass: HomeAssistant, entity_id: str) -> bool:
+    """Identify groups from live membership and registry identity when available."""
+    states = getattr(hass, "states", None)
+    state = states.get(entity_id) if states is not None else None
+    if state and (
+        ATTR_ENTITY_ID in state.attributes or state.attributes.get("is_hue_group")
+    ):
+        return True
+    if isinstance(hass, HomeAssistant):
+        if entity_id in get_group_entities(hass):
+            return True
+        entry = er.async_get(hass).async_get(entity_id)
+        if entry:
+            if entry.platform == "group":
+                return True
+            if entry.platform == "hue" and entry.translation_key == "hue_grouped_light":
+                return True
+            if entry.platform == "zha" and entry.device_id:
+                device = dr.async_get(hass).async_get(entry.device_id)
+                return bool(device and device.entry_type is dr.DeviceEntryType.SERVICE)
+    return False
 
 
 def normalize_target_definition(value: object) -> dict[str, Any]:
@@ -100,6 +127,8 @@ class AdvancedTargetResolver:
         hass: HomeAssistant,
         authorized: Iterable[str],
         zones: Iterable[Mapping[str, Any]],
+        *,
+        audit: bool = True,
     ) -> None:
         self._hass = hass
         self._explicit = TargetResolver(authorized)
@@ -108,24 +137,44 @@ class AdvancedTargetResolver:
             for zone in zones
             if zone.get("zone_id")
         }
-        self._audit_authorized()
+        if audit:
+            self._audit_authorized()
 
     @property
     def authorized(self) -> frozenset[str]:
         return self._explicit.authorized
 
     def _audit_authorized(self) -> None:
-        states = getattr(self._hass, "states", None)
-        if states is None:
-            return
         for entity_id in self.authorized:
-            state = states.get(entity_id)
+            self._verify_physical(entity_id)
+
+    def _verify_physical(self, entity_id: str) -> None:
+        if is_aggregate_light(self._hass, entity_id):
+            raise AdvancedTargetError(
+                "group_not_authorized",
+                f"managed target {entity_id} is a group, not a physical light",
+            )
+
+    def group_dependencies(self, rule: Mapping[str, Any]) -> frozenset[str]:
+        """Discover members even while a group is unsafe or a member is absent."""
+        selection = rule.get("target_selection")
+        if not isinstance(selection, Mapping):
+            return frozenset()
+        roots = selection.get(TARGET_GROUPS)
+        if not isinstance(roots, list):
+            return frozenset()
+        pending = [item for item in roots if isinstance(item, str)]
+        visited: set[str] = set()
+        while pending:
+            entity_id = pending.pop()
+            if entity_id in visited:
+                continue
+            visited.add(entity_id)
+            state = self._hass.states.get(entity_id)
             members = state.attributes.get(ATTR_ENTITY_ID) if state else None
             if isinstance(members, (list, tuple)):
-                raise AdvancedTargetError(
-                    "group_not_authorized",
-                    f"managed target {entity_id} is a group, not a physical light",
-                )
+                pending.extend(item for item in members if isinstance(item, str))
+        return frozenset(visited)
 
     def resolve_rule(self, rule: Mapping[str, Any]) -> ResolvedTargets:
         return self.resolve(legacy_or_advanced_targets(rule))
@@ -133,13 +182,21 @@ class AdvancedTargetResolver:
     def resolve(self, raw: object) -> ResolvedTargets:
         selection = normalize_target_definition(raw)
         resolved: set[str] = set()
+        duplicates: set[str] = set()
         excluded: set[str] = set()
         groups: set[str] = set(selection[TARGET_GROUPS])
+
+        def add(items: Iterable[str]) -> None:
+            for target in items:
+                self._verify_physical(target)
+                if target in resolved:
+                    duplicates.add(target)
+                resolved.add(target)
 
         explicit = selection[TARGET_ENTITIES]
         if explicit:
             try:
-                resolved.update(self._explicit.resolve(explicit))
+                add(self._explicit.resolve(explicit))
             except UnauthorizedTargetError as err:
                 raise AdvancedTargetError("unauthorized_targets", str(err)) from err
 
@@ -151,7 +208,7 @@ class AdvancedTargetResolver:
                 raise AdvancedTargetError(
                     "invalid_zone_targets", f"zone {zone_id} is not safely authorized"
                 )
-            resolved.update(zone_targets)
+            add(zone_targets)
 
         if selection[TARGET_AREAS]:
             area_reg = ar.async_get(self._hass)
@@ -163,7 +220,7 @@ class AdvancedTargetResolver:
             area_entities = self._registry_entities(
                 {ATTR_AREA_ID: selection[TARGET_AREAS]}
             )
-            resolved.update(area_entities.intersection(self.authorized))
+            add(area_entities.intersection(self.authorized))
             excluded.update(area_entities.difference(self.authorized))
 
         if selection[TARGET_LABELS]:
@@ -176,14 +233,14 @@ class AdvancedTargetResolver:
             label_entities = self._registry_entities(
                 {ATTR_LABEL_ID: selection[TARGET_LABELS]}
             )
-            resolved.update(label_entities.intersection(self.authorized))
+            add(label_entities.intersection(self.authorized))
             excluded.update(label_entities.difference(self.authorized))
 
         for group_id in tuple(groups):
-            resolved.update(self._expand_group(group_id, (), groups))
+            add(self._expand_group(group_id, (), groups))
 
         if selection[TARGET_ALL_MANAGED]:
-            resolved.update(self.authorized)
+            add(self.authorized)
         if not resolved:
             raise AdvancedTargetError(
                 "empty_targets", "target selection resolves to no managed lights"
@@ -192,6 +249,7 @@ class AdvancedTargetResolver:
             targets=frozenset(resolved),
             excluded=frozenset(excluded),
             groups=frozenset(groups),
+            duplicates=frozenset(duplicates),
         )
 
     def _registry_entities(self, config: dict[str, Any]) -> set[str]:
@@ -209,7 +267,7 @@ class AdvancedTargetResolver:
 
     def _expand_group(
         self, entity_id: str, path: tuple[str, ...], known_groups: set[str]
-    ) -> set[str]:
+    ) -> list[str]:
         if entity_id in path:
             cycle = " -> ".join((*path, entity_id))
             raise AdvancedTargetError("group_cycle", f"group cycle: {cycle}")
@@ -219,7 +277,7 @@ class AdvancedTargetResolver:
             raise AdvancedTargetError(
                 "opaque_group", f"group {entity_id} has no transparent membership"
             )
-        resolved: set[str] = set()
+        resolved: list[str] = []
         next_path = (*path, entity_id)
         for member in members:
             if not isinstance(member, str) or not member:
@@ -232,12 +290,17 @@ class AdvancedTargetResolver:
             )
             if isinstance(nested, (list, tuple)):
                 known_groups.add(member)
-                resolved.update(self._expand_group(member, next_path, known_groups))
+                resolved.extend(self._expand_group(member, next_path, known_groups))
                 continue
-            if not member.startswith("light.") or member not in self.authorized:
+            if (
+                member_state is None
+                or not member.startswith("light.")
+                or member not in self.authorized
+                or is_aggregate_light(self._hass, member)
+            ):
                 raise AdvancedTargetError(
                     "unsafe_group_member",
                     f"group {entity_id} contains unsafe member {member}",
                 )
-            resolved.add(member)
+            resolved.append(member)
         return resolved

@@ -191,7 +191,10 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   assert.equal(calls[1].type, "smart_led_manager/smart_rules/mutate");
   assert.equal(calls[1].revision, "revision");
   assert.equal(editor._revision, "new-revision");
-  assert.equal(editor._selected, undefined);
+  assert.equal(editor._selected.rule.mode, "ranges");
+  assert.equal(editor._draft.mode, "ranges");
+  assert.equal(editor._dirty(), false);
+  assert.match(editor.shadowRoot.innerHTML, /Configuración guardada/);
 
   const callsBeforeEmptyPreview = calls.length;
   editor._selected = { rule: { id: "temperature" } };
@@ -212,6 +215,16 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   pending[0].resolve({ results: [{ hex: "#0000FF", rgb: [0, 0, 255], relation: "point", lower: 21, upper: 21 }] });
   await firstPreview;
   assert.equal(editor._numericPreview.hex, "#FF0000");
+
+  editor._draft = { type: "numeric", name: "Conservar", mode: "ranges", points: deepClone(points) };
+  editor._pointInput.set(0, "");
+  assert.equal(editor._invalidNumeric(), true);
+  assert.equal(editor._draft.points[0].value, 20);
+  editor._pointInput.clear();
+  editor._hass.callWS = async () => { throw { code: "conflict" }; };
+  await editor._save();
+  assert.equal(editor._draft.name, "Conservar");
+  assert.match(editor.shadowRoot.innerHTML, /sesión/);
 
   const stableEditor = new Panel();
   let rerenders = 0;

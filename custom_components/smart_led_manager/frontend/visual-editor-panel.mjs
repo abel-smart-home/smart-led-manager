@@ -11,6 +11,22 @@ import {
   sortPoints,
   validateDraft,
 } from "./visual-editor-model.mjs";
+import {
+  CONTROL_TEXT,
+  conditionControls,
+  defaultSchedule,
+  entityItems,
+  inputField,
+  newCondition,
+  numericControls,
+  numberField,
+  picker,
+  scheduleControls,
+  selectField,
+  stateControl,
+  treeSize,
+  triggerKind,
+} from "./rule-controls.mjs";
 
 const TEXT = {
   es: {
@@ -220,12 +236,8 @@ const blankTargets = () => ({
 });
 
 const selectionFor = (rule) => rule.target_selection
-  ? deepClone(rule.target_selection)
+  ? { ...blankTargets(), ...deepClone(rule.target_selection) }
   : { ...blankTargets(), entities: [...(rule.targets ?? [])] };
-
-const optionList = (items, selected) => (items ?? []).map((item) =>
-  `<option value="${esc(item.id ?? item.entity_id)}" ${selected.includes(item.id ?? item.entity_id) ? "selected" : ""}>${esc(item.name)}</option>`
-).join("");
 
 class SmartLEDManagerVisualEditor extends HTMLElement {
   constructor() {
@@ -247,6 +259,13 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._numericPreview = undefined;
     this._simulateValue = "";
     this._previewRequest = 0;
+    this._targetRequest = 0;
+    this._runtimeStatus = "ready";
+    this._statusGeneration = 0;
+    this._searches = new Map();
+    this._pointInput = new Map();
+    this._eventPairs = [];
+    this._deviceRequest = 0;
     this._language = undefined;
     this._beforeUnload = (event) => {
       if (this._dirty()) { event.preventDefault(); event.returnValue = ""; }
@@ -257,44 +276,117 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const previous = this._language;
     this._hass = value;
     this._language = value?.locale?.language ?? value?.language ?? "en";
+    if (this.isConnected) this._subscribeStatus();
     if (this.isConnected && (!previous || previous !== this._language)) this._render();
   }
-  set panel(value) { this._panel = value; if (this.isConnected) this._render(); }
+  set panel(value) {
+    if (this._panel === value) return;
+    this._panel = value;
+    if (this.isConnected) { this._subscribeStatus(); this._render(); }
+  }
   set route(value) { this._route = value; }
   set narrow(value) { this._narrow = value; }
-  connectedCallback() { window.addEventListener("beforeunload", this._beforeUnload); this._render(); }
-  disconnectedCallback() { window.removeEventListener("beforeunload", this._beforeUnload); }
+  connectedCallback() {
+    window.addEventListener("beforeunload", this._beforeUnload);
+    this._subscribeStatus();
+    this._render();
+  }
+  disconnectedCallback() {
+    window.removeEventListener("beforeunload", this._beforeUnload);
+    this._statusSubscription?.then((unsubscribe) => unsubscribe()).catch(() => {});
+    this._statusSubscription = undefined;
+    this._invalidatePreviews();
+  }
+  _subscribeStatus() {
+    const connection = this._hass?.connection;
+    if (!this._entryId || !connection?.subscribeEvents || this._statusSubscription) return;
+    const subscription = connection.subscribeEvents(({ data }) => {
+      if (this._statusSubscription !== subscription || data.entry_id !== this._entryId) return;
+      this._statusGeneration++;
+      this._runtimeStatus = data.status;
+      this._invalidatePreviews();
+      if (data.status === "ready" && !this._saving && this._view === "rules") {
+        this._load();
+      } else {
+        this._render();
+      }
+    }, "smart_led_manager_editor_entry_status");
+    this._statusSubscription = subscription;
+    subscription.catch(() => {
+      if (this._statusSubscription === subscription) this._statusSubscription = undefined;
+    });
+  }
   get _entryId() { return this._panel?.config?.entry_id; }
   get _version() { return this._panel?.config?.version ?? "0.1.0-alpha.3"; }
   get _t() {
     const language = this._hass?.locale?.language ?? this._hass?.language ?? "en";
-    return String(language).toLowerCase().startsWith("es") ? TEXT.es : TEXT.en;
+    const locale = String(language).toLowerCase().startsWith("es") ? "es" : "en";
+    return { ...TEXT[locale], ...CONTROL_TEXT[locale] };
   }
 
-  _dirty() { return JSON.stringify(this._draft) !== JSON.stringify(this._original); }
+  _dirty() {
+    return this._pointInput.size > 0 ||
+      JSON.stringify(this._draft) !== JSON.stringify(this._original) ||
+      (triggerKind(this._draft?.trigger) === "event_bus" && Boolean(this._draft?.trigger) &&
+        JSON.stringify(this._eventPairs) !== JSON.stringify(Object.entries(this._original?.trigger?.event_data ?? {})));
+  }
 
   async _load() {
     if (!this._hass || !this._entryId || this._loading) return;
+    const generation = this._statusGeneration;
     this._loading = true; this._error = undefined; this._render();
     try {
       const response = await this._hass.callWS({
         type: "smart_led_manager/smart_rules/get", entry_id: this._entryId,
       });
-      this._rules = response.rules; this._revision = response.revision;
+      if (generation !== this._statusGeneration) return;
+      this._rules = response.rules;
+      this._catalogRevision = response.revision;
+      if (!this._draft) this._revision = response.revision;
       this._selections = response.selections ?? {};
+      this._runtimeStatus = "ready";
     } catch (error) {
-      this._error = error?.message ?? String(error);
-    } finally { this._loading = false; this._render(); }
+      if (generation !== this._statusGeneration) return;
+      if (error?.code === "entry_not_loaded") this._runtimeStatus = "reloading";
+      else this._error = error?.message ?? String(error);
+    } finally {
+      this._loading = false;
+      if (generation !== this._statusGeneration && this._runtimeStatus === "ready") this._load();
+      else this._render();
+    }
   }
 
   _openRules() { this._view = "rules"; this._render(); if (!this._revision) this._load(); }
   _goHome() { if (this._dirty() && !window.confirm(this._t.unsaved)) return; this._closeEditor(); this._view = "home"; this._render(); }
-  _closeEditor() { this._selected = undefined; this._draft = undefined; this._original = undefined; this._creating = false; this._targetPreview = undefined; this._numericPreview = undefined; this._error = undefined; }
+  _closeEditor() { this._selected = undefined; this._draft = undefined; this._original = undefined; this._creating = false; this._resetControls(); this._invalidatePreviews(); this._error = undefined; }
+
+  _resetControls() {
+    this._searches.clear();
+    this._pointInput.clear();
+    this._eventPairs = Object.entries(this._draft?.trigger?.event_data ?? {});
+    this._triggerKind = undefined;
+    this._deviceId = undefined;
+    this._deviceChoice = undefined;
+    this._deviceTriggers = [];
+    this._loadingTriggers = false;
+    this._deviceRequest++;
+    this._dwellUnit = "seconds";
+    this._previousPoints = undefined;
+  }
+
+  _invalidatePreviews() {
+    this._previewRequest++;
+    this._targetRequest++;
+    this._targetPreview = undefined;
+    this._numericPreview = undefined;
+    for (const element of this.shadowRoot.querySelectorAll("[data-preview-result]")) element.hidden = true;
+  }
 
   _restore() {
     if (!this._original) return;
     this._draft = deepClone(this._original);
-    this._targetPreview = undefined; this._numericPreview = undefined;
+    this._resetControls();
+    this._invalidatePreviews();
     this._simulateValue = this._draft.points?.length ? String(this._draft.points[0].value) : "";
     this._error = undefined; this._notice = undefined; this._render();
   }
@@ -302,17 +394,22 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _edit(ruleId) {
     const selected = this._rules.find((item) => item.rule.id === ruleId);
     if (!selected) return;
+    this._invalidatePreviews();
     this._selected = selected;
+    this._revision = this._catalogRevision ?? this._revision;
     this._draft = deepClone(selected.rule);
     this._draft.target_selection = selectionFor(this._draft);
     delete this._draft.targets;
     if (this._draft.type === "numeric") this._draft.points = sortPoints(this._draft.points ?? []);
     this._original = deepClone(this._draft);
+    this._resetControls();
     this._simulateValue = this._draft.points?.length ? String(this._draft.points[0].value) : "";
     this._creating = false; this._error = undefined; this._notice = undefined; this._render();
   }
 
   _create() {
+    this._revision = this._catalogRevision ?? this._revision;
+    this._invalidatePreviews();
     const first = this._selections.managed_lights?.[0]?.entity_id;
     this._draft = {
       name: "", type: "state", enabled: true, source: "", operator: "equals", state: "on",
@@ -321,10 +418,14 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       animation: "fixed", period: 1, for_seconds: 0,
     };
     this._selected = { rule: this._draft, source: {}, targets: [] };
+    this._resetControls();
     this._original = undefined; this._creating = true; this._error = undefined; this._render();
   }
 
   async _mutate(operation, extra = {}) {
+    if (this._saving || this._runtimeStatus !== "ready") return;
+    const statusGeneration = this._statusGeneration;
+    this._invalidatePreviews();
     this._saving = true; this._error = undefined; this._render();
     try {
       const response = await this._hass.callWS({
@@ -332,59 +433,245 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         revision: this._revision, operation, ...extra,
       });
       this._revision = response.revision; this._notice = this._t.saved;
-      this._closeEditor(); await this._load();
+      if (operation === "update") {
+        this._draft = deepClone(response.rule);
+        this._draft.target_selection = selectionFor(this._draft);
+        delete this._draft.targets;
+        this._original = deepClone(this._draft);
+        this._selected = { ...this._selected, rule: response.rule };
+        this._resetControls();
+      } else {
+        this._closeEditor();
+        this._view = "rules";
+      }
+      if (response.reloading && this._statusSubscription && statusGeneration === this._statusGeneration) {
+        this._runtimeStatus = "reloading";
+      }
+      if (this._runtimeStatus === "ready") await this._load();
     } catch (error) {
+      if (error?.code === "entry_not_loaded") this._runtimeStatus = "reloading";
       this._error = error?.code === "conflict" ? this._t.conflict : (error?.message ?? String(error));
     } finally { this._saving = false; this._render(); }
   }
 
   async _save() {
-    if (!this._draft?.name?.trim() || this._invalidNumeric()) { this._error = this._t.invalid; this._render(); return; }
+    if (!this._draft?.name?.trim() || this._invalidNumeric()) {
+      this._error = this._t.invalid; this._render(); return;
+    }
+    const rule = deepClone(this._draft);
+    if (rule.points) rule.points = this._draftPoints();
+    if (rule.type === "event" && (this._triggerKind ?? triggerKind(rule.trigger)) === "event_bus") {
+      const keys = this._eventPairs.map(([key]) => key.trim());
+      if (keys.some((key) => !key) || new Set(keys).size !== keys.length) {
+        this._error = this._t.invalid; this._render(); return;
+      }
+      if (keys.length) rule.trigger.event_data = Object.fromEntries(this._eventPairs);
+      else delete rule.trigger.event_data;
+    }
     await this._mutate(this._creating ? "create" : "update", {
-      rule_id: this._selected?.rule?.id, rule: this._draft,
+      rule_id: this._selected?.rule?.id, rule,
     });
   }
 
   _invalidNumeric() {
     return this._draft?.type === "numeric" && this._draft.points
-      ? Boolean(validateDraft(this._draft.mode ?? "interpolate", this._draft.points)) : false;
+      ? this._draftPoints() === null : false;
   }
 
-  _set(path, value) {
+  _draftPoints(validate = true) {
+    const ordered = sortPoints(this._draft.points ?? []);
+    const points = ordered.map((point, index) => {
+      const value = this._pointInput.get(index);
+      return value === undefined ? point : { ...point, value: value.trim() ? Number(value) : NaN };
+    });
+    if (validate && validateDraft(this._draft.mode ?? "interpolate", points)) return null;
+    return points.some((point) => !Number.isFinite(point.value)) ? null : sortPoints(points);
+  }
+
+  _updatePoints(points) {
+    this._pointInput.clear();
+    this._set("points", sortPoints(points));
+  }
+
+  _get(path) {
+    return path.split(".").reduce((value, key) => value?.[key], this._draft);
+  }
+
+  _set(path, value, render = true) {
     const parts = path.split("."); let target = this._draft;
     while (parts.length > 1) { const key = parts.shift(); target[key] ??= {}; target = target[key]; }
-    target[parts[0]] = value; this._notice = undefined; this._render();
+    target[parts[0]] = value;
+    this._notice = undefined;
+    this._invalidatePreviews();
+    if (render) this._render();
+    else this._refreshSave();
   }
 
-  _setJson(path, text) {
-    try { this._set(path, text.trim() ? JSON.parse(text) : null); this._error = undefined; }
-    catch { this._error = this._t.invalidJson; this._render(); }
+  _refreshSave() {
+    const button = this.shadowRoot.querySelector("[data-save]");
+    if (button) button.disabled = this._saving || this._runtimeStatus !== "ready" ||
+      !this._draft.name?.trim() || this._invalidNumeric();
+  }
+
+  _filterPicker(input) {
+    const query = input.value.toLocaleLowerCase();
+    const options = input.closest(".picker")?.querySelector("select").options ?? [];
+    for (const option of options) {
+      option.hidden = Boolean(option.value && !option.selected && !option.text.toLocaleLowerCase().includes(query));
+    }
+  }
+
+  _moveCondition(path, delta) {
+    if (path === "conditions") { this._set(path, null); return; }
+    const parts = path.split(".");
+    const index = Number(parts.pop()), parent = parts.join(".");
+    const items = [...this._get(parent)];
+    if (delta) [items[index], items[index + delta]] = [items[index + delta], items[index]];
+    else items.splice(index, 1);
+    this._set(parent, items);
+  }
+
+  _changeField(path, value, render = true) {
+    if (path === "type") {
+      this._draft.type = value;
+      if (value === "numeric") {
+        this._draft.source = ""; this._draft.mode = "interpolate";
+        this._draft.points = [{ value: 0, rgb: [0,0,255] }, { value: 100, rgb: [255,0,0] }];
+      } else delete this._draft.points;
+      if (value === "event") {
+        this._draft.trigger = { platform: "event", event_type: "" };
+        this._draft.duration = 5; delete this._draft.for_seconds;
+      } else {
+        delete this._draft.trigger; this._draft.for_seconds ??= 0;
+      }
+      this._resetControls(); this._invalidatePreviews(); this._render(); return;
+    }
+    if (path === "numeric_style") {
+      if (value === "fixed") {
+        this._previousPoints = this._draftPoints() ?? this._draft.points;
+        this._pointInput.clear();
+        delete this._draft.points;
+        this._draft.rgb_color ??= [0, 0, 255];
+      } else {
+        this._draft.points ??= this._previousPoints ??
+          [{ value: 0, rgb: [0,0,255] }, { value: 100, rgb: [255,0,0] }];
+        this._draft.mode = value;
+      }
+      this._invalidatePreviews(); this._render(); return;
+    }
+    if (path === "dwell_unit") { this._dwellUnit = value; this._render(); return; }
+    if (path === "dwell_value") {
+      const factor = { seconds: 1, minutes: 60, hours: 3600 }[this._dwellUnit ?? "seconds"];
+      this._set("for_seconds", value == null ? null : value * factor, render); return;
+    }
+    if (path === "trigger_kind") {
+      this._triggerKind = value;
+      this._deviceId = undefined;
+      this._deviceTriggers = [];
+      this._deviceChoice = undefined;
+      this._deviceRequest++;
+      this._loadingTriggers = false;
+      this._eventPairs = [];
+      this._set("trigger", value === "event_bus" ? { platform: "event", event_type: "" }
+        : value === "device" ? { platform: "device" } : { platform: "state", entity_id: "" });
+      return;
+    }
+    if (path === "trigger_device") { this._loadDeviceTriggers(value); return; }
+    if (path === "trigger_device_choice") {
+      if (value !== "") {
+        this._deviceChoice = value;
+        const { metadata, ...trigger } = this._deviceTriggers[Number(value)];
+        this._set("trigger", { ...trigger, platform: "device" });
+      }
+      return;
+    }
+    if (path.startsWith("event_pairs.")) {
+      const [, index, part] = path.split(".");
+      this._eventPairs[Number(index)][Number(part)] = value;
+      return;
+    }
+    if (path.startsWith("conditions") && path.endsWith(".type")) {
+      const key = path.slice(0, -5);
+      const replacement = newCondition(value);
+      if (treeSize(this._draft.conditions) - treeSize(this._get(key)) + treeSize(replacement) <= 32) {
+        this._set(key, replacement);
+      }
+      return;
+    }
+    if (path === "activation.operator" || path.startsWith("conditions") && path.endsWith(".operator") &&
+        ["above", "below", "inside", "outside"].includes(value)) {
+      const key = path.slice(0, -9);
+      const current = this._get(key);
+      this._set(key, value ? {
+        ...current, operator: value,
+        ...(["above", "below"].includes(value) ? { threshold: current?.threshold ?? null }
+          : { lower: current?.lower ?? null, upper: current?.upper ?? null }),
+      } : null);
+      return;
+    }
+    if ((path === "trigger.from" || path === "trigger.to") && !value) {
+      delete this._draft.trigger[path.split(".")[1]];
+      this._invalidatePreviews(); return;
+    }
+    this._set(path, value, render);
+  }
+
+  async _loadDeviceTriggers(deviceId) {
+    const request = ++this._deviceRequest;
+    this._deviceId = deviceId;
+    this._deviceChoice = undefined;
+    this._deviceTriggers = [];
+    this._set("trigger", { platform: "device" }, false);
+    this._loadingTriggers = Boolean(deviceId);
+    this._render();
+    if (!deviceId) return;
+    try {
+      const triggers = await this._hass.callWS({ type: "device_automation/trigger/list", device_id: deviceId });
+      if (request !== this._deviceRequest) return;
+      this._deviceTriggers = triggers ?? [];
+    } catch (error) {
+      if (request !== this._deviceRequest) return;
+      this._error = error?.message ?? String(error);
+    } finally {
+      if (request === this._deviceRequest) { this._loadingTriggers = false; this._render(); }
+    }
   }
 
   async _previewTargets() {
+    const requestId = ++this._targetRequest;
     try {
-      this._targetPreview = await this._hass.callWS({
+      const result = await this._hass.callWS({
         type: "smart_led_manager/targets/preview", entry_id: this._entryId,
         target_selection: this._draft.target_selection,
-      }); this._error = undefined;
-    } catch (error) { this._targetPreview = undefined; this._error = error?.message ?? String(error); }
+      });
+      if (requestId !== this._targetRequest) return;
+      this._targetPreview = result;
+      this._error = undefined;
+    } catch (error) {
+      if (requestId !== this._targetRequest) return;
+      this._targetPreview = undefined;
+      this._error = error?.message ?? String(error);
+    }
     this._render();
   }
 
   async _previewNumeric() {
+    const requestId = ++this._previewRequest;
     const rawValue = String(this._simulateValue ?? "").trim();
     const value = rawValue === "" ? Number.NaN : Number(rawValue);
     if (!Number.isFinite(value) || this._invalidNumeric()) { this._numericPreview = undefined; this._render(); return; }
-    const requestId = ++this._previewRequest;
     try {
       const response = await this._hass.callWS({
         type: "smart_led_manager/rules/preview", entry_id: this._entryId,
         rule_id: this._selected?.rule?.id ?? "draft", mode: this._draft.mode,
-        points: this._draft.points, values: [value],
+        points: this._draftPoints(), values: [value],
       });
       if (requestId !== this._previewRequest) return;
       this._numericPreview = response.results[0];
-    } catch (error) { this._error = error?.message ?? String(error); }
+    } catch (error) {
+      if (requestId !== this._previewRequest) return;
+      this._error = error?.message ?? String(error);
+    }
     this._render();
   }
 
@@ -398,6 +685,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     .rule{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:15px 0;border-bottom:1px solid var(--divider-color)}.rule:last-child{border:0}.meta{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px;color:var(--secondary-text-color);font-size:13px}
     .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}label{display:flex;flex-direction:column;gap:6px;font-weight:600}input,select,textarea{width:100%;padding:9px;border:1px solid var(--divider-color);border-radius:7px;background:var(--input-fill-color,var(--card-background-color));color:var(--primary-text-color)}textarea{min-height:105px;font-family:monospace}.check{flex-direction:row;align-items:center}.check input{width:auto}.multi{min-height:105px}
     .message{padding:11px;border-radius:8px;margin:12px 0}.error{background:color-mix(in srgb,var(--error-color) 12%,transparent);color:var(--error-color)}.notice{background:color-mix(in srgb,var(--success-color) 12%,transparent);color:var(--success-color)}
+    .picker{display:grid;gap:6px;min-width:0}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.chip{border-radius:999px;text-align:left}.chips label{font-weight:400}.condition{min-width:0;border:1px solid var(--divider-color);border-radius:8px;margin:10px 0;padding:12px}.condition .condition{border-left:3px solid var(--primary-color)}.rule-color{margin-top:9px;height:8px;max-width:220px;border-radius:5px;border:1px solid var(--divider-color)}
     .visual{position:relative;margin:20px 0 8px;padding-top:18px}.colorbar{height:34px;border-radius:8px;border:1px solid var(--divider-color)}.marker{position:absolute;top:0;width:30px;height:30px;padding:0;border-radius:50%;border:3px solid var(--card-background-color);box-shadow:0 0 0 1px var(--primary-text-color);transform:translateX(-50%)}
     .axis{width:100%;min-height:120px;overflow:visible}.axis text{fill:var(--primary-text-color);font-size:12px}.axis .baseline{stroke:var(--secondary-text-color);stroke-width:2}.axis .curve{stroke-width:14;stroke-linecap:round}.axis .graph-point{cursor:pointer}.axis .graph-point:focus{outline:none}.axis .graph-point:focus circle{stroke:var(--primary-color);stroke-width:5}.axis circle{stroke:var(--card-background-color);stroke-width:3}
     .point{display:grid;grid-template-columns:64px 1fr 1fr auto;gap:10px;align-items:end;margin:10px 0}.swatch{height:38px;border-radius:8px;border:1px solid var(--divider-color)}.preview{display:flex;gap:12px;align-items:center;margin-top:12px}.preview .swatch{width:52px}
@@ -409,31 +697,153 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _renderList() {
     const t = this._t;
-    const list = this._loading ? `<p>${t.loading}</p>` : this._error ? "" : this._rules.length ? this._rules.map(({ rule, source, targets, condition_summary, schedule_summary }) => `<article class="rule"><div><strong>${esc(rule.name)}</strong> <span class="badge ${rule.enabled !== false ? "on" : ""}">${rule.enabled !== false ? t.enabled : t.disabled}</span><div class="meta"><span>${t.type}: ${esc(t[rule.type] ?? rule.type)}</span><span>${t.priority}: ${esc(rule.priority)}</span><span>${t.source}: ${esc(source?.name)}</span><span>${t.targets}: ${esc(targets.map((item) => item.name).join(", "))}</span>${condition_summary ? `<span>${t.conditions}: ${esc(condition_summary)}</span>` : ""}${schedule_summary ? `<span>${t.schedule}: ${esc(schedule_summary)}</span>` : ""}</div></div><div class="rule-actions"><button data-edit="${esc(rule.id)}">${t.edit}</button><button data-duplicate="${esc(rule.id)}">${t.duplicate}</button><button data-toggle="${esc(rule.id)}" data-enabled="${rule.enabled !== false}">${rule.enabled !== false ? t.disable : t.enable}</button><button class="danger" data-delete="${esc(rule.id)}">${t.remove}</button></div></article>`).join("") : `<p class="muted">${t.noRules}</p>`;
-    return `<main><div class="toolbar"><button data-home>← ${t.home}</button><button data-reload>${t.reload}</button><span class="spacer"></span><button class="primary" data-create>${t.create}</button></div><h1>${t.smartRules}</h1>${this._error ? `<div class="message error">${esc(this._error)}</div>` : ""}${this._notice ? `<div class="message notice">${esc(this._notice)}</div>` : ""}<section class="card">${list}</section></main>`;
+    const busy = this._saving || this._runtimeStatus !== "ready";
+    const status = this._runtimeStatus === "reloading" ? t.reloadingEntry
+      : this._runtimeStatus === "failed" ? t.failedReload : "";
+    const disabled = busy ? "disabled" : "";
+    const rows = this._rules.map(({ rule, source, targets, target_error, condition_summary, schedule_summary }) => {
+      const targetNames = (targets ?? []).map((item) => item.name).join(", ");
+      const color = rule.points ? cssGradient(rule.points, rule.mode) : rgbToHex(rule.rgb_color ?? [255,255,255]);
+      return `<article class="rule"><div><strong>${esc(rule.name)}</strong>
+        <span class="badge ${rule.enabled !== false ? "on" : ""}">${rule.enabled !== false ? t.enabled : t.disabled}</span>
+        <div class="meta"><span>${t.type}: ${esc(t[rule.type] ?? rule.type)}</span><span>${t.priority}: ${esc(rule.priority)}</span>
+        <span>${t.source}: ${esc(source?.name ?? rule.source)}</span><span>${t.targets}: ${esc(targetNames)}</span>
+        ${condition_summary ? `<span>${t.conditions}: ${esc(condition_summary)}</span>` : ""}
+        ${schedule_summary ? `<span>${t.schedule}: ${esc(schedule_summary)}</span>` : ""}</div>
+        <div class="rule-color" style="background:${color}"></div>
+        ${target_error ? `<p role="status">${t.unsafe}: ${esc(target_error)}</p>` : ""}
+        </div><div class="rule-actions">
+        <button data-edit="${esc(rule.id)}">${t.edit}</button>
+        <button data-duplicate="${esc(rule.id)}" ${disabled}>${t.duplicate}</button>
+        <button data-toggle="${esc(rule.id)}" data-enabled="${rule.enabled !== false}" ${disabled}>
+        ${rule.enabled !== false ? t.disable : t.enable}</button>
+        <button class="danger" data-delete="${esc(rule.id)}" ${disabled}>${t.remove}</button></div></article>`;
+    }).join("");
+    const list = this._loading ? `<p>${t.loading}</p>` : rows || (this._error || status ? "" : `<p class="muted">${t.noRules}</p>`);
+    return `<main><div class="toolbar"><button data-home>← ${t.home}</button><button data-reload>${t.reload}</button>
+      <span class="spacer"></span><button class="primary" data-create ${disabled}>${t.create}</button></div><h1>${t.smartRules}</h1>
+      ${status ? `<div class="message" role="status">${status}</div>` : ""}
+      ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
+      ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
+      <section class="card">${list}</section></main>`;
   }
 
-  _targetSelect(label, key, items) { const selected = this._draft.target_selection[key] ?? []; return `<label>${label}<select class="multi" multiple data-target="${key}">${optionList(items, selected)}</select></label>`; }
+  _targetSelect(label, key, items) {
+    return picker(label, `target_selection.${key}`, items ?? [],
+      this._draft.target_selection?.[key] ?? [], this._t, true);
+  }
+
+  _entities(kind) {
+    return entityItems(this._hass?.states, this._selections.entities, kind);
+  }
+
+  _unit() {
+    return this._hass?.states?.[this._draft.source]?.attributes?.unit_of_measurement ??
+      (this._selected?.rule?.source === this._draft.source ? this._selected?.unit : undefined);
+  }
 
   _renderOrigin() {
     const t = this._t, r = this._draft;
-    if (r.type === "event") return `<label>${t.trigger}<textarea data-json="trigger">${esc(JSON.stringify(r.trigger ?? { platform: "event", event_type: "" }, null, 2))}</textarea></label>`;
-    return `<div class="form-grid"><label>${t.entity}<input data-field="source" value="${esc(r.source)}"></label>${r.type === "state" ? `<label>${t.operator}<select data-field="operator"><option value="equals" ${r.operator !== "not_equals" ? "selected" : ""}>${t.equals}</option><option value="not_equals" ${r.operator === "not_equals" ? "selected" : ""}>${t.notEquals}</option></select></label><label>${t.expected}<input data-field="state" value="${esc(r.state)}"></label>` : ""}</div>`;
+    if (r.type === "event") return this._renderTrigger();
+    const items = this._entities(r.type);
+    const entity = items.find((item) => item.entity_id === r.source);
+    return `<div class="form-grid">${picker(t.entity, "source", items, r.source, t)}
+      ${r.type === "state" ? selectField(t.operator, "operator",
+        [["equals", t.equals], ["not_equals", t.notEquals]], r.operator) +
+        stateControl("state", entity, r.state, t) : ""}</div>`;
+  }
+
+  _renderTrigger() {
+    const t = this._t;
+    const trigger = this._draft.trigger ?? {};
+    const kind = this._triggerKind ?? triggerKind(trigger);
+    const types = ["trigger_state", "input_button", "event_entity", "event_bus", "device"];
+    if (kind === "advanced") types.push("advanced");
+    const mode = selectField(t.trigger, "trigger_kind", types.map((type) => [type, t[type]]), kind);
+    if (kind === "advanced") return `${mode}<p class="muted">${t.advancedHelp}</p>`;
+    if (kind === "device") {
+      const deviceId = this._deviceId ?? trigger.device_id;
+      const triggers = this._deviceTriggers ?? [];
+      const options = [[ "", trigger.device_id ? t.advanced : t.choose ],
+        ...triggers.map((item, index) => [String(index),
+          [item.type, item.subtype, item.entity_id, item.domain].filter(Boolean).join(" · ")])];
+      return `<div class="form-grid">${mode}
+        ${picker(t.deviceName, "trigger_device", this._selections.devices ?? [], deviceId, t)}
+        ${selectField(t.deviceTrigger, "trigger_device_choice", options, this._deviceChoice ?? "")}
+        </div>${this._loadingTriggers ? `<p role="status">${t.busyDevices}</p>` : ""}
+        ${trigger.device_id ? `<p class="muted">${esc(trigger.type)} · ${esc(trigger.subtype ?? trigger.domain)}</p>` : ""}`;
+    }
+    if (kind === "event_bus") {
+      const fields = this._eventPairs.map(([key, value], index) => `<div class="row">
+        ${inputField(t.eventKey, `event_pairs.${index}.0`, key)}
+        ${inputField(t.eventValue, `event_pairs.${index}.1`, value)}
+        <button data-remove-event-pair="${index}">${t.remove}</button></div>`).join("");
+      return `${mode}${inputField(t.eventName, "trigger.event_type", trigger.event_type)}
+        ${fields}<button data-add-event-pair>${t.add} · ${t.eventKey}</button>`;
+    }
+    const entityKind = kind === "event_entity" ? "event" : kind;
+    const items = this._entities(entityKind);
+    const entity = items.find((item) => item.entity_id === trigger.entity_id);
+    return `<div class="form-grid">${mode}
+      ${picker(t.entity, "trigger.entity_id", items, trigger.entity_id, t)}
+      ${kind === "trigger_state" ? stateControl("trigger.from", entity, trigger.from,
+        { ...t, expected: t.triggerFrom }) + stateControl("trigger.to", entity, trigger.to,
+        { ...t, expected: t.triggerTo }) : ""}</div>`;
+  }
+
+  _renderTime() {
+    const t = this._t, r = this._draft;
+    const unit = this._dwellUnit ?? "seconds";
+    const factor = { seconds: 1, minutes: 60, hours: 3600 }[unit];
+    return `<label class="check"><input type="checkbox" data-schedule-enabled ${r.schedule ? "checked" : ""}>
+      ${t.scheduled}</label>${r.schedule ? scheduleControls("schedule", r.schedule, t) : ""}
+      ${r.type === "event" ? "" : `<div class="form-grid">
+        ${numberField(t.dwell, "dwell_value", r.for_seconds == null ? "" : r.for_seconds / factor, 'min="0" step="any"')}
+        ${selectField(t.dwell, "dwell_unit", ["seconds", "minutes", "hours"].map((key) => [key, t[key]]), unit)}
+        </div><p class="muted">${t.dwellHelp}</p>`}`;
   }
 
   _renderNumeric() {
     if (this._draft.type !== "numeric") return "";
-    const t = this._t, r = this._draft, activation = r.activation ?? {}, operator = activation.operator ?? "";
+    const t = this._t, r = this._draft, unit = this._unit();
+    const mode = r.points ? r.mode ?? "interpolate" : "fixed";
+    const unitLabel = unit ? ` (${esc(unit)})` : "";
+    const style = selectField(t.calculation, "numeric_style",
+      [["fixed", t.fixedColor], ["interpolate", t.interpolate], ["ranges", t.ranges]], mode);
+    const activation = `<section class="card"><h3>${t.activation}</h3>
+      ${numericControls("activation", r.activation, t, unit, true)}
+      <div class="form-grid">${numberField(t.variability + unitLabel, "minimum_change", r.minimum_change ?? 0, 'min="0" step="any"')}
+      ${numberField(t.interval, "minimum_interval", r.minimum_interval ?? 0, 'min="0" step="any"')}</div></section>`;
+    if (mode === "fixed") return activation + `<section class="card">${style}</section>`;
     const points = sortPoints(r.points ?? []);
-    const stops = gradientStopEntries(points, r.mode ?? "interpolate");
+    const stops = gradientStopEntries(points, mode);
     const svgStops = stops.map((stop) => `<stop offset="${stop.offset}%" stop-color="${stop.color}"></stop>`).join("");
-    const markers = points.map((point, index) => `<button class="marker" data-select-point="${index}" style="left:${pointPercent(point.value, points)}%;background:${rgbToHex(point.rgb)}" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"></button>`).join("");
+    const markers = points.map((point, index) =>
+      `<button class="marker" data-select-point="${index}" style="left:${pointPercent(point.value, points)}%;background:${rgbToHex(point.rgb)}" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"></button>`).join("");
     const graphPoints = points.map((point, index) => {
       const x = 30 + pointPercent(point.value, points) * 8.4;
-      return `<g class="graph-point" data-select-point="${index}" tabindex="0" role="button" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"><circle cx="${x}" cy="48" r="10" fill="${rgbToHex(point.rgb)}"></circle><line x1="${x}" y1="60" x2="${x}" y2="72" stroke="var(--secondary-text-color)"></line><text x="${x}" y="92" text-anchor="middle">${esc(point.value)}</text></g>`;
+      return `<g class="graph-point" data-select-point="${index}" tabindex="0" role="button"
+        aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"><circle cx="${x}" cy="48" r="10"
+        fill="${rgbToHex(point.rgb)}"></circle><line x1="${x}" y1="60" x2="${x}" y2="72" stroke="var(--secondary-text-color)"></line>
+        <text x="${x}" y="92" text-anchor="middle">${esc(point.value)}${unitLabel}</text></g>`;
     }).join("");
-    const rows = points.map((point, index) => `<div class="point"><span class="swatch" style="background:${rgbToHex(point.rgb)}"></span><label>${t.value}<input type="number" step="any" value="${esc(point.value)}" data-point-value="${index}"></label><label>${t.color}<input type="color" value="${rgbToHex(point.rgb)}" data-point-color="${index}"></label><button class="danger" data-remove-point="${index}">${t.remove}</button></div>`).join("");
-    return `<section class="card"><h3>${t.activation}</h3><div class="form-grid"><label>${t.operator}<select data-activation-operator><option value="" ${!operator ? "selected" : ""}>${t.noThreshold}</option>${["above","below","inside","outside"].map((item) => `<option value="${item}" ${operator === item ? "selected" : ""}>${t[item]}</option>`).join("")}</select></label>${["above","below"].includes(operator) ? `<label>${t.threshold}<input type="number" step="any" data-activation="threshold" value="${esc(activation.threshold)}"></label>` : ""}${["inside","outside"].includes(operator) ? `<label>${t.lower}<input type="number" step="any" data-activation="lower" value="${esc(activation.lower)}"></label><label>${t.upper}<input type="number" step="any" data-activation="upper" value="${esc(activation.upper)}"></label>` : ""}${operator ? `<label>${t.hysteresis}<input type="number" min="0" step="any" data-activation="hysteresis" value="${esc(activation.hysteresis ?? 0)}"></label>` : ""}</div></section><section class="card"><h3>${t.points}</h3><label>${t.calculation}<select data-field="mode"><option value="interpolate" ${r.mode !== "ranges" ? "selected" : ""}>${t.interpolate}</option><option value="ranges" ${r.mode === "ranges" ? "selected" : ""}>${t.ranges}</option></select></label><h3>${t.colorBar}</h3><div class="visual"><div class="colorbar" style="background:${cssGradient(points, r.mode ?? "interpolate")}"></div>${markers}</div><h3>${t.graph}</h3><svg class="axis" viewBox="0 0 900 115" role="img" aria-label="${t.graph}"><defs><linearGradient id="graph-gradient">${svgStops}</linearGradient></defs><line class="baseline" x1="30" y1="48" x2="870" y2="48"></line><line class="curve" x1="30" y1="48" x2="870" y2="48" stroke="url(#graph-gradient)"></line>${graphPoints}</svg>${rows}<button data-add-point>${t.addPoint}</button><div class="form-grid"><label>${t.simulate}<input type="number" step="any" data-simulate value="${esc(this._simulateValue)}"></label><button data-preview-numeric>${t.simulator}</button></div>${this._numericPreview ? `<div class="preview"><span class="swatch" style="background:${esc(this._numericPreview.hex)}"></span><strong>${esc(this._numericPreview.hex)} · RGB(${this._numericPreview.rgb.join(", ")})</strong></div>` : ""}</section>`;
+    const rows = points.map((point, index) => `<div class="point">
+      <span class="swatch" style="background:${rgbToHex(point.rgb)}"></span>
+      <label>${t.value}${unitLabel}<input type="number" step="any" value="${esc(this._pointInput?.get(index) ?? point.value)}" data-point-value="${index}"></label>
+      <label>${t.color}<input type="color" value="${rgbToHex(point.rgb)}" data-point-color="${index}"></label>
+      <button class="danger" data-remove-point="${index}">${t.remove}</button>
+      <code>${rgbToHex(point.rgb)} · RGB(${point.rgb.join(", ")})</code></div>`).join("");
+    const p = this._numericPreview;
+    const preview = p ? `<div class="preview" data-preview-result><span class="swatch" style="background:${esc(p.hex)}"></span>
+      <div><strong>${esc(p.hex)} · RGB(${p.rgb.join(", ")})</strong><p>${t.intervalResult} ${esc(p.lower)}${p.lower !== p.upper ? `–${esc(p.upper)}` : ""}${unitLabel}</p></div></div>` : "";
+    return activation + `<section class="card"><h3>${t.points}</h3>${style}
+      <h3>${t.colorBar}</h3><div class="visual"><div class="colorbar" style="background:${cssGradient(points, mode)}"></div>${markers}</div>
+      <h3>${t.graph}</h3><svg class="axis" viewBox="0 0 900 115" role="group" aria-label="${t.graph}">
+      <defs><linearGradient id="graph-gradient">${svgStops}</linearGradient></defs>
+      <line class="baseline" x1="30" y1="48" x2="870" y2="48"></line><line class="curve" x1="30" y1="48" x2="870" y2="48" stroke="url(#graph-gradient)"></line>
+      ${graphPoints}</svg>${rows}<button data-add-point>${t.addPoint}</button>
+      <div class="form-grid"><label>${t.simulate}${unitLabel}<input type="number" step="any" data-simulate value="${esc(this._simulateValue)}"></label>
+      <button data-preview-numeric>${t.simulator}</button></div>${preview}</section>`;
   }
 
   _focusPoint(index) {
@@ -444,69 +854,181 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _renderEditor() {
     const t = this._t, r = this._draft, selection = r.target_selection ?? blankTargets();
-    r.target_selection ??= selection;
-    const targetNames = this._targetPreview?.targets?.map((item) => item.name).join(", ") ?? "";
-    const exclusions = this._targetPreview?.excluded?.map((item) => item.name).join(", ") ?? "";
-    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button></div><h1>${esc(r.name || t.create)}</h1>${this._error ? `<div class="message error">${esc(this._error)}</div>` : ""}<section class="card"><h3>${t.general}</h3><div class="form-grid"><label>${t.name}<input data-field="name" value="${esc(r.name)}"></label><label>${t.type}<select data-field="type" ${this._creating ? "" : "disabled"}><option value="state" ${r.type === "state" ? "selected" : ""}>${t.state}</option><option value="numeric" ${r.type === "numeric" ? "selected" : ""}>${t.numeric}</option><option value="event" ${r.type === "event" ? "selected" : ""}>${t.event}</option></select></label><label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled !== false ? "checked" : ""}>${r.enabled !== false ? t.enabled : t.disabled}</label></div></section><section class="card"><h3>${t.origin}</h3>${this._renderOrigin()}</section><section class="card"><h3>${t.conditionSection}</h3><label>${t.conditionJson}<textarea data-json="conditions">${esc(r.conditions ? JSON.stringify(r.conditions, null, 2) : "")}</textarea></label></section><section class="card"><h3>${t.timeSection}</h3><div class="form-grid"><label>${t.scheduleJson}<textarea data-json="schedule">${esc(r.schedule ? JSON.stringify(r.schedule, null, 2) : "")}</textarea></label>${r.type !== "event" ? `<label>${t.dwell}<input type="number" min="0" step="0.1" data-number="for_seconds" value="${esc(r.for_seconds ?? 0)}"></label>` : ""}</div></section><section class="card"><h3>${t.targetSection}</h3><div class="form-grid">${this._targetSelect(t.individual,"entities",this._selections.managed_lights)}${this._targetSelect(t.zones,"zones",this._selections.zones)}${this._targetSelect(t.areas,"areas",this._selections.areas)}${this._targetSelect(t.labels,"labels",this._selections.labels)}${this._targetSelect(t.groups,"groups",this._selections.groups)}<label class="check"><input type="checkbox" data-target-all ${selection.all_managed ? "checked" : ""}>${t.allManaged}</label></div><button data-preview-targets>${t.previewTargets}</button>${targetNames ? `<p>${t.targets}: ${esc(targetNames)}</p>` : ""}${exclusions ? `<p class="muted">${t.excluded}: ${esc(exclusions)}</p>` : ""}</section>${this._renderNumeric()}<section class="card"><h3>${t.colorSection}</h3><div class="form-grid"><label>${t.color}<input type="color" data-color value="${rgbToHex(r.rgb_color ?? [255,255,255])}"></label><label>${t.brightness}<input type="number" min="1" max="255" data-number="brightness" value="${esc(r.brightness ?? 255)}"></label><label>${t.transition}<input type="number" min="0" step="0.1" data-number="transition" value="${esc(r.transition ?? 0)}"></label><label>${t.animation}<select data-field="animation">${["fixed","blink","pulse"].map((item) => `<option value="${item}" ${r.animation === item || (!r.animation && item === "fixed") ? "selected" : ""}>${t[item]}</option>`).join("")}</select></label><label>${t.period}<input type="number" min="0.1" step="0.1" data-number="period" value="${esc(r.period ?? 1)}"></label></div></section><section class="card"><h3>${t.policySection}</h3><div class="form-grid"><label>${t.priority}<input type="number" min="0" max="100" data-number="priority" value="${esc(r.priority ?? 40)}"></label>${r.type === "event" ? `<label>${t.duration}<input type="number" min="0.1" step="0.1" data-number="duration" value="${esc(r.duration ?? 5)}"></label>` : ""}</div></section><section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p><details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section><div class="actions">${this._original ? `<button data-restore>${t.restore}</button>` : ""}<button data-discard>${t.discard}</button><button class="primary" data-save ${this._saving || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button></div></main>`;
+    const items = this._selections;
+    const names = (key) => this._targetPreview?.[key]?.map((item) => item.name).join(", ");
+    const preview = [["targets", t.targets], ["excluded", t.excluded], ["duplicates", t.duplicateTargets]]
+      .map(([key, title]) => names(key) ? `<p data-preview-result>${title}: ${esc(names(key))}</p>` : "").join("");
+    const status = this._runtimeStatus === "reloading" ? t.reloadingEntry
+      : this._runtimeStatus === "failed" ? t.failedReload : "";
+    const ruleError = this._selected?.target_error;
+    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button></div>
+      <h1>${esc(r.name || t.create)}</h1>
+      ${status ? `<div class="message" role="status">${status}</div>` : ""}
+      ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
+      ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
+      <section class="card"><h3>${t.general}</h3><div class="form-grid">
+        ${inputField(t.name, "name", r.name)}
+        ${this._creating ? selectField(t.type, "type", ["state", "numeric", "event"].map((kind) => [kind, t[kind]]), r.type)
+          : `<p>${t[r.type]}</p>`}
+        <label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled !== false ? "checked" : ""}>${t.enabled}</label>
+      </div></section>
+      <section class="card"><h3>${t.origin}</h3>${this._renderOrigin()}</section>
+      <section class="card"><h3>${t.conditionSection}</h3>${conditionControls(r.conditions,
+        { t, entities: this._entities("state"), numeric: this._entities("numeric") })}</section>
+      <section class="card"><h3>${t.timeSection}</h3>${this._renderTime()}</section>
+      <section class="card"><h3>${t.targetSection}</h3><div class="form-grid">
+        ${this._targetSelect(t.individual, "entities", items.managed_lights)}
+        ${this._targetSelect(t.zones, "zones", items.zones)}
+        ${this._targetSelect(t.areas, "areas", items.areas)}
+        ${this._targetSelect(t.labels, "labels", items.labels)}
+        ${this._targetSelect(t.groups, "groups", items.groups)}
+        <label class="check"><input type="checkbox" data-target-all ${selection.all_managed ? "checked" : ""}>${t.allManaged}</label>
+      </div><button data-preview-targets ${status ? "disabled" : ""}>${t.previewTargets}</button>
+      ${ruleError && !this._targetPreview ? `<p role="alert">${t.unsafe}: ${esc(ruleError)}</p>` : ""}${preview}</section>
+      ${this._renderNumeric()}
+      <section class="card"><h3>${t.colorSection}</h3><div class="form-grid">
+        ${r.type !== "numeric" || !r.points ? `<label>${t.color}<input type="color" data-color
+          value="${rgbToHex(r.rgb_color ?? [255,255,255])}"></label>` : ""}
+        ${numberField(t.brightness, "brightness", r.brightness ?? 255, 'min="1" max="255"')}
+        ${numberField(t.transition, "transition", r.transition ?? 0, 'min="0" step="0.1"')}
+        ${selectField(t.animation, "animation", ["fixed","blink","pulse"].map((key) => [key, t[key]]), r.animation ?? "fixed")}
+        ${r.animation && r.animation !== "fixed" ? numberField(t.period, "period", r.period ?? 1, 'min="0.1" step="0.1"') : ""}
+      </div><p class="muted">${t.transitionHelp}</p></section>
+      <section class="card"><h3>${t.policySection}</h3><div class="form-grid">
+        ${numberField(t.priority, "priority", r.priority ?? 40, 'min="0" max="100"')}
+        ${r.type === "event" ? numberField(t.duration, "duration", r.duration ?? 5, 'min="0.1" step="0.1"') : ""}
+      </div>${r.type === "event" ? `<p class="muted">${t.durationHelp}</p>` : ""}</section>
+      <section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p>
+        <details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section>
+      <div class="actions">${this._original ? `<button data-restore>${t.restore}</button>` : ""}
+        <button data-discard>${t.discard}</button><button class="primary" data-save
+        ${this._saving || status || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>
+      </div></main>`;
   }
 
   _render() {
     if (!this.shadowRoot) return;
+    const active = this.shadowRoot.activeElement;
+    const focus = active && [...active.attributes].find((attr) => attr.name.startsWith("data-"));
     const content = this._draft ? this._renderEditor() : this._view === "rules" ? this._renderList() : this._renderHome();
     this.shadowRoot.innerHTML = `<style>${this._styles()}</style>${content}`; this._bind();
+    if (focus) {
+      const element = [...this.shadowRoot.querySelectorAll(`[${focus.name}]`)]
+        .find((candidate) => candidate.getAttribute(focus.name) === focus.value);
+      element?.focus({ preventScroll: true });
+      if (element && typeof active.selectionStart === "number") {
+        element.setSelectionRange?.(active.selectionStart, active.selectionEnd);
+      }
+    }
   }
 
   _bind() {
     const root = this.shadowRoot;
-    root.querySelector("[data-rules]")?.addEventListener("click", () => this._openRules());
-    root.querySelector("[data-home]")?.addEventListener("click", () => this._goHome());
-    root.querySelector("[data-reload]")?.addEventListener("click", () => this._load());
-    root.querySelector("[data-create]")?.addEventListener("click", () => this._create());
-    root.querySelectorAll("[data-edit]").forEach((button) => button.addEventListener("click", () => this._edit(button.dataset.edit)));
-    root.querySelectorAll("[data-duplicate]").forEach((button) => button.addEventListener("click", () => this._mutate("duplicate", { rule_id: button.dataset.duplicate })));
-    root.querySelectorAll("[data-toggle]").forEach((button) => button.addEventListener("click", () => this._mutate("toggle", { rule_id: button.dataset.toggle, enabled: button.dataset.enabled !== "true" })));
-    root.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => { if (window.confirm(this._t.confirmDelete)) this._mutate("delete", { rule_id: button.dataset.delete }); }));
-    root.querySelector("[data-back]")?.addEventListener("click", () => { if (!this._dirty() || window.confirm(this._t.unsaved)) { this._closeEditor(); this._render(); } });
-    root.querySelector("[data-restore]")?.addEventListener("click", () => this._restore());
-    root.querySelector("[data-discard]")?.addEventListener("click", () => { this._closeEditor(); this._render(); });
-    root.querySelector("[data-save]")?.addEventListener("click", () => this._save());
-    root.querySelectorAll("[data-field]").forEach((input) => input.addEventListener("change", () => {
-      const value = input.value; this._set(input.dataset.field, value);
-      if (input.dataset.field === "type") {
-        if (value === "numeric") { this._draft.source = ""; this._draft.mode = "interpolate"; this._draft.points = [{ value: 0, rgb: [0,0,255] }, { value: 100, rgb: [255,0,0] }]; }
-        if (value === "event") { delete this._draft.source; delete this._draft.state; this._draft.trigger = { platform: "event", event_type: "" }; this._draft.duration = 5; delete this._draft.for_seconds; }
-        if (value === "state") { this._draft.source ??= ""; this._draft.operator = "equals"; this._draft.state = "on"; this._draft.for_seconds ??= 0; }
-        this._render();
-      }
+    const on = (selector, event, handler) =>
+      root.querySelectorAll(selector).forEach((element) =>
+        element.addEventListener(event, (e) => handler(element, e)));
+    const click = (selector, handler) => on(selector, "click", handler);
+    click("[data-rules]", () => this._openRules());
+    click("[data-home]", () => this._goHome());
+    click("[data-reload]", () => this._load());
+    click("[data-create]", () => this._create());
+    click("[data-edit]", (el) => this._edit(el.dataset.edit));
+    click("[data-duplicate]", (el) => this._mutate("duplicate", { rule_id: el.dataset.duplicate }));
+    click("[data-toggle]", (el) => this._mutate("toggle", {
+      rule_id: el.dataset.toggle, enabled: el.dataset.enabled !== "true",
     }));
-    root.querySelectorAll("[data-number]").forEach((input) => input.addEventListener("change", () => this._set(input.dataset.number, Number(input.value))));
-    root.querySelectorAll("[data-boolean]").forEach((input) => input.addEventListener("change", () => this._set(input.dataset.boolean, input.checked)));
-    root.querySelectorAll("[data-json]").forEach((input) => input.addEventListener("change", () => this._setJson(input.dataset.json, input.value)));
-    root.querySelectorAll("[data-target]").forEach((input) => input.addEventListener("change", () => this._set(`target_selection.${input.dataset.target}`, [...input.selectedOptions].map((item) => item.value))));
-    root.querySelector("[data-target-all]")?.addEventListener("change", (event) => this._set("target_selection.all_managed", event.target.checked));
-    root.querySelector("[data-preview-targets]")?.addEventListener("click", () => this._previewTargets());
-    root.querySelector("[data-color]")?.addEventListener("change", (event) => this._set("rgb_color", hexToRgb(event.target.value)));
-    root.querySelector("[data-activation-operator]")?.addEventListener("change", (event) => {
-      const operator = event.target.value;
-      this._draft.activation = operator ? { operator, ...(operator === "above" || operator === "below" ? { threshold: 0 } : { lower: 0, upper: 100 }), hysteresis: 0 } : null; this._render();
+    click("[data-delete]", (el) => {
+      if (window.confirm(this._t.confirmDelete)) this._mutate("delete", { rule_id: el.dataset.delete });
     });
-    root.querySelectorAll("[data-activation]").forEach((input) => input.addEventListener("change", () => this._set(`activation.${input.dataset.activation}`, Number(input.value))));
-    root.querySelector("[data-add-point]")?.addEventListener("click", () => { this._draft.points = sortPoints([...(this._draft.points ?? []), nextPoint(this._draft.points ?? [])]); this._render(); });
-    root.querySelectorAll("[data-remove-point]").forEach((button) => button.addEventListener("click", () => { this._draft.points = removePoint(this._draft.points, Number(button.dataset.removePoint)); this._render(); }));
-    root.querySelectorAll("[data-point-value]").forEach((input) => input.addEventListener("change", () => { try { this._draft.points = replacePoint(this._draft.points, Number(input.dataset.pointValue), { ...this._draft.points[Number(input.dataset.pointValue)], value: input.value }); this._error = undefined; } catch { this._error = this._t.invalid; } this._render(); }));
-    root.querySelectorAll("[data-point-color]").forEach((input) => input.addEventListener("change", () => { const index = Number(input.dataset.pointColor); this._draft.points = replacePoint(this._draft.points, index, { ...this._draft.points[index], rgb: hexToRgb(input.value) }); this._render(); }));
-    root.querySelectorAll("[data-select-point]").forEach((marker) => {
-      const select = () => this._focusPoint(Number(marker.dataset.selectPoint));
-      marker.addEventListener("click", select);
-      marker.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          select();
-        }
-      });
+    click("[data-back]", () => {
+      if (!this._saving && (!this._dirty() || window.confirm(this._t.unsaved))) {
+        this._closeEditor(); this._render();
+      }
     });
-    root.querySelector("[data-simulate]")?.addEventListener("change", (event) => { this._simulateValue = event.target.value; });
-    root.querySelector("[data-preview-numeric]")?.addEventListener("click", () => this._previewNumeric());
+    click("[data-restore]", () => { if (!this._saving) this._restore(); });
+    click("[data-discard]", () => {
+      if (!this._saving) { this._closeEditor(); this._render(); }
+    });
+    click("[data-save]", () => this._save());
+    on("[data-search]", "input", (el) => {
+      this._searches.set(el.dataset.search, el.value);
+      this._filterPicker(el);
+    });
+    for (const el of root.querySelectorAll("[data-search]")) {
+      el.value = this._searches.get(el.dataset.search) ?? "";
+      this._filterPicker(el);
+    }
+    on("[data-path]", "input", (el) => {
+      if (el.tagName !== "INPUT" || el.type === "time") return;
+      const value = el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
+      this._changeField(el.dataset.path, value, false);
+    });
+    on("[data-path]", "change", (el) => {
+      if (el.tagName !== "INPUT" || el.type === "time") this._changeField(el.dataset.path, el.value);
+    });
+    on("[data-add-choice]", "change", (el) => {
+      if (el.value) this._set(el.dataset.addChoice, [...this._get(el.dataset.addChoice), el.value]);
+    });
+    click("[data-remove-choice]", (el) => this._set(el.dataset.removeChoice,
+      this._get(el.dataset.removeChoice).filter((value) => value !== el.dataset.choice)));
+    on("[data-boolean]", "change", (el) => this._set(el.dataset.boolean, el.checked));
+    on("[data-target-all]", "change", (el) => this._set("target_selection.all_managed", el.checked));
+    on("[data-schedule-enabled]", "change", (el) => this._set("schedule", el.checked ? defaultSchedule() : null));
+    on("[data-day-path]", "change", (el) => {
+      const previous = this._get(el.dataset.dayPath) ?? [];
+      this._set(el.dataset.dayPath, el.checked ? [...previous, el.value] :
+        previous.filter((day) => day !== el.value));
+    });
+    click("[data-add-root]", () => this._set("conditions", newCondition("state")));
+    click("[data-add-condition]", (el) => {
+      const path = el.dataset.addCondition + ".conditions";
+      if (treeSize(this._draft.conditions) < 32) this._set(path, [...this._get(path), newCondition("state")]);
+    });
+    click("[data-remove-condition]", (el) => this._moveCondition(el.dataset.removeCondition));
+    click("[data-move-condition]", (el) => this._moveCondition(el.dataset.moveCondition, Number(el.dataset.delta)));
+    click("[data-add-event-pair]", () => {
+      this._eventPairs.push(["", ""]); this._render();
+    });
+    click("[data-remove-event-pair]", (el) => {
+      this._eventPairs.splice(Number(el.dataset.removeEventPair), 1); this._render();
+    });
+    click("[data-preview-targets]", () => this._previewTargets());
+    on("[data-color]", "change", (el) => this._set("rgb_color", hexToRgb(el.value)));
+    click("[data-add-point]", () => {
+      const points = this._draftPoints(false);
+      if (points) this._updatePoints([...points, nextPoint(points)]);
+    });
+    click("[data-remove-point]", (el) => {
+      const index = Number(el.dataset.removePoint);
+      this._pointInput.delete(index);
+      const ordered = sortPoints(this._draft.points);
+      const remaining = removePoint(ordered, index);
+      const changed = new Map([...this._pointInput].map(([key, value]) => [key > index ? key - 1 : key, value]));
+      this._pointInput = changed;
+      this._set("points", remaining);
+    });
+    on("[data-point-value]", "input", (el) => {
+      this._pointInput.set(Number(el.dataset.pointValue), el.value);
+      this._invalidatePreviews();
+      this._refreshSave();
+    });
+    on("[data-point-color]", "change", (el) => {
+      const index = Number(el.dataset.pointColor);
+      const ordered = sortPoints(this._draft.points);
+      this._set("points", replacePoint(ordered, index, { ...ordered[index], rgb: hexToRgb(el.value) }));
+    });
+    click("[data-select-point]", (el) => this._focusPoint(Number(el.dataset.selectPoint)));
+    on(".graph-point[data-select-point]", "keydown", (el, event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        this._focusPoint(Number(el.dataset.selectPoint));
+      }
+    });
+    on("[data-simulate]", "input", (el) => {
+      this._simulateValue = el.value;
+      this._invalidatePreviews();
+    });
+    click("[data-preview-numeric]", () => this._previewNumeric());
   }
 }
 

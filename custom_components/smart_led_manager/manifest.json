@@ -5,7 +5,7 @@
   "categories": ["helpers", "lighting.led_strips_controllers"],
   "codeowners": ["@Platibolo"],
   "config_flow": true,
-  "dependencies": ["http", "websocket_api"],
+  "dependencies": ["device_automation", "http", "websocket_api"],
   "documentation": "https://github.com/abel-smart-home/smart-led-manager",
   "integration_type": "service",
   "iot_class": "calculated",

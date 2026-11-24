@@ -54,6 +54,8 @@ def test_nested_group_expands_and_cycle_or_unsafe_member_is_rejected() -> None:
             "light.group_a", "on", {ATTR_ENTITY_ID: ["light.one", "light.group_b"]}
         ),
         "light.group_b": State("light.group_b", "on", {ATTR_ENTITY_ID: ["light.two"]}),
+        "light.one": State("light.one", "on"),
+        "light.two": State("light.two", "unavailable"),
     }
     resolver = AdvancedTargetResolver(_hass(states), ["light.one", "light.two"], [])
     selection = {
@@ -66,6 +68,10 @@ def test_nested_group_expands_and_cycle_or_unsafe_member_is_rejected() -> None:
     }
 
     assert resolver.resolve(selection).targets == frozenset({"light.one", "light.two"})
+
+    states.pop("light.two")
+    with pytest.raises(AdvancedTargetError, match=r"unsafe member light\.two"):
+        resolver.resolve(selection)
 
     states["light.group_b"] = State(
         "light.group_b", "on", {ATTR_ENTITY_ID: ["light.group_a"]}

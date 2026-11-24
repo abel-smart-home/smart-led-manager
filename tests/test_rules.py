@@ -6,7 +6,7 @@ import asyncio
 import unittest
 from unittest.mock import Mock, patch
 
-from homeassistant.core import State
+from homeassistant.core import Event, State
 
 from custom_components.smart_led_manager.core.engine import PriorityEngine
 from custom_components.smart_led_manager.models import LightCommand, Request, utc_now
@@ -379,13 +379,68 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         tracked = set(track_states.call_args.args[1])
         self.assertEqual(
             tracked,
-            {"binary_sensor.door", "light.group_a", "light.group_b"},
+            {"binary_sensor.door", "light.group_a", "light.group_b", "light.strip"},
         )
         self.assertEqual(len(hass.bus.listeners), 4)
 
         await manager.async_shutdown()
         listener_unsubscribe.assert_called_once_with()
         for _event_type, _callback, unsubscribe in hass.bus.listeners:
+            unsubscribe.assert_called_once_with()
+
+    async def test_late_nested_members_recover_and_removed_members_are_unsubscribed(
+        self,
+    ) -> None:
+        root, nested, leaf = "light.root", "light.nested", "light.strip"
+        states = {
+            root: State(root, "on", {"entity_id": [nested]}),
+            "binary_sensor.door": State("binary_sensor.door", "on"),
+        }
+        hass = _Hass(states)
+        rule = {
+            "id": "groups",
+            "type": "state",
+            "source": "binary_sensor.door",
+            "state": "on",
+            "target_selection": {"groups": [root]},
+        }
+        manager = RuleManager(hass, [rule], frozenset({leaf}), self.submit, self.cancel)
+        listeners = []
+
+        def track(_hass, entities, _listener):
+            unsubscribe = Mock()
+            listeners.append((set(entities), unsubscribe))
+            return unsubscribe
+
+        async def change(entity_id: str, state: State) -> None:
+            old = states.get(entity_id)
+            states[entity_id] = state
+            manager._async_state_changed(
+                Event(
+                    "state_changed",
+                    {"entity_id": entity_id, "old_state": old, "new_state": state},
+                )
+            )
+            await asyncio.sleep(0)
+
+        with patch(
+            "custom_components.smart_led_manager.modules.rules.async_track_state_change_event",
+            track,
+        ):
+            await manager.async_setup()
+            assert listeners[-1][0] == {root, nested, "binary_sensor.door"}
+            assert not self.submitted
+            assert not manager.allows_target("rule:groups", leaf)
+            await change(nested, State(nested, "on", {"entity_id": [leaf]}))
+            assert listeners[-1][0] == {root, nested, leaf, "binary_sensor.door"}
+            assert not self.submitted
+            await change(leaf, State(leaf, "unavailable"))
+            assert self.submitted[-1].targets == frozenset({leaf})
+            assert manager.allows_target("rule:groups", leaf)
+            await change(root, State(root, "on", {"entity_id": [leaf]}))
+            assert listeners[-1][0] == {root, leaf, "binary_sensor.door"}
+            await manager.async_shutdown()
+        for _entities, unsubscribe in listeners:
             unsubscribe.assert_called_once_with()
 
     async def test_legacy_rule_defaults_enabled_and_disabled_rule_releases(

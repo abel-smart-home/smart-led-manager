@@ -15,6 +15,8 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import label_registry as lr
 
 from .const import (
@@ -38,7 +40,11 @@ from .core.color import (
 )
 from .modules.configuration import mutable_json, options_revision
 from .modules.rule_schema import RuleCatalog, RuleValidationError
-from .modules.targeting import AdvancedTargetError, AdvancedTargetResolver
+from .modules.targeting import (
+    AdvancedTargetError,
+    AdvancedTargetResolver,
+    is_aggregate_light,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,6 +57,9 @@ _DATA_LOCK = "visual_editor_save_lock"
 _DATA_PANEL = "visual_editor_panel_registered"
 _DATA_PANEL_ENTRY = "visual_editor_panel_entry"
 _DATA_STATIC = "visual_editor_static_registered"
+_DATA_RELOADING = "visual_editor_reloading"
+_DATA_SIDEBAR = "visual_editor_sidebar"
+_EVENT_ENTRY_STATUS = f"{DOMAIN}_editor_entry_status"
 
 
 class VisualEditorError(ValueError):
@@ -96,10 +105,24 @@ async def async_register_visual_editor_panel(
     if frontend.DATA_PANELS not in hass.data:
         _LOGGER.debug("Frontend is not loaded; visual editor panel is unavailable")
         return
+    show_sidebar = entry.options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR)
     if (
         domain_data.get(_DATA_PANEL)
         and domain_data.get(_DATA_PANEL_ENTRY) == entry.entry_id
     ):
+        if domain_data.get(_DATA_SIDEBAR) != show_sidebar:
+            existing = hass.data[frontend.DATA_PANELS][PANEL_PATH]
+            frontend.async_register_built_in_panel(
+                hass,
+                "custom",
+                sidebar_title=NAME if show_sidebar else None,
+                sidebar_icon="mdi:led-strip-variant",
+                frontend_url_path=PANEL_PATH,
+                config=existing.config,
+                require_admin=True,
+                update=True,
+            )
+            domain_data[_DATA_SIDEBAR] = show_sidebar
         return
     if domain_data.get(_DATA_PANEL):
         frontend.async_remove_panel(hass, PANEL_PATH, warn_if_unknown=False)
@@ -107,9 +130,7 @@ async def async_register_visual_editor_panel(
         hass,
         frontend_url_path=PANEL_PATH,
         webcomponent_name="smart-led-manager-visual-editor",
-        sidebar_title=(
-            NAME if entry.options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR) else None
-        ),
+        sidebar_title=(NAME if show_sidebar else None),
         sidebar_icon="mdi:led-strip-variant",
         module_url=f"{STATIC_URL}/visual-editor-panel.mjs?v={VERSION}",
         config={"entry_id": entry.entry_id, "version": VERSION},
@@ -118,18 +139,55 @@ async def async_register_visual_editor_panel(
     )
     domain_data[_DATA_PANEL] = True
     domain_data[_DATA_PANEL_ENTRY] = entry.entry_id
+    domain_data[_DATA_SIDEBAR] = show_sidebar
 
 
 @callback
-def async_remove_visual_editor_panel(hass: HomeAssistant) -> None:
+def async_remove_visual_editor_panel(
+    hass: HomeAssistant, *, unloading_entry: str | None = None
+) -> None:
     """Remove the visible panel when the config entry is unloaded."""
 
     domain_data = getattr(hass, "data", {}).get(DOMAIN, {})
     if not domain_data.get(_DATA_PANEL):
         return
+    if unloading_entry and unloading_entry in domain_data.get(_DATA_RELOADING, set()):
+        return
     frontend.async_remove_panel(hass, PANEL_PATH, warn_if_unknown=False)
     domain_data[_DATA_PANEL] = False
     domain_data.pop(_DATA_PANEL_ENTRY, None)
+    domain_data.pop(_DATA_SIDEBAR, None)
+
+
+@callback
+def _async_editor_status(hass: HomeAssistant, entry_id: str, status: str) -> None:
+    if hasattr(hass, "bus"):
+        hass.bus.async_fire(
+            _EVENT_ENTRY_STATUS, {"entry_id": entry_id, "status": status}
+        )
+
+
+async def async_reload_visual_editor_entry(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Keep the route present while an options update reloads the runtime."""
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    reloading: set[str] = domain_data.setdefault(_DATA_RELOADING, set())
+    if entry.entry_id in reloading:
+        # The active reload checks for options changed while setup was in progress.
+        return
+    reloading.add(entry.entry_id)
+    _async_editor_status(hass, entry.entry_id, "reloading")
+    loaded = False
+    try:
+        while True:
+            revision = options_revision(entry.options)
+            loaded = await hass.config_entries.async_reload(entry.entry_id)
+            if not loaded or options_revision(entry.options) == revision:
+                break
+    finally:
+        reloading.remove(entry.entry_id)
+        _async_editor_status(hass, entry.entry_id, "ready" if loaded else "failed")
 
 
 _mutable_json = mutable_json
@@ -143,7 +201,9 @@ def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry:
             "entry_not_found", "Smart LED Manager config entry was not found"
         )
     loaded_entries = hass.data.get(DOMAIN, {}).get("entries", {})
-    if entry_id not in loaded_entries:
+    if entry_id not in loaded_entries or entry_id in hass.data.get(DOMAIN, {}).get(
+        _DATA_RELOADING, set()
+    ):
         raise VisualEditorError(
             "entry_not_loaded", "Smart LED Manager config entry is not loaded"
         )
@@ -411,6 +471,7 @@ def _advanced_target_resolver(
             hass,
             _authorized_targets(entry),
             [zone for zone in zones if isinstance(zone, Mapping)],
+            audit=False,
         )
     except AdvancedTargetError as err:
         raise VisualEditorError(err.code, str(err)) from err
@@ -449,7 +510,10 @@ def _smart_rule_payload(
     try:
         resolved = resolver.resolve_rule(rule)
     except AdvancedTargetError as err:
-        raise VisualEditorError(err.code, str(err)) from err
+        resolved = None
+        target_error = str(err)
+    else:
+        target_error = None
     raw = _mutable_json(rule)
     source = raw.get("source")
     if raw.get("type") == RULE_TYPE_EVENT:
@@ -472,11 +536,14 @@ def _smart_rule_payload(
         "source": source_detail,
         "unit": unit,
         "targets": [
-            _friendly_entity(hass, entity_id) for entity_id in sorted(resolved.targets)
+            _friendly_entity(hass, entity_id)
+            for entity_id in sorted(resolved.targets if resolved else ())
         ],
         "excluded": [
-            _friendly_entity(hass, entity_id) for entity_id in sorted(resolved.excluded)
+            _friendly_entity(hass, entity_id)
+            for entity_id in sorted(resolved.excluded if resolved else ())
         ],
+        "target_error": target_error,
         "condition_summary": _condition_summary(raw.get("conditions")),
         "schedule_summary": _condition_summary(
             {"type": "time", **raw["schedule"]}
@@ -491,6 +558,22 @@ def _selection_catalog(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any
     area_registry = ar.async_get(hass)
     label_registry = lr.async_get(hass)
     states = hass.states.async_all() if hasattr(hass.states, "async_all") else []
+    devices = []
+    entities = []
+    if isinstance(hass, HomeAssistant):
+        entities = [
+            {
+                "entity_id": item.entity_id,
+                "name": item.name or item.original_name or item.entity_id,
+            }
+            for item in er.async_get(hass).entities.values()
+            if not item.disabled_by
+        ]
+        devices = [
+            {"id": item.id, "name": item.name_by_user or item.name or item.id}
+            for item in dr.async_get(hass).devices.values()
+            if not item.disabled_by
+        ]
     groups = [
         _friendly_entity(hass, state.entity_id)
         for state in states
@@ -498,9 +581,12 @@ def _selection_catalog(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any
         and isinstance(state.attributes.get(ATTR_ENTITY_ID), (list, tuple))
     ]
     return {
+        "entities": entities,
+        "devices": devices,
         "managed_lights": [
             _friendly_entity(hass, entity_id)
             for entity_id in sorted(_authorized_targets(entry))
+            if not is_aggregate_light(hass, entity_id)
         ],
         "zones": [
             {
@@ -642,10 +728,19 @@ async def websocket_mutate_smart_rule(
                 raise VisualEditorError(
                     getattr(err, "code", "invalid_rule"), str(err)
                 ) from err
-            await _async_validate_rule_catalog(hass, entry, rules)
+            if (
+                result is not None and operation in {"create", "update", "duplicate"}
+            ) or (result is not None and operation == "toggle" and result["enabled"]):
+                await _async_validate_rule_catalog(hass, entry, [result])
+            entry = _entry(hass, msg["entry_id"])
+            if msg["revision"] != _options_revision(entry.options):
+                raise VisualEditorError(
+                    "conflict",
+                    "Configuration changed in another session; reload before saving",
+                )
             options = _mutable_json(entry.options)
             options[CONF_RULES] = rules
-            hass.config_entries.async_update_entry(entry, options=options)
+            changed = hass.config_entries.async_update_entry(entry, options=options)
             revision = _options_revision(options)
     except VisualEditorError as err:
         _send_editor_error(connection, msg["id"], err)
@@ -658,7 +753,12 @@ async def websocket_mutate_smart_rule(
         return
     connection.send_result(
         msg["id"],
-        {"revision": revision, "rule": result, "rules": rules},
+        {
+            "revision": revision,
+            "rule": result,
+            "rules": rules,
+            "reloading": changed is True,
+        },
     )
 
 
@@ -698,6 +798,10 @@ def websocket_preview_targets(
             "excluded": [
                 _friendly_entity(hass, entity_id)
                 for entity_id in sorted(resolved.excluded)
+            ],
+            "duplicates": [
+                _friendly_entity(hass, entity_id)
+                for entity_id in sorted(resolved.duplicates)
             ],
         },
     )

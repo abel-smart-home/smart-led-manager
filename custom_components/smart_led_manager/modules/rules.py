@@ -5,12 +5,11 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from contextlib import suppress
 from datetime import datetime, time, timedelta
 from time import monotonic
 from typing import Any
 
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
@@ -65,10 +64,14 @@ class RuleManager:
         self._hass = hass
         self._rules = {str(rule["id"]): rule for rule in rules if "id" in rule}
         self._authorized_targets = authorized_targets
-        self._targets = AdvancedTargetResolver(hass, authorized_targets, zones or [])
+        self._targets = AdvancedTargetResolver(
+            hass, authorized_targets, zones or [], audit=False
+        )
         self._submit = submit
         self._cancel = cancel
         self._unsubscribe: Callable[[], None] | None = None
+        self._state_sources: frozenset[str] = frozenset()
+        self._tracked_sources: frozenset[str] = frozenset()
         self._registry_unsubscribes: list[Callable[[], None]] = []
         self._trigger_unsubscribes: list[Callable[[], None]] = []
         self._schedule_unsubscribe: Callable[[], None] | None = None
@@ -97,17 +100,11 @@ class RuleManager:
                 continue
             selection = rule.get("target_selection")
             if isinstance(selection, Mapping):
-                sources.update(_string_items(selection.get("groups")))
                 track_registries = track_registries or bool(
                     _string_items(selection.get("areas"))
                     or _string_items(selection.get("labels"))
                     or _string_items(selection.get("groups"))
                 )
-                with suppress(AdvancedTargetError):
-                    resolved = self._targets.resolve_rule(rule)
-                    rule_id = str(rule["id"])
-                    self._resolved_groups[rule_id] = resolved.groups
-                    sources.update(resolved.groups)
             if rule.get("type") == RULE_TYPE_EVENT:
                 await self._async_setup_event_rule(rule)
                 continue
@@ -115,10 +112,8 @@ class RuleManager:
                 sources.add(str(source))
             sources.update(self._condition_entities(rule))
 
-        if sources:
-            self._unsubscribe = async_track_state_change_event(
-                self._hass, sorted(sources), self._async_state_changed
-            )
+        self._state_sources = frozenset(sources)
+        self._refresh_state_subscription()
         if track_registries and hasattr(self._hass, "bus"):
             self._registry_unsubscribes = [
                 self._hass.bus.async_listen(
@@ -168,6 +163,26 @@ class RuleManager:
         self._tasks.clear()
         self._event_expiry.clear()
         self._resolved_groups.clear()
+        self._tracked_sources = frozenset()
+
+    @callback
+    def _refresh_state_subscription(self) -> None:
+        tracked = set(self._state_sources)
+        for rule_id, rule in self._rules.items():
+            if _is_enabled(rule):
+                dependencies = self._targets.group_dependencies(rule)
+                self._resolved_groups[rule_id] = dependencies
+                tracked.update(dependencies)
+        if tracked == self._tracked_sources:
+            return
+        if self._unsubscribe is not None:
+            self._unsubscribe()
+            self._unsubscribe = None
+        self._tracked_sources = frozenset(tracked)
+        if tracked:
+            self._unsubscribe = async_track_state_change_event(
+                self._hass, sorted(tracked), self._async_state_changed
+            )
 
     async def _async_setup_event_rule(self, rule: Mapping[str, Any]) -> None:
         """Validate and attach one Home Assistant trigger without replay."""
@@ -209,13 +224,22 @@ class RuleManager:
     @callback
     def _async_state_changed(self, event: Event) -> None:
         entity_id = event.data.get("entity_id")
-        if not isinstance(entity_id, str):
+        if self._stopped or not isinstance(entity_id, str):
             return
+        old = event.data.get("old_state")
+        new = event.data.get("new_state")
+        topology_changed = (
+            old is None
+            or new is None
+            or old.attributes.get(ATTR_ENTITY_ID) != new.attributes.get(ATTR_ENTITY_ID)
+        )
+        if topology_changed:
+            self._refresh_state_subscription()
         for rule in self._rules.values():
             if not _is_enabled(rule):
                 continue
             if rule.get("type") == RULE_TYPE_EVENT:
-                if entity_id in self._group_entities(rule):
+                if topology_changed and entity_id in self._group_entities(rule):
                     self._create_task(
                         self._async_refresh_event_targets(rule),
                         f"smart_led_manager_event_targets_{rule['id']}",
@@ -224,7 +248,7 @@ class RuleManager:
             if (
                 rule.get("source") == entity_id
                 or entity_id in self._condition_entities(rule)
-                or entity_id in self._group_entities(rule)
+                or (topology_changed and entity_id in self._group_entities(rule))
             ):
                 self._create_task(
                     self._async_evaluate(rule),
@@ -243,6 +267,7 @@ class RuleManager:
     async def _async_dynamic_targets_changed(self) -> None:
         """Re-resolve current intent after official registry updates."""
 
+        self._refresh_state_subscription()
         for rule in self._rules.values():
             if not _is_enabled(rule):
                 continue
@@ -250,6 +275,27 @@ class RuleManager:
                 await self._async_refresh_event_targets(rule)
             else:
                 await self._async_evaluate(rule)
+
+    def allows_target(self, request_id: str | None, target: str) -> bool:
+        """Revalidate the winning rule at the physical dispatch boundary."""
+        if request_id is None:
+            return False
+        if not request_id.startswith("rule:"):
+            return True
+        rule_id = request_id.removeprefix("rule:")
+        rule = self._rules.get(rule_id)
+        if rule is None:
+            return True
+        if self._stopped or not _is_enabled(rule):
+            return False
+        if rule.get("type") == RULE_TYPE_EVENT:
+            expiry = self._event_expiry.get(rule_id)
+            if expiry is None or expiry <= utc_now():
+                return False
+        try:
+            return target in self._targets.resolve_rule(rule).targets
+        except AdvancedTargetError:
+            return False
 
     async def _async_evaluate(self, rule: Mapping[str, Any]) -> None:
         if self._stopped:
@@ -273,7 +319,6 @@ class RuleManager:
                 return
             rule_id = str(rule["id"])
             resolved = resolved_result.targets
-            self._resolved_groups[rule_id] = resolved_result.groups
             targets_changed = self._resolved_targets.get(rule_id) != resolved
             self._resolved_targets[rule_id] = resolved
             rule_type = rule.get("type")
@@ -427,7 +472,6 @@ class RuleManager:
                 return
             rule_id = str(rule["id"])
             targets = resolved.targets
-            self._resolved_groups[rule_id] = resolved.groups
             now = utc_now()
             expires_at = now + timedelta(seconds=float(rule.get("duration", 5)))
             self._activated_at[rule_id] = now
@@ -483,7 +527,6 @@ class RuleManager:
             await self._release(rule)
             return
         targets = resolved.targets
-        self._resolved_groups[rule_id] = resolved.groups
         if targets == self._resolved_targets.get(rule_id):
             return
         self._resolved_targets[rule_id] = targets

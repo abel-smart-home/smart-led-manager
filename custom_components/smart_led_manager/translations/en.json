@@ -11,7 +11,8 @@
       }
     },
     "error": {
-      "at_least_one_light": "Select at least one light"
+      "at_least_one_light": "Select at least one light",
+      "group_not_authorized": "Select individual lights. Groups cannot be authorized as lights."
     },
     "abort": {
       "already_configured": "Smart LED Manager is already configured"
@@ -79,7 +80,9 @@
       },
       "edit_zone": {
         "title": "Choose zone",
-        "data": {"zone_id": "Zone"}
+        "data": {
+          "zone_id": "Zone"
+        }
       },
       "edit_zone_form": {
         "title": "Edit zone",
@@ -92,7 +95,9 @@
       "delete_zone": {
         "title": "Delete zone",
         "description": "Delete the zone's modes first.",
-        "data": {"zone_id": "Zone"}
+        "data": {
+          "zone_id": "Zone"
+        }
       },
       "modes": {
         "title": "Manage modes",
@@ -121,7 +126,9 @@
       },
       "edit_mode": {
         "title": "Choose mode",
-        "data": {"mode_id": "Mode"}
+        "data": {
+          "mode_id": "Mode"
+        }
       },
       "edit_mode_form": {
         "title": "Edit lighting mode",
@@ -141,7 +148,9 @@
       },
       "delete_mode": {
         "title": "Delete mode",
-        "data": {"mode_id": "Mode"}
+        "data": {
+          "mode_id": "Mode"
+        }
       },
       "rules": {
         "title": "Smart rules",
@@ -183,7 +192,13 @@
           "schedule": "Local schedule",
           "for_seconds": "Minimum dwell",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)"
         }
       },
       "add_numeric_rule": {
@@ -210,7 +225,19 @@
           "schedule": "Local schedule",
           "for_seconds": "Minimum dwell",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)",
+          "activation_operator": "Numeric activation",
+          "activation_threshold": "Threshold",
+          "activation_lower": "Lower limit",
+          "activation_upper": "Upper limit",
+          "activation_hysteresis": "Hysteresis",
+          "rgb_color": "Fixed RGB color"
         }
       },
       "add_event_rule": {
@@ -234,21 +261,32 @@
           "conditions": "Additional condition tree",
           "schedule": "Local schedule",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel."
         }
       },
       "edit_rule": {
         "title": "Choose rule to edit",
-        "data": {"rule_id": "Rule"}
+        "data": {
+          "rule_id": "Rule"
+        }
       },
       "duplicate_rule": {
         "title": "Choose rule to duplicate",
         "description": "The copy receives a new identifier and starts disabled.",
-        "data": {"rule_id": "Rule"}
+        "data": {
+          "rule_id": "Rule"
+        }
       },
       "toggle_rule": {
         "title": "Enable or disable rule",
-        "data": {"rule_id": "Rule"}
+        "data": {
+          "rule_id": "Rule"
+        }
       },
       "edit_state_rule": {
         "title": "Edit state rule",
@@ -273,7 +311,13 @@
           "schedule": "Local schedule",
           "for_seconds": "Minimum dwell",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)"
         }
       },
       "duplicate_state_rule": {
@@ -299,7 +343,13 @@
           "schedule": "Local schedule",
           "for_seconds": "Minimum dwell",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)"
         }
       },
       "edit_numeric_rule": {
@@ -326,7 +376,19 @@
           "schedule": "Local schedule",
           "for_seconds": "Minimum dwell",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)",
+          "activation_operator": "Numeric activation",
+          "activation_threshold": "Threshold",
+          "activation_lower": "Lower limit",
+          "activation_upper": "Upper limit",
+          "activation_hysteresis": "Hysteresis",
+          "rgb_color": "Fixed RGB color"
         }
       },
       "duplicate_numeric_rule": {
@@ -353,7 +415,19 @@
           "schedule": "Local schedule",
           "for_seconds": "Minimum dwell",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)",
+          "activation_operator": "Numeric activation",
+          "activation_threshold": "Threshold",
+          "activation_lower": "Lower limit",
+          "activation_upper": "Upper limit",
+          "activation_hysteresis": "Hysteresis",
+          "rgb_color": "Fixed RGB color"
         }
       },
       "edit_event_rule": {
@@ -377,7 +451,12 @@
           "conditions": "Additional condition tree",
           "schedule": "Local schedule",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel."
         }
       },
       "duplicate_event_rule": {
@@ -401,7 +480,12 @@
           "conditions": "Additional condition tree",
           "schedule": "Local schedule",
           "animation": "Animation",
-          "period": "Animation period"
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel."
         }
       },
       "numeric_points": {
@@ -417,19 +501,29 @@
       },
       "add_numeric_point": {
         "title": "Add color point",
-        "data": {"value": "Numeric value", "rgb": "Color"}
+        "data": {
+          "value": "Numeric value",
+          "rgb": "Color"
+        }
       },
       "edit_numeric_point": {
         "title": "Choose point to edit",
-        "data": {"point_index": "Color point"}
+        "data": {
+          "point_index": "Color point"
+        }
       },
       "edit_numeric_point_form": {
         "title": "Edit color point",
-        "data": {"value": "Numeric value", "rgb": "Color"}
+        "data": {
+          "value": "Numeric value",
+          "rgb": "Color"
+        }
       },
       "delete_numeric_point": {
         "title": "Delete color point",
-        "data": {"point_index": "Color point"}
+        "data": {
+          "point_index": "Color point"
+        }
       },
       "save_numeric_rule": {
         "title": "More color points required",
@@ -464,7 +558,9 @@
       "invalid_mode": "The mode definition is invalid",
       "invalid_zone": "The zone definition is invalid",
       "area_not_found": "The selected Home Assistant area no longer exists",
-      "reserved_mode_name": "That name is reserved by the zone selector's No mode option"
+      "reserved_mode_name": "That name is reserved by the zone selector's No mode option",
+      "group_not_authorized": "Select individual lights. Groups cannot be authorized as lights.",
+      "unsupported_condition": "Use the supported condition types or edit this rule in the administration panel."
     },
     "abort": {
       "no_rules": "There are no configured rules",
@@ -499,7 +595,8 @@
     "numeric_mode": {
       "options": {
         "interpolate": "Gradual interpolation",
-        "ranges": "Nearest lower range"
+        "ranges": "Nearest lower range",
+        "fixed": "Fixed color"
       }
     },
     "animation": {
@@ -514,6 +611,26 @@
         "fixed": "Fixed",
         "blink": "Blink",
         "pulse": "Pulse"
+      }
+    },
+    "activation_operator": {
+      "options": {
+        "none": "Always",
+        "above": "Above",
+        "below": "Below",
+        "inside": "Inside",
+        "outside": "Outside"
+      }
+    },
+    "rule_weekdays": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
       }
     }
   },

@@ -6,6 +6,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
+from homeassistant.components import frontend
+
 from custom_components.smart_led_manager import (
     _async_update_listener,
     async_migrate_entry,
@@ -23,6 +25,10 @@ from custom_components.smart_led_manager.sensor import (
 )
 from custom_components.smart_led_manager.sensor import (
     async_setup_entry as async_setup_sensor_entry,
+)
+from custom_components.smart_led_manager.visual_editor import (
+    PANEL_PATH,
+    async_register_visual_editor_panel,
 )
 
 
@@ -80,6 +86,41 @@ class _Entry:
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
     """Exercise setup, unload, removal and migration glue."""
 
+    async def test_options_reload_keeps_route_and_definitive_unload_removes_it(
+        self,
+    ) -> None:
+        hass = _Hass()
+        entry = _Entry()
+        entry.runtime_data = SimpleNamespace(async_shutdown=AsyncMock())
+        hass.data[frontend.DATA_PANELS] = {}
+        hass.data[DOMAIN] = {"entries": {entry.entry_id: entry.runtime_data}}
+        hass.bus = SimpleNamespace(async_fire=Mock())
+        panels = hass.data[frontend.DATA_PANELS]
+        await async_register_visual_editor_panel(hass, entry)
+        previous = panels[PANEL_PATH]
+
+        async def reload(_entry_id):
+            self.assertTrue(await async_unload_entry(hass, entry))
+            self.assertNotIn(entry.entry_id, hass.data[DOMAIN]["entries"])
+            self.assertIs(panels[PANEL_PATH], previous)
+            await async_register_visual_editor_panel(hass, entry)
+            return True
+
+        hass.config_entries.async_reload = reload
+        await _async_update_listener(hass, entry)
+        self.assertIs(panels[PANEL_PATH], previous)
+        statuses = [
+            call.args[1]["status"]
+            for call in hass.bus.async_fire.call_args_list
+            if len(call.args) == 2
+        ]
+        self.assertEqual(statuses, ["reloading", "ready"])
+        entry.options["show_sidebar"] = False
+        await async_register_visual_editor_panel(hass, entry)
+        self.assertIsNone(panels[PANEL_PATH].sidebar_title)
+        self.assertTrue(await async_unload_entry(hass, entry))
+        self.assertNotIn(PANEL_PATH, panels)
+
     async def test_domain_setup_registers_actions_once(self) -> None:
         hass = _Hass()
         with (
@@ -134,7 +175,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         ) as remove_panel:
             self.assertTrue(await async_unload_entry(hass, entry))
         coordinator.async_shutdown.assert_awaited_once_with()
-        remove_panel.assert_called_once_with(hass)
+        remove_panel.assert_called_once_with(hass, unloading_entry=entry.entry_id)
         self.assertNotIn(entry.entry_id, hass.data[DOMAIN]["entries"])
 
     async def test_failed_platform_unload_keeps_runtime_loaded(self) -> None:

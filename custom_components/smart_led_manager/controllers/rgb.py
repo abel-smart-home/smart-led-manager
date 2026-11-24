@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from time import monotonic
 
@@ -30,6 +30,7 @@ from homeassistant.core import Context, HomeAssistant, State
 from homeassistant.exceptions import HomeAssistantError
 
 from ..models import LightCommand
+from ..modules.targeting import is_aggregate_light
 from .base import ApplyResult, ApplyStatus, UnsupportedLightCommandError
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,8 +68,10 @@ class RGBLightController:
         max_recovery_attempts: int = 8,
         retry_base_delay: float = 5.0,
         retry_max_delay: float = 60.0,
+        may_send: Callable[[str], bool] | None = None,
     ) -> None:
         self._hass = hass
+        self._may_send = may_send
         self._minimum_interval = max(0.1, float(minimum_interval))
         self._global_minimum_interval = max(0.0, float(global_minimum_interval))
         self._parallel = asyncio.Semaphore(max_parallel_commands)
@@ -246,6 +249,14 @@ class RGBLightController:
                         await asyncio.sleep(global_delay)
                     if self._desired.get(target) is not desired:
                         continue
+                    if is_aggregate_light(self._hass, target) or (
+                        self._may_send is not None and not self._may_send(target)
+                    ):
+                        self._desired.pop(target, None)
+                        _LOGGER.debug(
+                            "Discarded command to an invalid target %s", target
+                        )
+                        return ApplyResult(target, ApplyStatus.SUPERSEDED)
                     context = Context()
                     self._contexts[context.id] = monotonic()
                     await self._hass.services.async_call(

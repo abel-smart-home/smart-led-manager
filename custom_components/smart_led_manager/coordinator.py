@@ -74,6 +74,7 @@ class SmartLEDCoordinator:
         )
         self.controller = RGBLightController(
             hass,
+            may_send=self._is_current_target,
             minimum_interval=float(
                 options.get(CONF_MIN_COMMAND_INTERVAL, DEFAULT_MIN_COMMAND_INTERVAL)
             ),
@@ -516,6 +517,11 @@ class SmartLEDCoordinator:
             lambda completed, target=target: self._discard_recovery_task(
                 target, completed
             )
+        )
+
+    def _is_current_target(self, target: str) -> bool:
+        return target in self.targets.authorized and self.rules.allows_target(
+            self._winners.get(target), target
         )
 
     async def _async_retry_target(

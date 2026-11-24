@@ -6,6 +6,7 @@ import asyncio
 import sys
 
 import pytest
+from homeassistant.components import frontend
 from homeassistant.components.light import (
     ATTR_SUPPORTED_COLOR_MODES,
     ColorMode,
@@ -44,6 +45,7 @@ from custom_components.smart_led_manager.registry import (
     zone_device_identifier,
     zone_select_unique_id,
 )
+from custom_components.smart_led_manager.visual_editor import PANEL_PATH
 
 pytestmark = [
     pytest.mark.skipif(
@@ -100,6 +102,39 @@ async def test_spanish_options_flow_translations_load(hass, language: str) -> No
     assert translations[f"{prefix}.title"] == "Administrar Smart LED Manager"
     assert translations[f"{prefix}.menu_options.lights"] == "Luces administradas"
     assert translations[f"{prefix}.menu_options.modes"] == "Modos de iluminación"
+
+
+async def test_saving_options_keeps_registered_panel_across_real_entry_reload(
+    hass,
+) -> None:
+    """Exercise the Core ConfigEntry update listener and real panel registry."""
+    panels = hass.data.setdefault(frontend.DATA_PANELS, {})
+    hass.states.async_set("light.strip", STATE_OFF)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_LIGHTS: ["light.strip"]}, minor_version=2
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert panels[PANEL_PATH].require_admin
+    first_panel = panels[PANEL_PATH]
+    first_runtime = entry.runtime_data
+    updates = []
+    remove_listener = hass.bus.async_listen(
+        frontend.EVENT_PANELS_UPDATED, lambda _: updates.append(PANEL_PATH in panels)
+    )
+    try:
+        assert hass.config_entries.async_update_entry(
+            entry, options={CONF_RULES: [], CONF_TIE_BREAKER: "oldest"}
+        )
+        await hass.async_block_till_done()
+        assert entry.runtime_data is not first_runtime
+        assert panels[PANEL_PATH] is first_panel
+        assert False not in updates
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert PANEL_PATH not in panels
+    finally:
+        remove_listener()
 
 
 async def test_setup_action_and_unload_lifecycle(hass) -> None:
