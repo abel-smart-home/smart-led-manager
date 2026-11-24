@@ -81,6 +81,7 @@ class RuleManager:
         self._last_numeric_update: dict[str, float] = {}
         self._numeric_activation: dict[str, bool] = {}
         self._resolved_targets: dict[str, frozenset[str]] = {}
+        self._resolved_groups: dict[str, frozenset[str]] = {}
         self._event_expiry: dict[str, datetime] = {}
         self._evaluation_lock = asyncio.Lock()
         self._stopped = False
@@ -103,7 +104,10 @@ class RuleManager:
                     or _string_items(selection.get("groups"))
                 )
                 with suppress(AdvancedTargetError):
-                    sources.update(self._targets.resolve_rule(rule).groups)
+                    resolved = self._targets.resolve_rule(rule)
+                    rule_id = str(rule["id"])
+                    self._resolved_groups[rule_id] = resolved.groups
+                    sources.update(resolved.groups)
             if rule.get("type") == RULE_TYPE_EVENT:
                 await self._async_setup_event_rule(rule)
                 continue
@@ -163,6 +167,7 @@ class RuleManager:
             await asyncio.gather(*tasks, return_exceptions=True)
         self._tasks.clear()
         self._event_expiry.clear()
+        self._resolved_groups.clear()
 
     async def _async_setup_event_rule(self, rule: Mapping[str, Any]) -> None:
         """Validate and attach one Home Assistant trigger without replay."""
@@ -256,7 +261,7 @@ class RuleManager:
                 await self._release(rule)
                 return
             try:
-                resolved = self._targets.resolve_rule(rule).targets
+                resolved_result = self._targets.resolve_rule(rule)
             except AdvancedTargetError as err:
                 _LOGGER.warning(
                     "Ignoring rule %s because targets are invalid (%s): %s",
@@ -267,6 +272,8 @@ class RuleManager:
                 await self._release(rule)
                 return
             rule_id = str(rule["id"])
+            resolved = resolved_result.targets
+            self._resolved_groups[rule_id] = resolved_result.groups
             targets_changed = self._resolved_targets.get(rule_id) != resolved
             self._resolved_targets[rule_id] = resolved
             rule_type = rule.get("type")
@@ -409,7 +416,7 @@ class RuleManager:
             if self._stopped or not self._extra_conditions_match(rule):
                 return
             try:
-                targets = self._targets.resolve_rule(rule).targets
+                resolved = self._targets.resolve_rule(rule)
             except AdvancedTargetError as err:
                 _LOGGER.warning(
                     "Discarding event for rule %s because targets are invalid (%s): %s",
@@ -419,6 +426,8 @@ class RuleManager:
                 )
                 return
             rule_id = str(rule["id"])
+            targets = resolved.targets
+            self._resolved_groups[rule_id] = resolved.groups
             now = utc_now()
             expires_at = now + timedelta(seconds=float(rule.get("duration", 5)))
             self._activated_at[rule_id] = now
@@ -463,7 +472,7 @@ class RuleManager:
             self._activated_at.pop(rule_id, None)
             return
         try:
-            targets = self._targets.resolve_rule(rule).targets
+            resolved = self._targets.resolve_rule(rule)
         except AdvancedTargetError as err:
             _LOGGER.warning(
                 "Cancelling active event rule %s after target change (%s): %s",
@@ -473,6 +482,8 @@ class RuleManager:
             )
             await self._release(rule)
             return
+        targets = resolved.targets
+        self._resolved_groups[rule_id] = resolved.groups
         if targets == self._resolved_targets.get(rule_id):
             return
         self._resolved_targets[rule_id] = targets
@@ -648,7 +659,8 @@ class RuleManager:
         selection = rule.get("target_selection")
         if not isinstance(selection, Mapping):
             return frozenset()
-        return frozenset(_string_items(selection.get("groups")))
+        roots = frozenset(_string_items(selection.get("groups")))
+        return roots | self._resolved_groups.get(str(rule.get("id", "")), frozenset())
 
     def _create_task(self, coroutine: Awaitable[None], name: str) -> None:
         """Own one bounded evaluation task until completion or shutdown."""
