@@ -11,6 +11,8 @@ import pytest
 from custom_components.smart_led_manager.core.conditions import (
     ConditionResult,
     ConditionValidationError,
+    condition_entity_ids,
+    condition_schedules,
     evaluate_condition,
     numeric_activation_matches,
     schedule_is_active,
@@ -152,3 +154,96 @@ def test_condition_limits_and_invalid_numeric_values() -> None:
         validate_condition_tree(nested)
     with pytest.raises(ConditionValidationError, match="finite"):
         validate_numeric_activation({"operator": "above", "threshold": float("nan")})
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        12,
+        {"type": "and", "conditions": []},
+        {"type": "not"},
+        {"type": "state", "entity_id": "invalid", "state": "on"},
+        {
+            "type": "state",
+            "entity_id": "switch.a",
+            "operator": "contains",
+            "state": "on",
+        },
+        {"type": "state", "entity_id": "switch.a", "state": False},
+        {"type": "numeric", "entity_id": "", "threshold": 10},
+        {"type": "numeric", "entity_id": "sensor.temp", "threshold": True},
+        {"type": "time", "after": "22:00+02:00"},
+        {"type": "time", "after": "invalid"},
+        {"type": "time", "after": 22},
+        {"type": "time", "weekdays": []},
+        {"type": "time", "weekdays": ["holiday"]},
+        {"type": "unsupported"},
+        {
+            "type": "or",
+            "conditions": [
+                {"type": "or", "conditions": [{"type": "time"}] * 16},
+                {"type": "or", "conditions": [{"type": "time"}] * 16},
+            ],
+        },
+    ],
+)
+def test_rejects_unsafe_or_malformed_visual_tree(value) -> None:
+    with pytest.raises(ConditionValidationError):
+        validate_condition_tree(value)
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ("19", ConditionResult.TRUE),
+        ("23", ConditionResult.FALSE),
+        ("unknown", ConditionResult.UNKNOWN),
+        ("unavailable", ConditionResult.UNKNOWN),
+        ("NaN", ConditionResult.UNKNOWN),
+        ("infinity", ConditionResult.UNKNOWN),
+        ("garbage", ConditionResult.UNKNOWN),
+    ],
+)
+def test_numeric_node_and_time_tree_use_secondary_sources(state, expected) -> None:
+    tree = validate_condition_tree(
+        {
+            "type": "and",
+            "conditions": [
+                {
+                    "type": "numeric",
+                    "entity_id": "sensor.temp",
+                    "operator": "below",
+                    "threshold": 20,
+                },
+                {
+                    "type": "time",
+                    "after": "07:00",
+                    "before": "20:00",
+                    "weekdays": ["mon", "mon"],
+                },
+            ],
+        }
+    )
+    local = datetime(2026, 11, 23, 8, tzinfo=ZoneInfo("America/Tijuana"))
+    assert condition_entity_ids(tree) == frozenset({"sensor.temp"})
+    assert condition_schedules(tree)[0]["weekdays"] == ["mon"]
+    assert evaluate_condition(tree, _states({"sensor.temp": state}), local) is expected
+    assert (
+        evaluate_condition(tree, _states({}), local.replace(hour=21))
+        is ConditionResult.FALSE
+    )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"operator": "unknown", "threshold": 4},
+        {"operator": "above", "threshold": "not a number"},
+        {"operator": "below", "threshold": 4, "hysteresis": -1},
+        {"operator": "inside", "lower": 4, "upper": 4},
+        {"operator": "outside", "lower": 4, "upper": 5, "hysteresis": 0.5},
+    ],
+)
+def test_rejects_out_of_contract_activation_values(value) -> None:
+    with pytest.raises(ConditionValidationError):
+        validate_numeric_activation(value)

@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, override
+
+from homeassistant.helpers.selector import StateSelector
 
 from ..core.conditions import WEEKDAYS
 from .rule_schema import RuleValidationError
+
+
+class RuleStateSelector(StateSelector):
+    """Bind the native state picker to the current source field."""
+
+    @override
+    def serialize(self) -> dict[str, Any]:
+        return {**super().serialize(), "context": {"filter_entity": "source"}}
 
 
 def _unsupported() -> RuleValidationError:
@@ -35,13 +45,18 @@ def native_condition_tree(items: list[dict[str, Any]]) -> dict[str, Any] | None:
 def _from_native(item: Mapping[str, Any]) -> dict[str, Any]:
     kind = item.get("condition")
     keys = set(item) - {"condition", "alias"}
+    if item.get("enabled") is True:
+        keys.discard("enabled")
     if kind in {"and", "or", "not"} and keys == {"conditions"}:
         children = [_from_native(child) for child in item["conditions"]]
         if kind == "not" and len(children) == 1:
             return {"type": "not", "condition": children[0]}
         if kind != "not":
             return {"type": kind, "conditions": children}
-    if kind == "state" and keys == {"entity_id", "state"}:
+    if kind == "state" and keys in (
+        {"entity_id", "state"},
+        {"entity_id", "state", "match"},
+    ):
         return {
             "type": "state",
             "entity_id": _single_string(item["entity_id"]),

@@ -17,6 +17,7 @@ from custom_components.smart_led_manager.const import (
     CONF_SHOW_SIDEBAR,
     DOMAIN,
 )
+from custom_components.smart_led_manager.modules.configuration import options_revision
 from custom_components.smart_led_manager.visual_editor import (
     _DATA_LOCK,
     PANEL_PATH,
@@ -457,12 +458,43 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(stale.errors[0][1], "conflict")
 
+    async def test_native_update_during_trigger_validation_cannot_be_overwritten(
+        self,
+    ) -> None:
+        hass = _Hass()
+        original = deepcopy(hass.entry.options)
+        revision = options_revision(original)
+        connection = _Connection()
+
+        async def validate(*_args):
+            hass.entry.options["unrelated"] = {"changed_from_options_flow": True}
+
+        with patch(
+            "custom_components.smart_led_manager.visual_editor._async_validate_rule_catalog",
+            side_effect=validate,
+        ):
+            await _mutation_handler(
+                hass,
+                connection,
+                _message(
+                    "smart_led_manager/smart_rules/mutate",
+                    revision=revision,
+                    operation="update",
+                    rule_id="temperature",
+                    rule={**_rule(), "name": "Obsoleta"},
+                ),
+            )
+        assert connection.errors[0][1] == "conflict"
+        assert hass.entry.options["unrelated"] == {"changed_from_options_flow": True}
+        assert not hass.config_entries.updated
+
     async def test_target_preview_is_read_only_and_reports_exclusions(self) -> None:
         hass = _Hass()
         connection = _Connection()
         resolved = SimpleNamespace(
             targets=frozenset({"light.strip"}),
             excluded=frozenset({"light.outside"}),
+            duplicates=frozenset({"light.strip"}),
         )
         resolver = SimpleNamespace(resolve=lambda _selection: resolved)
         original = deepcopy(hass.entry.options)
@@ -483,6 +515,9 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(
             connection.results[0][1]["excluded"][0]["entity_id"], "light.outside"
+        )
+        self.assertEqual(
+            connection.results[0][1]["duplicates"][0]["entity_id"], "light.strip"
         )
         self.assertEqual(hass.entry.options, original)
 

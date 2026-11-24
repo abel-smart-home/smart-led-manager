@@ -628,7 +628,9 @@ class RuleManager:
             after = time.fromisoformat(str(schedule["after"]))
             before = time.fromisoformat(str(schedule["before"]))
             weekdays = set(schedule["weekdays"])
-            for offset in range(9):
+            # An overnight interval may have started yesterday and still have
+            # an upcoming closing boundary when Core starts after midnight.
+            for offset in range(-1, 9):
                 start_date = now.date() + timedelta(days=offset)
                 weekday = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")[
                     start_date.weekday()

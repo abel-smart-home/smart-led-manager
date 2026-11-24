@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import sys
 
+import probatio
 import pytest
 from homeassistant.components import frontend
 from homeassistant.components.light import (
@@ -21,6 +22,7 @@ from homeassistant.const import (
 )
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
@@ -293,6 +295,15 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
         result["flow_id"], {"next_step_id": "add_state_rule"}
     )
     assert result["type"] is FlowResultType.FORM
+    fields = probatio.to_field_list(
+        result["data_schema"], custom_serializer=cv.custom_serializer
+    )
+    state = next(field for field in fields if field["name"] == "state")
+    assert state["context"] == {"filter_entity": "source"}
+    assert (
+        "condition"
+        in next(field for field in fields if field["name"] == "conditions")["selector"]
+    )
     result = await hass.config_entries.options.async_configure(
         result["flow_id"],
         {
@@ -306,12 +317,27 @@ async def test_options_flow_adds_and_deletes_graphical_rules(hass) -> None:
             "brightness": 200,
             "transition": 0,
             "enabled": True,
+            "conditions": [
+                {
+                    "condition": "state",
+                    "entity_id": "input_boolean.presence",
+                    "state": "on",
+                }
+            ],
+            "schedule_enabled": True,
+            "schedule_after": "22:00:00",
+            "schedule_before": "06:00:00",
+            "schedule_days": ["mon"],
+            "dwell": {"seconds": 30},
         },
     )
     assert result["type"] is FlowResultType.CREATE_ENTRY
     state_rule = result["data"][CONF_RULES][0]
     assert state_rule["type"] == "state"
     assert state_rule["targets"] == ["light.strip"]
+    assert state_rule["conditions"]["entity_id"] == "input_boolean.presence"
+    assert state_rule["schedule"]["after"] == "22:00"
+    assert state_rule["for_seconds"] == 30
 
     result = await hass.config_entries.options.async_init(entry.entry_id)
     result = await hass.config_entries.options.async_configure(

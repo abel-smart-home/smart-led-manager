@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import unittest
+from datetime import datetime
 from unittest.mock import Mock, patch
+from zoneinfo import ZoneInfo
 
 from homeassistant.core import Event, State
 
@@ -442,6 +444,48 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
             await manager.async_shutdown()
         for _entities, unsubscribe in listeners:
             unsubscribe.assert_called_once_with()
+
+    async def test_overnight_schedule_closes_on_restart_without_source_event(
+        self,
+    ) -> None:
+        zone = ZoneInfo("America/Tijuana")
+        now = datetime(2026, 11, 24, 1, tzinfo=zone)
+        hass = _Hass({"binary_sensor.door": State("binary_sensor.door", "on")})
+        rule = {
+            "id": "night",
+            "type": "state",
+            "source": "binary_sensor.door",
+            "state": "on",
+            "targets": ["light.strip"],
+            "conditions": {"type": "time", "after": "00:00", "before": "00:00"},
+            "schedule": {"after": "22:00", "before": "06:00", "weekdays": ["mon"]},
+        }
+        manager = RuleManager(
+            hass, [rule], frozenset({"light.strip"}), self.submit, self.cancel
+        )
+        with (
+            patch(
+                "custom_components.smart_led_manager.modules.rules.dt_util.now",
+                side_effect=lambda: now,
+            ),
+            patch(
+                "custom_components.smart_led_manager.modules.rules.async_track_state_change_event"
+            ),
+            patch(
+                "custom_components.smart_led_manager.modules.rules.async_track_point_in_time"
+            ) as track,
+        ):
+            await manager.async_setup()
+            assert self.submitted[-1].request_id == "rule:night"
+            boundary = track.call_args.args[2]
+            assert boundary == datetime(2026, 11, 24, 6, tzinfo=zone)
+            now = boundary
+            track.call_args.args[1](now)
+            await asyncio.sleep(0)
+            assert self.cancelled[-1] == "rule:night"
+            assert track.call_args.args[2] > boundary
+            await manager.async_shutdown()
+        track.return_value.assert_called_once_with()
 
     async def test_legacy_rule_defaults_enabled_and_disabled_rule_releases(
         self,

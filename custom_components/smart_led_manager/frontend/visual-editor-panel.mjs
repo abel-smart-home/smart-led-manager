@@ -573,7 +573,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._loadingTriggers = false;
       this._eventPairs = [];
       this._set("trigger", value === "event_bus" ? { platform: "event", event_type: "" }
-        : value === "device" ? { platform: "device" } : { platform: "state", entity_id: "" });
+        : value === "device" ? { platform: "device" } : { platform: "state", entity_id: "", to: null });
       return;
     }
     if (path === "trigger_device") { this._loadDeviceTriggers(value); return; }
@@ -610,7 +610,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       return;
     }
     if ((path === "trigger.from" || path === "trigger.to") && !value) {
-      delete this._draft.trigger[path.split(".")[1]];
+      const key = path.split(".")[1];
+      if (key === "to") this._draft.trigger.to = null;
+      else delete this._draft.trigger.from;
       this._invalidatePreviews(); return;
     }
     this._set(path, value, render);
@@ -685,7 +687,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     .rule{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:15px 0;border-bottom:1px solid var(--divider-color)}.rule:last-child{border:0}.meta{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px;color:var(--secondary-text-color);font-size:13px}
     .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}label{display:flex;flex-direction:column;gap:6px;font-weight:600}input,select,textarea{width:100%;padding:9px;border:1px solid var(--divider-color);border-radius:7px;background:var(--input-fill-color,var(--card-background-color));color:var(--primary-text-color)}textarea{min-height:105px;font-family:monospace}.check{flex-direction:row;align-items:center}.check input{width:auto}.multi{min-height:105px}
     .message{padding:11px;border-radius:8px;margin:12px 0}.error{background:color-mix(in srgb,var(--error-color) 12%,transparent);color:var(--error-color)}.notice{background:color-mix(in srgb,var(--success-color) 12%,transparent);color:var(--success-color)}
-    .picker{display:grid;gap:6px;min-width:0}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.chip{border-radius:999px;text-align:left}.chips label{font-weight:400}.condition{min-width:0;border:1px solid var(--divider-color);border-radius:8px;margin:10px 0;padding:12px}.condition .condition{border-left:3px solid var(--primary-color)}.rule-color{margin-top:9px;height:8px;max-width:220px;border-radius:5px;border:1px solid var(--divider-color)}
+    .picker{display:grid;gap:6px;min-width:0}.chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.chip{border-radius:999px;text-align:left}.chips label{font-weight:400}.condition{min-width:0;border:1px solid var(--divider-color);border-radius:8px;margin:10px 0;padding:12px}.condition .condition{border-left:3px solid var(--primary-color)}.rule-color{margin-top:9px;height:8px;max-width:220px;border-radius:5px;border:1px solid var(--divider-color)}.editor-fields{padding:0;margin:0;border:0;min-width:0}
     .visual{position:relative;margin:20px 0 8px;padding-top:18px}.colorbar{height:34px;border-radius:8px;border:1px solid var(--divider-color)}.marker{position:absolute;top:0;width:30px;height:30px;padding:0;border-radius:50%;border:3px solid var(--card-background-color);box-shadow:0 0 0 1px var(--primary-text-color);transform:translateX(-50%)}
     .axis{width:100%;min-height:120px;overflow:visible}.axis text{fill:var(--primary-text-color);font-size:12px}.axis .baseline{stroke:var(--secondary-text-color);stroke-width:2}.axis .curve{stroke-width:14;stroke-linecap:round}.axis .graph-point{cursor:pointer}.axis .graph-point:focus{outline:none}.axis .graph-point:focus circle{stroke:var(--primary-color);stroke-width:5}.axis circle{stroke:var(--card-background-color);stroke-width:3}
     .point{display:grid;grid-template-columns:64px 1fr 1fr auto;gap:10px;align-items:end;margin:10px 0}.swatch{height:38px;border-radius:8px;border:1px solid var(--divider-color)}.preview{display:flex;gap:12px;align-items:center;margin-top:12px}.preview .swatch{width:52px}
@@ -866,6 +868,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       ${status ? `<div class="message" role="status">${status}</div>` : ""}
       ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
       ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
+      <fieldset class="editor-fields" ${this._saving ? "disabled" : ""}>
       <section class="card"><h3>${t.general}</h3><div class="form-grid">
         ${inputField(t.name, "name", r.name)}
         ${this._creating ? selectField(t.type, "type", ["state", "numeric", "event"].map((kind) => [kind, t[kind]]), r.type)
@@ -900,6 +903,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       </div>${r.type === "event" ? `<p class="muted">${t.durationHelp}</p>` : ""}</section>
       <section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p>
         <details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section>
+      </fieldset>
       <div class="actions">${this._original ? `<button data-restore>${t.restore}</button>` : ""}
         <button data-discard>${t.discard}</button><button class="primary" data-save
         ${this._saving || status || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>

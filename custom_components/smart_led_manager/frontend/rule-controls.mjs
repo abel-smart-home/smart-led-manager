@@ -221,8 +221,9 @@ export function triggerKind(trigger) {
       only("event_type", "event_data") && Object.values(trigger.event_data ?? {}).every(
         (value) => typeof value === "string")) return "event_bus";
   if (platform === "state" && typeof entity === "string" && only("entity_id", "from", "to") &&
-      [trigger.from, trigger.to].every((value) => value === undefined || typeof value === "string")) {
-    if (only("entity_id")) {
+      [trigger.from, trigger.to].every((value) => value == null || typeof value === "string")) {
+    if (trigger.from === undefined && (trigger.to == null || trigger.to === "") &&
+        only("entity_id", "to")) {
       if (entity.startsWith("input_button.")) return "input_button";
       if (entity.startsWith("event.")) return "event_entity";
     }

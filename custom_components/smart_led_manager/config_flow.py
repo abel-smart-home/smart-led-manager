@@ -40,6 +40,7 @@ from .core.conditions import WEEKDAYS
 from .modules.configuration import options_revision
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 from .modules.native_rule_controls import (
+    RuleStateSelector,
     native_condition_form,
     native_condition_tree,
     native_trigger,
@@ -1191,13 +1192,8 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             ),
             probatio.Required(
                 "state", default=current.get("state", "")
-            ): selector.StateSelector(
+            ): RuleStateSelector(
                 selector.StateSelectorConfig(
-                    **(
-                        {"entity_id": current["source"]}
-                        if current.get("source")
-                        else {}
-                    ),
                     hide_states=["unknown", "unavailable"],
                 )
             ),
@@ -1474,7 +1470,13 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         rule.pop("conditions_preserved", None)
         conditions = rule.get("conditions")
         if isinstance(conditions, list):
-            rule["conditions"] = native_condition_tree(conditions)
+            condition_tree = native_condition_tree(conditions)
+            stored = current.get("conditions")
+            if stored and condition_tree == native_condition_tree(
+                native_condition_form(stored)
+            ):
+                condition_tree = stored
+            rule["conditions"] = condition_tree
         elif "conditions" not in rule and current.get("conditions"):
             rule["conditions"] = current["conditions"]
         enabled = rule.pop("schedule_enabled", None)

@@ -111,6 +111,30 @@ class ControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(hass.services.calls), 1)
         await controller.async_shutdown()
 
+    async def test_recovery_rechecks_group_status_and_current_authorization(
+        self,
+    ) -> None:
+        hass = _Hass(_state(STATE_UNAVAILABLE))
+        permitted = True
+        target = "light.strip"
+        controller = RGBLightController(hass, may_send=lambda _: permitted)
+        intent = LightCommand(color=(4, 5, 6))
+        assert (
+            await controller.async_apply(target, intent)
+        ).status is ApplyStatus.OFFLINE
+        hass.states.values[target] = State(
+            target, STATE_OFF, {**_state().attributes, "entity_id": ["light.other"]}
+        )
+        assert (await controller.async_retry(target)).status is ApplyStatus.SUPERSEDED
+        assert not controller.pending_targets
+        permitted = False
+        hass.states.values[target] = _state()
+        assert (
+            await controller.async_apply(target, intent)
+        ).status is ApplyStatus.SUPERSEDED
+        assert not hass.services.calls
+        await controller.async_shutdown()
+
     @patch(
         "custom_components.smart_led_manager.controllers.rgb.asyncio.sleep",
         new_callable=AsyncMock,
