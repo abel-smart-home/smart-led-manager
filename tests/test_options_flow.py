@@ -16,6 +16,7 @@ from custom_components.smart_led_manager.const import (
     CONF_LIGHTS,
     CONF_MODES,
     CONF_RULES,
+    CONF_SHOW_SIDEBAR,
     CONF_ZONES,
 )
 
@@ -121,7 +122,8 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(top["type"], FlowResultType.MENU)
         self.assertEqual(
-            top["menu_options"], ["lights", "zones", "modes", "rules", "advanced"]
+            top["menu_options"],
+            ["admin_center", "lights", "zones", "modes", "rules", "advanced"],
         )
         self.assertEqual(
             zones["menu_options"], ["add_zone", "edit_zone", "delete_zone"]
@@ -150,6 +152,15 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         )
         returned = await flow.async_step_open_visual_editor({})
         self.assertEqual(returned["step_id"], "rules")
+
+        admin_center = await flow.async_step_admin_center()
+        self.assertEqual(admin_center["type"], FlowResultType.FORM)
+        self.assertEqual(
+            admin_center["description_placeholders"]["path"],
+            "/smart-led-manager-editor",
+        )
+        saved_access = await flow.async_step_admin_center({CONF_SHOW_SIDEBAR: False})
+        self.assertFalse(saved_access["data"][CONF_SHOW_SIDEBAR])
 
     async def test_lights_preserve_zone_integrity_and_advanced_settings(self) -> None:
         flow, _ = _flow(options={CONF_ZONES: [_zone()]})

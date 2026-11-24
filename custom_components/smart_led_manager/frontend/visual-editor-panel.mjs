@@ -15,6 +15,15 @@ import {
 
 const TEXT = {
   es: {
+    adminTitle: "Centro de administración",
+    adminSubtitle: "Configura Smart LED Manager desde una única superficie local.",
+    installedVersion: "Versión instalada",
+    numericRulesCard: "Reglas numéricas",
+    numericRulesDescription: "Edita visualmente los puntos y simula el color de reglas numéricas existentes.",
+    nativeConfig: "Configuración nativa",
+    nativeConfigDescription: "Administra luces, zonas, modos, reglas completas y ajustes con el Options Flow de Home Assistant.",
+    open: "Abrir",
+    home: "Volver al inicio",
     title: "Editor gráfico de reglas numéricas",
     subtitle: "Los cambios permanecen en borrador hasta que los guardes.",
     rules: "Reglas numéricas",
@@ -64,8 +73,20 @@ const TEXT = {
     between: "Intervalo de {lower} a {upper}",
     selectPoint: "Seleccionar punto {value}",
     metadata: "Datos de la regla (solo lectura en este editor)",
+    advancedDetails: "Información técnica avanzada",
+    ruleId: "ID interno de la regla",
+    entityId: "ID de entidad",
   },
   en: {
+    adminTitle: "Administration center",
+    adminSubtitle: "Configure Smart LED Manager from one local surface.",
+    installedVersion: "Installed version",
+    numericRulesCard: "Numeric rules",
+    numericRulesDescription: "Visually edit points and simulate the color of existing numeric rules.",
+    nativeConfig: "Native configuration",
+    nativeConfigDescription: "Manage lights, zones, modes, full rules, and settings with Home Assistant's Options Flow.",
+    open: "Open",
+    home: "Back to home",
     title: "Numeric rule visual editor",
     subtitle: "Changes stay in a draft until you save them.",
     rules: "Numeric rules",
@@ -115,6 +136,9 @@ const TEXT = {
     between: "Interval from {lower} to {upper}",
     selectPoint: "Select point {value}",
     metadata: "Rule data (read-only in this editor)",
+    advancedDetails: "Advanced technical information",
+    ruleId: "Internal rule ID",
+    entityId: "Entity ID",
   },
 };
 
@@ -132,8 +156,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._hass = undefined;
     this._panel = undefined;
+    this._view = "home";
     this._loaded = false;
     this._loading = false;
+    this._loadState = "idle";
     this._rules = [];
     this._revision = undefined;
     this._selected = undefined;
@@ -144,6 +170,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._error = undefined;
     this._notice = undefined;
     this._saving = false;
+    this._previewRequest = 0;
+    this._language = undefined;
     this._beforeUnload = (event) => {
       if (this._isDirty()) {
         event.preventDefault();
@@ -153,14 +181,17 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   set hass(value) {
+    const previousLanguage = this._language;
     this._hass = value;
-    if (this.isConnected && !this._loaded && !this._loading) this._load();
-    else if (this.isConnected) this._render();
+    this._language = value?.locale?.language ?? value?.language ?? "en";
+    if (this.isConnected && (!previousLanguage || previousLanguage !== this._language)) {
+      this._render();
+    }
   }
 
   set panel(value) {
     this._panel = value;
-    if (this.isConnected && !this._loaded && !this._loading) this._load();
+    if (this.isConnected) this._render();
   }
 
   set route(value) {
@@ -174,7 +205,6 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   connectedCallback() {
     window.addEventListener("beforeunload", this._beforeUnload);
     this._render();
-    if (!this._loaded && !this._loading) this._load();
   }
 
   disconnectedCallback() {
@@ -183,6 +213,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   get _entryId() {
     return this._panel?.config?.entry_id;
+  }
+
+  get _version() {
+    return this._panel?.config?.version ?? "0.1.0-alpha.3";
   }
 
   get _t() {
@@ -197,6 +231,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   async _load() {
     if (!this._hass || !this._entryId || this._loading) return;
     this._loading = true;
+    this._loadState = "loading";
     this._error = undefined;
     this._render();
     try {
@@ -207,12 +242,15 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._rules = response.rules;
       this._revision = response.revision;
       this._loaded = true;
+      this._loadState = "ready";
       if (this._selected) {
         const selectedId = this._selected.rule.id;
         this._selected = this._rules.find((item) => item.rule.id === selectedId);
         if (this._selected) this._setDraft(this._selected);
       }
     } catch (error) {
+      this._loaded = false;
+      this._loadState = "error";
       this._error = `${this._t.loadError} ${error?.message ?? ""}`.trim();
     } finally {
       this._loading = false;
@@ -221,6 +259,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   _setDraft(selected) {
+    this._previewRequest += 1;
     this._selected = selected;
     this._original = {
       mode: selected.rule.mode,
@@ -245,8 +284,28 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     }
   }
 
+  _openRules() {
+    this._view = "rules";
+    this._render();
+    if (!this._loaded && !this._loading) this._load();
+  }
+
+  _goHome() {
+    if (this._isDirty() && !window.confirm(this._t.unsaved)) return;
+    this._previewRequest += 1;
+    this._selected = undefined;
+    this._original = undefined;
+    this._draft = undefined;
+    this._preview = undefined;
+    this._error = undefined;
+    this._notice = undefined;
+    this._view = "home";
+    this._render();
+  }
+
   _leaveEditor(discard = false) {
     if (this._isDirty() && !discard && !window.confirm(this._t.unsaved)) return;
+    this._previewRequest += 1;
     this._selected = undefined;
     this._original = undefined;
     this._draft = undefined;
@@ -271,10 +330,14 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   async _requestPreview() {
     if (!this._draft || !this._selected || !this._hass) return;
+    const requestId = ++this._previewRequest;
+    const ruleId = this._selected.rule.id;
     const draftError = this._draftError();
-    const value = Number(this._simulatedValue);
+    const rawValue = String(this._simulatedValue ?? "").trim();
+    const value = rawValue === "" ? Number.NaN : Number(rawValue);
     if (draftError || !Number.isFinite(value)) {
       this._preview = undefined;
+      this._error = undefined;
       this._render();
       return;
     }
@@ -287,9 +350,15 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         points: this._draft.points,
         values: [value],
       });
+      if (requestId !== this._previewRequest || this._selected?.rule.id !== ruleId) {
+        return;
+      }
       this._preview = response.results[0];
       this._error = undefined;
     } catch (error) {
+      if (requestId !== this._previewRequest || this._selected?.rule.id !== ruleId) {
+        return;
+      }
       this._preview = undefined;
       this._error = error?.message ?? this._t.invalid;
     }
@@ -353,6 +422,16 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       .toolbar, .section-title, .actions, .point-row, .metadata { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
       .section-title { justify-content:space-between; margin-bottom:14px; }
       .card { background:var(--ha-card-background, var(--card-background-color)); border-radius:var(--ha-card-border-radius, 12px); box-shadow:var(--ha-card-box-shadow); padding:20px; margin-top:18px; border:1px solid var(--divider-color); }
+      .identity { display:flex; align-items:center; gap:16px; }
+      .identity-icon { display:grid; place-items:center; width:56px; height:56px; flex:0 0 auto; border-radius:16px; color:var(--text-primary-color, #fff); background:var(--primary-color); font-size:30px; }
+      .version { display:inline-block; margin-top:8px; padding:4px 9px; border-radius:999px; color:var(--secondary-text-color); background:var(--secondary-background-color); font-size:13px; }
+      .home-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:18px; }
+      .home-card { display:flex; min-height:210px; flex-direction:column; }
+      .home-card .spacer { flex:1; }
+      a.button { display:inline-flex; align-items:center; justify-content:center; align-self:flex-start; min-height:40px; padding:8px 16px; border-radius:8px; color:var(--text-primary-color, #fff); background:var(--primary-color); text-decoration:none; font-weight:500; }
+      details { margin-top:14px; }
+      summary { cursor:pointer; color:var(--secondary-text-color); }
+      details .metadata { margin-top:12px; }
       .rule-list { display:grid; gap:12px; }
       .rule { display:grid; grid-template-columns:1fr auto; gap:10px 18px; align-items:center; padding:16px; border:1px solid var(--divider-color); border-radius:10px; }
       .rule strong { font-size:17px; }
@@ -398,39 +477,67 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         .sim-grid { grid-template-columns:1fr; }
         .point-row label:first-of-type { flex:1 1 140px; }
         .actions button { flex:1 1 150px; }
+        .home-grid { grid-template-columns:1fr; }
+        .identity { align-items:flex-start; }
       }
     `;
   }
 
+  _renderHome() {
+    const t = this._t;
+    return `
+      <main>
+        <div class="identity">
+          <div class="identity-icon" aria-hidden="true">✦</div>
+          <div><h1>Smart LED Manager</h1><p><strong>${t.adminTitle}</strong></p><p class="muted">${t.adminSubtitle}</p><span class="version">${t.installedVersion}: ${escapeHtml(this._version)}</span></div>
+        </div>
+        <div class="home-grid">
+          <article class="card home-card"><h2>${t.numericRulesCard}</h2><p>${t.numericRulesDescription}</p><span class="spacer"></span><button class="primary" data-open-rules>${t.open}</button></article>
+          <article class="card home-card"><h2>${t.nativeConfig}</h2><p>${t.nativeConfigDescription}</p><span class="spacer"></span><a class="button" href="/config/integrations/integration/smart_led_manager">${t.open}</a></article>
+        </div>
+      </main>`;
+  }
+
   _renderList() {
     const t = this._t;
-    const rules = this._rules.length
-      ? `<div class="rule-list">${this._rules.map(({ rule, unit }) => `
+    let rules;
+    if (this._loadState === "loading" || this._loading) {
+      rules = `<p role="status">${t.loading}</p>`;
+    } else if (this._loadState === "error") {
+      rules = `<div class="message error" role="alert">${escapeHtml(this._error || t.loadError)}</div><p><button data-reload>${t.reload}</button></p>`;
+    } else if (this._rules.length) {
+      rules = `<div class="rule-list">${this._rules.map(({ rule, unit, source, targets }) => `
           <article class="rule">
             <div>
               <strong>${escapeHtml(rule.name || rule.id)}</strong>
               <span class="badge ${rule.enabled !== false ? "on" : ""}">${rule.enabled !== false ? t.enabled : t.disabled}</span>
               <div class="rule-meta">
-                <span>${t.source}: ${escapeHtml(rule.source)}${unit ? ` (${escapeHtml(unit)})` : ""}</span>
+                <span>${t.source}: ${escapeHtml(source?.name || rule.source)}${unit ? ` (${escapeHtml(unit)})` : ""}</span>
                 <span>${t.priority}: ${escapeHtml(rule.priority)}</span>
-                <span>${t.targets}: ${escapeHtml((rule.targets || []).join(", "))}</span>
+                <span>${t.targets}: ${escapeHtml((targets || []).map((target) => target.name).join(", ") || (rule.targets || []).join(", "))}</span>
               </div>
             </div>
             <button class="primary" data-open-rule="${escapeHtml(rule.id)}">${t.edit}</button>
-          </article>`).join("")}</div>`
-      : `<p class="muted">${t.noRules}</p>`;
+          </article>`).join("")}</div>`;
+    } else if (this._loadState === "ready") {
+      rules = `<p class="muted">${t.noRules}</p>`;
+    } else {
+      rules = `<p role="status">${t.loading}</p>`;
+    }
     return `
       <main>
+        <div class="toolbar"><button data-home>← ${t.home}</button></div>
         <h1>${t.title}</h1>
         <p class="muted">${t.subtitle}</p>
-        ${this._error ? `<div class="message error" role="alert">${escapeHtml(this._error)}</div>` : ""}
-        <section class="card"><div class="section-title"><h2>${t.rules}</h2><button data-reload>${t.reload}</button></div>${rules}</section>
+        <section class="card"><div class="section-title"><h2>${t.rules}</h2>${this._loadState === "ready" ? `<button data-reload>${t.reload}</button>` : ""}</div>${rules}</section>
       </main>`;
   }
 
   _renderEditor() {
     const t = this._t;
     const rule = this._selected.rule;
+    const source = this._selected.source;
+    const targets = this._selected.targets || [];
     const unit = this._selected.unit ? ` ${escapeHtml(this._selected.unit)}` : "";
     const points = sortPoints(this._draft.points);
     const stops = gradientStopEntries(points, this._draft.mode);
@@ -464,13 +571,13 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         <h1>${escapeHtml(rule.name || rule.id)}</h1>
         <p class="muted">${t.metadata}</p>
         <div class="metadata">
-          <span>${t.source}: ${escapeHtml(rule.source)}${unit}</span>
-          <span>${t.targets}: ${escapeHtml((rule.targets || []).join(", "))}</span>
+          <span>${t.source}: ${escapeHtml(source?.name || rule.source)}${unit}</span>
+          <span>${t.targets}: ${escapeHtml(targets.map((target) => target.name).join(", ") || (rule.targets || []).join(", "))}</span>
           <span>${t.priority}: ${escapeHtml(rule.priority)}</span>
           <span>${t.brightness}: ${escapeHtml(rule.brightness)}</span>
           <span>${rule.enabled !== false ? t.enabled : t.disabled}</span>
-          <span>ID: ${escapeHtml(rule.id)}</span>
         </div>
+        <details><summary>${t.advancedDetails}</summary><div class="metadata"><span>${t.ruleId}: <code>${escapeHtml(rule.id)}</code></span><span>${t.source} ${t.entityId}: <code>${escapeHtml(rule.source)}</code></span><span>${t.targets} ${t.entityId}: <code>${escapeHtml((rule.targets || []).join(", "))}</code></span></div></details>
         ${this._error ? `<div class="message error" role="alert">${escapeHtml(this._error)}</div>` : ""}
         ${this._notice ? `<div class="message notice" role="status">${escapeHtml(this._notice)}</div>` : ""}
         <section class="card">
@@ -494,15 +601,17 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _render() {
     if (!this.shadowRoot) return;
-    const content = this._loading && !this._loaded
-      ? `<main><h1>${this._t.title}</h1><p>${this._t.loading}</p></main>`
-      : this._selected ? this._renderEditor() : this._renderList();
+    const content = this._selected
+      ? this._renderEditor()
+      : this._view === "rules" ? this._renderList() : this._renderHome();
     this.shadowRoot.innerHTML = `<style>${this._styles()}</style>${content}`;
     this._bindEvents();
   }
 
   _bindEvents() {
     const root = this.shadowRoot;
+    root.querySelector("[data-open-rules]")?.addEventListener("click", () => this._openRules());
+    root.querySelector("[data-home]")?.addEventListener("click", () => this._goHome());
     root.querySelectorAll("[data-open-rule]").forEach((button) =>
       button.addEventListener("click", () => this._openRule(button.dataset.openRule)),
     );

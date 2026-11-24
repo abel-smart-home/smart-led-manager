@@ -15,6 +15,7 @@ CONF_ZONES: Final = "zones"
 CONF_MODES: Final = "modes"
 CONF_AREA_ID: Final = "area_id"
 CONF_RULES: Final = "rules"
+CONF_SHOW_SIDEBAR: Final = "show_sidebar"
 CONF_TIE_BREAKER: Final = "tie_breaker"
 CONF_MIN_COMMAND_INTERVAL: Final = "min_command_interval"
 CONF_MANUAL_POLICY: Final = "manual_policy"
@@ -23,6 +24,7 @@ DEFAULT_PRIORITY: Final = 50
 DEFAULT_MIN_COMMAND_INTERVAL: Final = 0.75
 DEFAULT_TIE_BREAKER: Final = "newest"
 DEFAULT_MANUAL_POLICY: Final = "service_only"
+DEFAULT_SHOW_SIDEBAR: Final = True
 
 RULE_TYPE_STATE: Final = "state"
 RULE_TYPE_NUMERIC: Final = "numeric"

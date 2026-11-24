@@ -22,11 +22,19 @@
       "init": {
         "title": "Manage Smart LED Manager",
         "menu_options": {
+          "admin_center": "Administration center",
           "lights": "Managed lights",
           "zones": "Zones",
           "modes": "Lighting modes",
           "rules": "Smart rules",
           "advanced": "Advanced settings"
+        }
+      },
+      "admin_center": {
+        "title": "Administration center",
+        "description": "[Open the administration center]({path}) in this window. Home Assistant does not expose a public automatic redirect from an Options Flow; this internal link and the sidebar are the supported entry points.",
+        "data": {
+          "show_sidebar": "Show Smart LED Manager in the sidebar"
         }
       },
       "lights": {
@@ -149,7 +157,7 @@
       },
       "open_visual_editor": {
         "title": "Advanced visual editor",
-        "description": "Open **Smart LED Manager** in the administrator sidebar or visit `{path}`. This supported local panel edits existing numeric rules. The native editor remains available here."
+        "description": "[Open the administration center]({path}). This supported local panel edits existing numeric rules. The native editor remains available here."
       },
       "add_state_rule": {
         "title": "Add state rule",

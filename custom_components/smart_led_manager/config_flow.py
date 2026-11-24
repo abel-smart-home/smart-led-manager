@@ -22,10 +22,12 @@ from .const import (
     CONF_MIN_COMMAND_INTERVAL,
     CONF_MODES,
     CONF_RULES,
+    CONF_SHOW_SIDEBAR,
     CONF_TIE_BREAKER,
     CONF_ZONES,
     DEFAULT_MANUAL_POLICY,
     DEFAULT_MIN_COMMAND_INTERVAL,
+    DEFAULT_SHOW_SIDEBAR,
     DEFAULT_TIE_BREAKER,
     DOMAIN,
     NAME,
@@ -211,12 +213,36 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         return self.async_show_menu(
             step_id="init",
             menu_options=[
+                "admin_center",
                 "lights",
                 "zones",
                 "modes",
                 "rules",
                 "advanced",
             ],
+        )
+
+    async def async_step_admin_center(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure access to the local administration center."""
+        if user_input is not None:
+            return self._create_options_entry(
+                {CONF_SHOW_SIDEBAR: bool(user_input[CONF_SHOW_SIDEBAR])}
+            )
+        return self.async_show_form(
+            step_id="admin_center",
+            data_schema=probatio.Schema(
+                {
+                    probatio.Required(
+                        CONF_SHOW_SIDEBAR,
+                        default=self.config_entry.options.get(
+                            CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR
+                        ),
+                    ): selector.BooleanSelector()
+                }
+            ),
+            description_placeholders={"path": "/smart-led-manager-editor"},
         )
 
     async def async_step_lights(
@@ -350,7 +376,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
     async def async_step_open_visual_editor(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Document the supported sidebar route without using private navigation."""
+        """Offer the supported internal route without private navigation APIs."""
         if user_input is not None:
             return await self.async_step_rules()
         return self.async_show_form(

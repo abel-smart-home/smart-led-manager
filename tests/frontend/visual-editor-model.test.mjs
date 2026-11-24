@@ -139,9 +139,15 @@ test("panel renders a rule draft and uses WebSocket preview/save contracts", asy
       };
     },
   };
-  editor._panel = { config: { entry_id: "entry-1" } };
+  editor._panel = { config: { entry_id: "entry-1", version: "0.1.0-alpha.3" } };
+  editor._render();
+  assert.match(editor.shadowRoot.innerHTML, /Centro de administración/);
+  assert.match(editor.shadowRoot.innerHTML, /0\.1\.0-alpha\.3/);
+  assert.match(editor.shadowRoot.innerHTML, /\/config\/integrations\/integration\/smart_led_manager/);
   editor._selected = {
     unit: "°C",
+    source: { entity_id: "sensor.temperature", name: "Temperatura del salón" },
+    targets: [{ entity_id: "light.strip", name: "Tira del salón" }],
     rule: {
       id: "temperature",
       name: "Temperatura",
@@ -164,6 +170,8 @@ test("panel renders a rule draft and uses WebSocket preview/save contracts", asy
   assert.equal(calls[0].rule_id, "temperature");
   assert.equal(editor._preview.hex, "#008080");
   assert.match(editor.shadowRoot.innerHTML, /Temperatura/);
+  assert.match(editor.shadowRoot.innerHTML, /Temperatura del salón/);
+  assert.match(editor.shadowRoot.innerHTML, /Tira del salón/);
   assert.match(editor.shadowRoot.innerHTML, /RGB\(0, 128, 128\)/);
 
   await editor._save();
@@ -171,4 +179,50 @@ test("panel renders a rule draft and uses WebSocket preview/save contracts", asy
   assert.equal(calls[1].revision, "revision");
   assert.equal(editor._revision, "new-revision");
   assert.equal(editor._original.mode, "ranges");
+
+  const callsBeforeEmptyPreview = calls.length;
+  editor._simulatedValue = "";
+  await editor._requestPreview();
+  assert.equal(calls.length, callsBeforeEmptyPreview);
+  assert.equal(editor._preview, undefined);
+
+  const pending = [];
+  editor._hass.callWS = (message) => new Promise((resolve) => pending.push({ message, resolve }));
+  editor._simulatedValue = "21";
+  const firstPreview = editor._requestPreview();
+  editor._simulatedValue = "22";
+  const secondPreview = editor._requestPreview();
+  pending[1].resolve({ results: [{ hex: "#FF0000", rgb: [255, 0, 0], relation: "point", lower: 22, upper: 22 }] });
+  await secondPreview;
+  pending[0].resolve({ results: [{ hex: "#0000FF", rgb: [0, 0, 255], relation: "point", lower: 21, upper: 21 }] });
+  await firstPreview;
+  assert.equal(editor._preview.hex, "#FF0000");
+
+  const stableEditor = new Panel();
+  let rerenders = 0;
+  stableEditor._render = () => { rerenders += 1; };
+  stableEditor.hass = { language: "es" };
+  stableEditor.hass = { language: "es", states: { changed: true } };
+  assert.equal(rerenders, 1);
+  stableEditor.hass = { language: "en" };
+  assert.equal(rerenders, 2);
+
+  const errorEditor = new Panel();
+  errorEditor._hass = { language: "es" };
+  errorEditor._panel = { config: { entry_id: "entry-1" } };
+  errorEditor._view = "rules";
+  errorEditor._loadState = "error";
+  errorEditor._error = "entry_not_loaded";
+  errorEditor._render();
+  assert.match(errorEditor.shadowRoot.innerHTML, /entry_not_loaded/);
+  assert.doesNotMatch(errorEditor.shadowRoot.innerHTML, /No hay reglas numéricas/);
+
+  editor._draft.mode = editor._original.mode === "ranges" ? "interpolate" : "ranges";
+  window.confirm = () => false;
+  editor._goHome();
+  assert.notEqual(editor._selected, undefined);
+  window.confirm = () => true;
+  editor._goHome();
+  assert.equal(editor._selected, undefined);
+  assert.equal(editor._view, "home");
 });

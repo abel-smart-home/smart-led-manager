@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import unittest
 from copy import deepcopy
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.components import frontend
@@ -14,6 +14,7 @@ from homeassistant.exceptions import Unauthorized
 from custom_components.smart_led_manager.const import (
     CONF_LIGHTS,
     CONF_RULES,
+    CONF_SHOW_SIDEBAR,
     DOMAIN,
 )
 from custom_components.smart_led_manager.visual_editor import (
@@ -82,13 +83,23 @@ class _Hass:
     def __init__(self, entry: _Entry | None = None) -> None:
         self.entry = entry or _Entry()
         self.config_entries = _ConfigEntries(self.entry)
-        self.data = {DOMAIN: {_DATA_LOCK: asyncio.Lock()}}
+        self.data = {
+            DOMAIN: {
+                _DATA_LOCK: asyncio.Lock(),
+                "entries": {self.entry.entry_id: object()},
+            }
+        }
         self.states = SimpleNamespace(
-            get=lambda entity_id: SimpleNamespace(
-                attributes={"unit_of_measurement": "°C"}
+            get=lambda entity_id: (
+                SimpleNamespace(
+                    name="Temperatura del salón",
+                    attributes={"unit_of_measurement": "°C"},
+                )
+                if entity_id == "sensor.temperature"
+                else SimpleNamespace(name="Tira del salón", attributes={})
+                if entity_id == "light.strip"
+                else None
             )
-            if entity_id == "sensor.temperature"
-            else None
         )
 
 
@@ -132,6 +143,8 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["entry_id"], "entry-1")
         self.assertEqual(len(result["revision"]), 64)
         self.assertEqual(result["rules"][0]["unit"], "°C")
+        self.assertEqual(result["rules"][0]["source"]["name"], "Temperatura del salón")
+        self.assertEqual(result["rules"][0]["targets"][0]["name"], "Tira del salón")
         rule = result["rules"][0]["rule"]
         self.assertEqual(rule["id"], "temperature")
         self.assertEqual(rule["future_field"], {"preserve": True})
@@ -216,6 +229,59 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(saved["priority"], 47)
         self.assertEqual(saved["future_field"], {"preserve": True})
         self.assertEqual(hass.entry.options["unrelated"], {"kept": True})
+
+    async def test_mapping_proxy_options_support_read_revision_and_save(self) -> None:
+        entry = _Entry()
+        rule = _rule()
+        rule["future_field"] = MappingProxyType({"preserve": True})
+        entry.options = MappingProxyType(
+            {
+                CONF_LIGHTS: ["light.strip"],
+                CONF_RULES: [MappingProxyType(rule)],
+                "unrelated": MappingProxyType({"kept": True}),
+            }
+        )
+        hass = _Hass(entry)
+        read = _Connection()
+
+        websocket_get_numeric_rules(hass, read, _message("smart_led_manager/rules/get"))
+        revision = read.results[0][1]["revision"]
+        self.assertEqual(len(revision), 64)
+        self.assertEqual(
+            read.results[0][1]["rules"][0]["rule"]["future_field"],
+            {"preserve": True},
+        )
+
+        saved = _Connection()
+        await _save_handler(
+            hass,
+            saved,
+            _message(
+                "smart_led_manager/rules/save",
+                rule_id="temperature",
+                revision=revision,
+                mode="ranges",
+                points=[
+                    {"value": 10, "rgb": [0, 0, 255]},
+                    {"value": 30, "rgb": [255, 0, 0]},
+                ],
+            ),
+        )
+
+        self.assertFalse(saved.errors)
+        self.assertEqual(entry.options[CONF_RULES][0]["mode"], "ranges")
+        self.assertEqual(entry.options["unrelated"], {"kept": True})
+
+    async def test_unloaded_entry_rejects_websocket_commands(self) -> None:
+        hass = _Hass()
+        hass.data[DOMAIN]["entries"].clear()
+        connection = _Connection()
+
+        websocket_get_numeric_rules(
+            hass, connection, _message("smart_led_manager/rules/get")
+        )
+
+        self.assertEqual(connection.errors[0][1], "entry_not_loaded")
 
     async def test_invalid_duplicate_and_stale_edits_do_not_change_options(
         self,
@@ -342,9 +408,33 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
         register_panel.assert_awaited_once()
         self.assertTrue(register_panel.await_args.kwargs["require_admin"])
         self.assertEqual(
+            register_panel.await_args.kwargs["sidebar_title"], "Smart LED Manager"
+        )
+        self.assertEqual(
+            register_panel.await_args.kwargs["config"]["version"], "0.1.0-alpha.3"
+        )
+        self.assertEqual(
             register_panel.await_args.kwargs["frontend_url_path"], PANEL_PATH
         )
         remove_panel.assert_called_once_with(hass, PANEL_PATH, warn_if_unknown=False)
+
+    async def test_sidebar_can_be_hidden_without_removing_panel_route(self) -> None:
+        entry = _Entry()
+        entry.options[CONF_SHOW_SIDEBAR] = False
+        hass = _Hass(entry)
+        hass.data[frontend.DATA_PANELS] = {}
+
+        with patch(
+            "custom_components.smart_led_manager.visual_editor.panel_custom.async_register_panel",
+            new=AsyncMock(),
+        ) as register_panel:
+            await async_register_visual_editor_panel(hass, entry)
+
+        register_panel.assert_awaited_once()
+        self.assertIsNone(register_panel.await_args.kwargs["sidebar_title"])
+        self.assertEqual(
+            register_panel.await_args.kwargs["frontend_url_path"], PANEL_PATH
+        )
 
 
 if __name__ == "__main__":

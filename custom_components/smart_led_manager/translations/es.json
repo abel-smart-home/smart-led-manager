@@ -22,11 +22,19 @@
       "init": {
         "title": "Administrar Smart LED Manager",
         "menu_options": {
+          "admin_center": "Centro de administración",
           "lights": "Luces administradas",
           "zones": "Zonas",
           "modes": "Modos de iluminación",
           "rules": "Reglas inteligentes",
           "advanced": "Ajustes avanzados"
+        }
+      },
+      "admin_center": {
+        "title": "Centro de administración",
+        "description": "[Abrir el Centro de administración]({path}) en esta ventana. Home Assistant no ofrece una redirección automática pública desde el Options Flow; el enlace interno y la barra lateral son los accesos compatibles.",
+        "data": {
+          "show_sidebar": "Mostrar Smart LED Manager en la barra lateral"
         }
       },
       "lights": {
@@ -149,7 +157,7 @@
       },
       "open_visual_editor": {
         "title": "Editor gráfico avanzado",
-        "description": "Abre **Smart LED Manager** en la barra lateral de administrador o visita `{path}`. Este panel local compatible edita reglas numéricas existentes. El editor nativo sigue disponible aquí."
+        "description": "[Abrir el Centro de administración]({path}). Este panel local compatible edita reglas numéricas existentes. El editor nativo sigue disponible aquí."
       },
       "add_state_rule": {
         "title": "Agregar regla de estado",

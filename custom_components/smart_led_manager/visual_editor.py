@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 import json
 import logging
-from copy import deepcopy
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +17,16 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.core import HomeAssistant, callback
 
-from .const import CONF_LIGHTS, CONF_RULES, DOMAIN, RULE_TYPE_NUMERIC, VERSION
+from .const import (
+    CONF_LIGHTS,
+    CONF_RULES,
+    CONF_SHOW_SIDEBAR,
+    DEFAULT_SHOW_SIDEBAR,
+    DOMAIN,
+    NAME,
+    RULE_TYPE_NUMERIC,
+    VERSION,
+)
 from .core.color import (
     ColorPoint,
     evaluate_rgb,
@@ -73,7 +82,7 @@ async def async_setup_visual_editor(hass: HomeAssistant) -> None:
 async def async_register_visual_editor_panel(
     hass: HomeAssistant, entry: ConfigEntry
 ) -> None:
-    """Expose the editor in the administrator sidebar for the loaded entry."""
+    """Expose the administrator route and optionally show it in the sidebar."""
 
     domain_data = hass.data.setdefault(DOMAIN, {})
     if frontend.DATA_PANELS not in hass.data:
@@ -90,10 +99,12 @@ async def async_register_visual_editor_panel(
         hass,
         frontend_url_path=PANEL_PATH,
         webcomponent_name="smart-led-manager-visual-editor",
-        sidebar_title="Smart LED Manager",
+        sidebar_title=(
+            NAME if entry.options.get(CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR) else None
+        ),
         sidebar_icon="mdi:led-strip-variant",
         module_url=f"{STATIC_URL}/visual-editor-panel.mjs?v={VERSION}",
-        config={"entry_id": entry.entry_id},
+        config={"entry_id": entry.entry_id, "version": VERSION},
         require_admin=True,
         handle_safe_area=True,
     )
@@ -113,11 +124,21 @@ def async_remove_visual_editor_panel(hass: HomeAssistant) -> None:
     domain_data.pop(_DATA_PANEL_ENTRY, None)
 
 
+def _mutable_json(value: object) -> Any:
+    """Return a mutable JSON-compatible copy, including mapping proxies."""
+
+    if isinstance(value, Mapping):
+        return {key: _mutable_json(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_mutable_json(item) for item in value]
+    return value
+
+
 def _options_revision(options: object) -> str:
     """Return a deterministic optimistic-concurrency token."""
 
     encoded = json.dumps(
-        dict(options),
+        _mutable_json(options),
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
@@ -131,6 +152,11 @@ def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry:
         raise VisualEditorError(
             "entry_not_found", "Smart LED Manager config entry was not found"
         )
+    loaded_entries = hass.data.get(DOMAIN, {}).get("entries", {})
+    if entry_id not in loaded_entries:
+        raise VisualEditorError(
+            "entry_not_loaded", "Smart LED Manager config entry is not loaded"
+        )
     return entry
 
 
@@ -143,14 +169,14 @@ def _authorized_targets(entry: ConfigEntry) -> frozenset[str]:
     return frozenset(raw)
 
 
-def _numeric_rule(entry: ConfigEntry, rule_id: str) -> dict[str, Any]:
+def _numeric_rule(entry: ConfigEntry, rule_id: str) -> Mapping[str, Any]:
     rules = entry.options.get(CONF_RULES, [])
     if not isinstance(rules, list):
         raise VisualEditorError("invalid_options", "Configured rules are invalid")
     matches = [
         rule
         for rule in rules
-        if isinstance(rule, dict) and str(rule.get("id")) == rule_id
+        if isinstance(rule, Mapping) and str(rule.get("id")) == rule_id
     ]
     if len(matches) != 1:
         raise VisualEditorError("rule_not_found", "Numeric rule was not found")
@@ -185,7 +211,9 @@ def _validated_points(raw: object) -> list[dict[str, Any]]:
         raise VisualEditorError("invalid_points", str(err)) from err
 
 
-def _rule_payload(hass: HomeAssistant, entry: ConfigEntry, rule: dict[str, Any]):
+def _rule_payload(
+    hass: HomeAssistant, entry: ConfigEntry, rule: Mapping[str, Any]
+) -> dict[str, Any]:
     rule_id = rule.get("id")
     source = rule.get("source")
     if not isinstance(rule_id, str) or not rule_id:
@@ -193,14 +221,28 @@ def _rule_payload(hass: HomeAssistant, entry: ConfigEntry, rule: dict[str, Any])
     if not isinstance(source, str) or not source:
         raise VisualEditorError("invalid_rule", "Numeric rule source is invalid")
     _numeric_rule(entry, rule_id)
-    payload = deepcopy(rule)
+    payload = _mutable_json(rule)
     payload["points"] = _validated_points(rule.get("points"))
     payload["mode"] = _validated_mode(rule.get("mode", "interpolate"))
     state = hass.states.get(source)
     unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) if state else None
+    source_name = getattr(state, "name", source) if state else source
+    target_details = []
+    for target in payload.get("targets", []):
+        target_state = hass.states.get(target)
+        target_details.append(
+            {
+                "entity_id": target,
+                "name": getattr(target_state, "name", target)
+                if target_state
+                else target,
+            }
+        )
     return {
         "rule": payload,
         "unit": unit if isinstance(unit, str) and unit else None,
+        "source": {"entity_id": source, "name": source_name},
+        "targets": target_details,
     }
 
 
@@ -235,7 +277,7 @@ def websocket_get_numeric_rules(
         payload = [
             _rule_payload(hass, entry, rule)
             for rule in rules
-            if isinstance(rule, dict) and rule.get("type") == RULE_TYPE_NUMERIC
+            if isinstance(rule, Mapping) and rule.get("type") == RULE_TYPE_NUMERIC
         ]
     except VisualEditorError as err:
         _send_editor_error(connection, msg["id"], err)
@@ -341,13 +383,13 @@ async def websocket_save_numeric_rule(
             mode = _validated_mode(msg["mode"])
             points = _validated_points(msg["points"])
             current = _numeric_rule(entry, msg["rule_id"])
-            options = deepcopy(dict(entry.options))
-            rules = deepcopy(list(options.get(CONF_RULES, [])))
+            options = _mutable_json(entry.options)
+            rules = list(options.get(CONF_RULES, []))
             for index, rule in enumerate(rules):
                 if isinstance(rule, dict) and rule.get("id") == current["id"]:
                     rules[index]["mode"] = mode
                     rules[index]["points"] = points
-                    saved_rule = deepcopy(rules[index])
+                    saved_rule = _mutable_json(rules[index])
                     break
             else:
                 raise VisualEditorError("rule_not_found", "Numeric rule was not found")
