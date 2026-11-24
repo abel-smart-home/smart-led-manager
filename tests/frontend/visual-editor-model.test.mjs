@@ -179,6 +179,13 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   assert.match(editor.shadowRoot.innerHTML, /Temperatura/);
   assert.match(editor.shadowRoot.innerHTML, /Tira del salón/);
   assert.match(editor.shadowRoot.innerHTML, /RGB\(0, 128, 128\)/);
+  assert.match(editor.shadowRoot.innerHTML, /Restaurar borrador/);
+  assert.match(editor.shadowRoot.innerHTML, /Distribución numérica/);
+  assert.match(editor.shadowRoot.innerHTML, /data-select-point="1"/);
+
+  editor._restore();
+  assert.equal(editor._draft.mode, "interpolate");
+  editor._draft.mode = "ranges";
 
   await editor._save();
   assert.equal(calls[1].type, "smart_led_manager/smart_rules/mutate");

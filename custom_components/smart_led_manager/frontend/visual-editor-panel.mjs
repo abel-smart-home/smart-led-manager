@@ -1,8 +1,10 @@
 import {
   cssGradient,
   deepClone,
+  gradientStopEntries,
   hexToRgb,
   nextPoint,
+  pointPercent,
   removePoint,
   replacePoint,
   rgbToHex,
@@ -91,10 +93,14 @@ const TEXT = {
     interpolate: "Interpolación",
     ranges: "Rangos",
     points: "Puntos de color",
+    colorBar: "Barra de colores",
+    graph: "Distribución numérica",
+    selectPoint: "Seleccionar punto {value}",
     addPoint: "Agregar punto",
     value: "Valor",
     simulator: "Simulador exacto",
     simulate: "Valor hipotético",
+    restore: "Restaurar borrador",
     discard: "Descartar",
     save: "Guardar",
     saving: "Guardando…",
@@ -185,10 +191,14 @@ const TEXT = {
     interpolate: "Interpolation",
     ranges: "Ranges",
     points: "Color points",
+    colorBar: "Color bar",
+    graph: "Numeric distribution",
+    selectPoint: "Select point {value}",
     addPoint: "Add point",
     value: "Value",
     simulator: "Exact simulator",
     simulate: "Hypothetical value",
+    restore: "Restore draft",
     discard: "Discard",
     save: "Save",
     saving: "Saving…",
@@ -280,6 +290,14 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _openRules() { this._view = "rules"; this._render(); if (!this._revision) this._load(); }
   _goHome() { if (this._dirty() && !window.confirm(this._t.unsaved)) return; this._closeEditor(); this._view = "home"; this._render(); }
   _closeEditor() { this._selected = undefined; this._draft = undefined; this._original = undefined; this._creating = false; this._targetPreview = undefined; this._numericPreview = undefined; this._error = undefined; }
+
+  _restore() {
+    if (!this._original) return;
+    this._draft = deepClone(this._original);
+    this._targetPreview = undefined; this._numericPreview = undefined;
+    this._simulateValue = this._draft.points?.length ? String(this._draft.points[0].value) : "";
+    this._error = undefined; this._notice = undefined; this._render();
+  }
 
   _edit(ruleId) {
     const selected = this._rules.find((item) => item.rule.id === ruleId);
@@ -380,7 +398,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     .rule{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;padding:15px 0;border-bottom:1px solid var(--divider-color)}.rule:last-child{border:0}.meta{display:flex;gap:9px;flex-wrap:wrap;margin-top:7px;color:var(--secondary-text-color);font-size:13px}
     .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}label{display:flex;flex-direction:column;gap:6px;font-weight:600}input,select,textarea{width:100%;padding:9px;border:1px solid var(--divider-color);border-radius:7px;background:var(--input-fill-color,var(--card-background-color));color:var(--primary-text-color)}textarea{min-height:105px;font-family:monospace}.check{flex-direction:row;align-items:center}.check input{width:auto}.multi{min-height:105px}
     .message{padding:11px;border-radius:8px;margin:12px 0}.error{background:color-mix(in srgb,var(--error-color) 12%,transparent);color:var(--error-color)}.notice{background:color-mix(in srgb,var(--success-color) 12%,transparent);color:var(--success-color)}
-    .colorbar{height:34px;border-radius:8px;border:1px solid var(--divider-color)}.point{display:grid;grid-template-columns:64px 1fr 1fr auto;gap:10px;align-items:end;margin:10px 0}.swatch{height:38px;border-radius:8px;border:1px solid var(--divider-color)}.preview{display:flex;gap:12px;align-items:center;margin-top:12px}.preview .swatch{width:52px}
+    .visual{position:relative;margin:20px 0 8px;padding-top:18px}.colorbar{height:34px;border-radius:8px;border:1px solid var(--divider-color)}.marker{position:absolute;top:0;width:30px;height:30px;padding:0;border-radius:50%;border:3px solid var(--card-background-color);box-shadow:0 0 0 1px var(--primary-text-color);transform:translateX(-50%)}
+    .axis{width:100%;min-height:120px;overflow:visible}.axis text{fill:var(--primary-text-color);font-size:12px}.axis .baseline{stroke:var(--secondary-text-color);stroke-width:2}.axis .curve{stroke-width:14;stroke-linecap:round}.axis .graph-point{cursor:pointer}.axis .graph-point:focus{outline:none}.axis .graph-point:focus circle{stroke:var(--primary-color);stroke-width:5}.axis circle{stroke:var(--card-background-color);stroke-width:3}
+    .point{display:grid;grid-template-columns:64px 1fr 1fr auto;gap:10px;align-items:end;margin:10px 0}.swatch{height:38px;border-radius:8px;border:1px solid var(--divider-color)}.preview{display:flex;gap:12px;align-items:center;margin-top:12px}.preview .swatch{width:52px}
     .actions{justify-content:flex-end;position:sticky;bottom:0;padding:16px 0 max(16px,env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--primary-background-color) 24%)}details{margin-top:12px}
     @media(max-width:700px){main{padding-top:16px}.rule{grid-template-columns:1fr}.rule-actions button{flex:1}.point{grid-template-columns:44px 1fr}.point label,.point button{grid-column:2}.actions button{flex:1}.form-grid{grid-template-columns:1fr}}
   `; }
@@ -405,8 +425,21 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     if (this._draft.type !== "numeric") return "";
     const t = this._t, r = this._draft, activation = r.activation ?? {}, operator = activation.operator ?? "";
     const points = sortPoints(r.points ?? []);
+    const stops = gradientStopEntries(points, r.mode ?? "interpolate");
+    const svgStops = stops.map((stop) => `<stop offset="${stop.offset}%" stop-color="${stop.color}"></stop>`).join("");
+    const markers = points.map((point, index) => `<button class="marker" data-select-point="${index}" style="left:${pointPercent(point.value, points)}%;background:${rgbToHex(point.rgb)}" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"></button>`).join("");
+    const graphPoints = points.map((point, index) => {
+      const x = 30 + pointPercent(point.value, points) * 8.4;
+      return `<g class="graph-point" data-select-point="${index}" tabindex="0" role="button" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"><circle cx="${x}" cy="48" r="10" fill="${rgbToHex(point.rgb)}"></circle><line x1="${x}" y1="60" x2="${x}" y2="72" stroke="var(--secondary-text-color)"></line><text x="${x}" y="92" text-anchor="middle">${esc(point.value)}</text></g>`;
+    }).join("");
     const rows = points.map((point, index) => `<div class="point"><span class="swatch" style="background:${rgbToHex(point.rgb)}"></span><label>${t.value}<input type="number" step="any" value="${esc(point.value)}" data-point-value="${index}"></label><label>${t.color}<input type="color" value="${rgbToHex(point.rgb)}" data-point-color="${index}"></label><button class="danger" data-remove-point="${index}">${t.remove}</button></div>`).join("");
-    return `<section class="card"><h3>${t.activation}</h3><div class="form-grid"><label>${t.operator}<select data-activation-operator><option value="" ${!operator ? "selected" : ""}>${t.noThreshold}</option>${["above","below","inside","outside"].map((item) => `<option value="${item}" ${operator === item ? "selected" : ""}>${t[item]}</option>`).join("")}</select></label>${["above","below"].includes(operator) ? `<label>${t.threshold}<input type="number" step="any" data-activation="threshold" value="${esc(activation.threshold)}"></label>` : ""}${["inside","outside"].includes(operator) ? `<label>${t.lower}<input type="number" step="any" data-activation="lower" value="${esc(activation.lower)}"></label><label>${t.upper}<input type="number" step="any" data-activation="upper" value="${esc(activation.upper)}"></label>` : ""}${operator ? `<label>${t.hysteresis}<input type="number" min="0" step="any" data-activation="hysteresis" value="${esc(activation.hysteresis ?? 0)}"></label>` : ""}</div></section><section class="card"><h3>${t.points}</h3><label>${t.calculation}<select data-field="mode"><option value="interpolate" ${r.mode !== "ranges" ? "selected" : ""}>${t.interpolate}</option><option value="ranges" ${r.mode === "ranges" ? "selected" : ""}>${t.ranges}</option></select></label><div class="colorbar" style="background:${cssGradient(points, r.mode ?? "interpolate")}"></div>${rows}<button data-add-point>${t.addPoint}</button><div class="form-grid"><label>${t.simulate}<input type="number" step="any" data-simulate value="${esc(this._simulateValue)}"></label><button data-preview-numeric>${t.simulator}</button></div>${this._numericPreview ? `<div class="preview"><span class="swatch" style="background:${esc(this._numericPreview.hex)}"></span><strong>${esc(this._numericPreview.hex)} · RGB(${this._numericPreview.rgb.join(", ")})</strong></div>` : ""}</section>`;
+    return `<section class="card"><h3>${t.activation}</h3><div class="form-grid"><label>${t.operator}<select data-activation-operator><option value="" ${!operator ? "selected" : ""}>${t.noThreshold}</option>${["above","below","inside","outside"].map((item) => `<option value="${item}" ${operator === item ? "selected" : ""}>${t[item]}</option>`).join("")}</select></label>${["above","below"].includes(operator) ? `<label>${t.threshold}<input type="number" step="any" data-activation="threshold" value="${esc(activation.threshold)}"></label>` : ""}${["inside","outside"].includes(operator) ? `<label>${t.lower}<input type="number" step="any" data-activation="lower" value="${esc(activation.lower)}"></label><label>${t.upper}<input type="number" step="any" data-activation="upper" value="${esc(activation.upper)}"></label>` : ""}${operator ? `<label>${t.hysteresis}<input type="number" min="0" step="any" data-activation="hysteresis" value="${esc(activation.hysteresis ?? 0)}"></label>` : ""}</div></section><section class="card"><h3>${t.points}</h3><label>${t.calculation}<select data-field="mode"><option value="interpolate" ${r.mode !== "ranges" ? "selected" : ""}>${t.interpolate}</option><option value="ranges" ${r.mode === "ranges" ? "selected" : ""}>${t.ranges}</option></select></label><h3>${t.colorBar}</h3><div class="visual"><div class="colorbar" style="background:${cssGradient(points, r.mode ?? "interpolate")}"></div>${markers}</div><h3>${t.graph}</h3><svg class="axis" viewBox="0 0 900 115" role="img" aria-label="${t.graph}"><defs><linearGradient id="graph-gradient">${svgStops}</linearGradient></defs><line class="baseline" x1="30" y1="48" x2="870" y2="48"></line><line class="curve" x1="30" y1="48" x2="870" y2="48" stroke="url(#graph-gradient)"></line>${graphPoints}</svg>${rows}<button data-add-point>${t.addPoint}</button><div class="form-grid"><label>${t.simulate}<input type="number" step="any" data-simulate value="${esc(this._simulateValue)}"></label><button data-preview-numeric>${t.simulator}</button></div>${this._numericPreview ? `<div class="preview"><span class="swatch" style="background:${esc(this._numericPreview.hex)}"></span><strong>${esc(this._numericPreview.hex)} · RGB(${this._numericPreview.rgb.join(", ")})</strong></div>` : ""}</section>`;
+  }
+
+  _focusPoint(index) {
+    const input = this.shadowRoot.querySelector(`[data-point-value="${index}"]`);
+    input?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    input?.focus?.({ preventScroll: true });
   }
 
   _renderEditor() {
@@ -414,7 +447,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     r.target_selection ??= selection;
     const targetNames = this._targetPreview?.targets?.map((item) => item.name).join(", ") ?? "";
     const exclusions = this._targetPreview?.excluded?.map((item) => item.name).join(", ") ?? "";
-    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button></div><h1>${esc(r.name || t.create)}</h1>${this._error ? `<div class="message error">${esc(this._error)}</div>` : ""}<section class="card"><h3>${t.general}</h3><div class="form-grid"><label>${t.name}<input data-field="name" value="${esc(r.name)}"></label><label>${t.type}<select data-field="type" ${this._creating ? "" : "disabled"}><option value="state" ${r.type === "state" ? "selected" : ""}>${t.state}</option><option value="numeric" ${r.type === "numeric" ? "selected" : ""}>${t.numeric}</option><option value="event" ${r.type === "event" ? "selected" : ""}>${t.event}</option></select></label><label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled !== false ? "checked" : ""}>${r.enabled !== false ? t.enabled : t.disabled}</label></div></section><section class="card"><h3>${t.origin}</h3>${this._renderOrigin()}</section><section class="card"><h3>${t.conditionSection}</h3><label>${t.conditionJson}<textarea data-json="conditions">${esc(r.conditions ? JSON.stringify(r.conditions, null, 2) : "")}</textarea></label></section><section class="card"><h3>${t.timeSection}</h3><div class="form-grid"><label>${t.scheduleJson}<textarea data-json="schedule">${esc(r.schedule ? JSON.stringify(r.schedule, null, 2) : "")}</textarea></label>${r.type !== "event" ? `<label>${t.dwell}<input type="number" min="0" step="0.1" data-number="for_seconds" value="${esc(r.for_seconds ?? 0)}"></label>` : ""}</div></section><section class="card"><h3>${t.targetSection}</h3><div class="form-grid">${this._targetSelect(t.individual,"entities",this._selections.managed_lights)}${this._targetSelect(t.zones,"zones",this._selections.zones)}${this._targetSelect(t.areas,"areas",this._selections.areas)}${this._targetSelect(t.labels,"labels",this._selections.labels)}${this._targetSelect(t.groups,"groups",this._selections.groups)}<label class="check"><input type="checkbox" data-target-all ${selection.all_managed ? "checked" : ""}>${t.allManaged}</label></div><button data-preview-targets>${t.previewTargets}</button>${targetNames ? `<p>${t.targets}: ${esc(targetNames)}</p>` : ""}${exclusions ? `<p class="muted">${t.excluded}: ${esc(exclusions)}</p>` : ""}</section>${this._renderNumeric()}<section class="card"><h3>${t.colorSection}</h3><div class="form-grid"><label>${t.color}<input type="color" data-color value="${rgbToHex(r.rgb_color ?? [255,255,255])}"></label><label>${t.brightness}<input type="number" min="1" max="255" data-number="brightness" value="${esc(r.brightness ?? 255)}"></label><label>${t.transition}<input type="number" min="0" step="0.1" data-number="transition" value="${esc(r.transition ?? 0)}"></label><label>${t.animation}<select data-field="animation">${["fixed","blink","pulse"].map((item) => `<option value="${item}" ${r.animation === item || (!r.animation && item === "fixed") ? "selected" : ""}>${t[item]}</option>`).join("")}</select></label><label>${t.period}<input type="number" min="0.1" step="0.1" data-number="period" value="${esc(r.period ?? 1)}"></label></div></section><section class="card"><h3>${t.policySection}</h3><div class="form-grid"><label>${t.priority}<input type="number" min="0" max="100" data-number="priority" value="${esc(r.priority ?? 40)}"></label>${r.type === "event" ? `<label>${t.duration}<input type="number" min="0.1" step="0.1" data-number="duration" value="${esc(r.duration ?? 5)}"></label>` : ""}</div></section><section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p><details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section><div class="actions"><button data-discard>${t.discard}</button><button class="primary" data-save ${this._saving || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button></div></main>`;
+    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button></div><h1>${esc(r.name || t.create)}</h1>${this._error ? `<div class="message error">${esc(this._error)}</div>` : ""}<section class="card"><h3>${t.general}</h3><div class="form-grid"><label>${t.name}<input data-field="name" value="${esc(r.name)}"></label><label>${t.type}<select data-field="type" ${this._creating ? "" : "disabled"}><option value="state" ${r.type === "state" ? "selected" : ""}>${t.state}</option><option value="numeric" ${r.type === "numeric" ? "selected" : ""}>${t.numeric}</option><option value="event" ${r.type === "event" ? "selected" : ""}>${t.event}</option></select></label><label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled !== false ? "checked" : ""}>${r.enabled !== false ? t.enabled : t.disabled}</label></div></section><section class="card"><h3>${t.origin}</h3>${this._renderOrigin()}</section><section class="card"><h3>${t.conditionSection}</h3><label>${t.conditionJson}<textarea data-json="conditions">${esc(r.conditions ? JSON.stringify(r.conditions, null, 2) : "")}</textarea></label></section><section class="card"><h3>${t.timeSection}</h3><div class="form-grid"><label>${t.scheduleJson}<textarea data-json="schedule">${esc(r.schedule ? JSON.stringify(r.schedule, null, 2) : "")}</textarea></label>${r.type !== "event" ? `<label>${t.dwell}<input type="number" min="0" step="0.1" data-number="for_seconds" value="${esc(r.for_seconds ?? 0)}"></label>` : ""}</div></section><section class="card"><h3>${t.targetSection}</h3><div class="form-grid">${this._targetSelect(t.individual,"entities",this._selections.managed_lights)}${this._targetSelect(t.zones,"zones",this._selections.zones)}${this._targetSelect(t.areas,"areas",this._selections.areas)}${this._targetSelect(t.labels,"labels",this._selections.labels)}${this._targetSelect(t.groups,"groups",this._selections.groups)}<label class="check"><input type="checkbox" data-target-all ${selection.all_managed ? "checked" : ""}>${t.allManaged}</label></div><button data-preview-targets>${t.previewTargets}</button>${targetNames ? `<p>${t.targets}: ${esc(targetNames)}</p>` : ""}${exclusions ? `<p class="muted">${t.excluded}: ${esc(exclusions)}</p>` : ""}</section>${this._renderNumeric()}<section class="card"><h3>${t.colorSection}</h3><div class="form-grid"><label>${t.color}<input type="color" data-color value="${rgbToHex(r.rgb_color ?? [255,255,255])}"></label><label>${t.brightness}<input type="number" min="1" max="255" data-number="brightness" value="${esc(r.brightness ?? 255)}"></label><label>${t.transition}<input type="number" min="0" step="0.1" data-number="transition" value="${esc(r.transition ?? 0)}"></label><label>${t.animation}<select data-field="animation">${["fixed","blink","pulse"].map((item) => `<option value="${item}" ${r.animation === item || (!r.animation && item === "fixed") ? "selected" : ""}>${t[item]}</option>`).join("")}</select></label><label>${t.period}<input type="number" min="0.1" step="0.1" data-number="period" value="${esc(r.period ?? 1)}"></label></div></section><section class="card"><h3>${t.policySection}</h3><div class="form-grid"><label>${t.priority}<input type="number" min="0" max="100" data-number="priority" value="${esc(r.priority ?? 40)}"></label>${r.type === "event" ? `<label>${t.duration}<input type="number" min="0.1" step="0.1" data-number="duration" value="${esc(r.duration ?? 5)}"></label>` : ""}</div></section><section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p><details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section><div class="actions">${this._original ? `<button data-restore>${t.restore}</button>` : ""}<button data-discard>${t.discard}</button><button class="primary" data-save ${this._saving || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button></div></main>`;
   }
 
   _render() {
@@ -434,6 +467,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     root.querySelectorAll("[data-toggle]").forEach((button) => button.addEventListener("click", () => this._mutate("toggle", { rule_id: button.dataset.toggle, enabled: button.dataset.enabled !== "true" })));
     root.querySelectorAll("[data-delete]").forEach((button) => button.addEventListener("click", () => { if (window.confirm(this._t.confirmDelete)) this._mutate("delete", { rule_id: button.dataset.delete }); }));
     root.querySelector("[data-back]")?.addEventListener("click", () => { if (!this._dirty() || window.confirm(this._t.unsaved)) { this._closeEditor(); this._render(); } });
+    root.querySelector("[data-restore]")?.addEventListener("click", () => this._restore());
     root.querySelector("[data-discard]")?.addEventListener("click", () => { this._closeEditor(); this._render(); });
     root.querySelector("[data-save]")?.addEventListener("click", () => this._save());
     root.querySelectorAll("[data-field]").forEach((input) => input.addEventListener("change", () => {
@@ -461,6 +495,16 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     root.querySelectorAll("[data-remove-point]").forEach((button) => button.addEventListener("click", () => { this._draft.points = removePoint(this._draft.points, Number(button.dataset.removePoint)); this._render(); }));
     root.querySelectorAll("[data-point-value]").forEach((input) => input.addEventListener("change", () => { try { this._draft.points = replacePoint(this._draft.points, Number(input.dataset.pointValue), { ...this._draft.points[Number(input.dataset.pointValue)], value: input.value }); this._error = undefined; } catch { this._error = this._t.invalid; } this._render(); }));
     root.querySelectorAll("[data-point-color]").forEach((input) => input.addEventListener("change", () => { const index = Number(input.dataset.pointColor); this._draft.points = replacePoint(this._draft.points, index, { ...this._draft.points[index], rgb: hexToRgb(input.value) }); this._render(); }));
+    root.querySelectorAll("[data-select-point]").forEach((marker) => {
+      const select = () => this._focusPoint(Number(marker.dataset.selectPoint));
+      marker.addEventListener("click", select);
+      marker.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          select();
+        }
+      });
+    });
     root.querySelector("[data-simulate]")?.addEventListener("change", (event) => { this._simulateValue = event.target.value; });
     root.querySelector("[data-preview-numeric]")?.addEventListener("click", () => this._previewNumeric());
   }
