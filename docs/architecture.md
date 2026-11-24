@@ -112,12 +112,22 @@ desconocido o con un solo miembro inseguro se rechaza completo. La lista
 autorizada también se audita para impedir que una entidad `light` con miembros
 actúe como puerta trasera.
 
-Las reglas continuas vuelven a resolver destinos ante cambios de estado de los
-grupos y eventos oficiales de Entity, Device y Area Registry. Retiran la misma
+Las reglas continuas vuelven a resolver destinos ante cambios de membresía,
+aparición de un miembro y eventos oficiales de Entity, Device, Area y Label
+Registry. El conjunto de suscripciones sigue el árbol actual incluso si un
+miembro todavía está ausente. Retiran la misma
 solicitud de los destinos anteriores y la aplican a los nuevos. Una solicitud
 de evento ya activa puede moverse mientras no venza, sin renovar su plazo; un
 evento pasado no se recrea. Las acciones explícitas conservan la semántica de
 instantánea en el momento de la llamada. No existe sondeo general.
+
+El controlador consulta estados y metadatos de agrupación antes de despachar,
+incluidos los registrados por HA y los grupos identificables de ZHA y Hue. Las
+rutas de acciones, modos y recuperación comparten ese control. Para reglas
+vigentes también se revalida pertenencia al destino y, en eventos, el plazo.
+Una entidad con estado `unavailable` puede formar parte de un grupo seguro
+si está identificada individualmente. Un miembro ausente invalida el grupo
+hasta que aparezca.
 
 ## Condiciones, tiempo y activación numérica
 
@@ -166,8 +176,11 @@ heredado que sólo modifica `mode` y `points` se conserva para compatibilidad;
 el catálogo nuevo usa `async_update_entry` y el listener normal ejecuta la
 recarga ya probada por el Bloque B.
 
-Al descargar se retira el panel visible y se cancelan las tareas normales del
-coordinador. Los manejadores WebSocket y la ruta estática, registrados una sola
+Al actualizar opciones, el panel mantiene su ruta y recibe el estado de la
+recarga por evento. Se cancelan los trabajos del coordinador anterior y las
+escrituras quedan bloqueadas hasta que el runtime vuelva a estar listo.
+La descarga definitiva y la eliminación retiran el panel. Los manejadores
+WebSocket y la ruta estática, registrados una sola
 vez a nivel de integración, no crean tareas ni conservan catálogos; Home
 Assistant no ofrece una API pública para desregistrarlos durante la misma
 ejecución. Sin la ConfigEntry cargada responden `entry_not_loaded`; un

@@ -392,10 +392,33 @@ validado en hardware físico hasta recibir el reporte del propietario.
 
 ## Plan pendiente de `0.1.0-alpha.3`, Bloque C
 
+Sigue el [recorrido detallado C-01 a C-20](haos-block-c-walkthrough.md) para
+preparar las entidades Demo, configurar cada regla y registrar los resultados.
+
+### Incidencias antes de C.1
+
+El propietario reprodujo en HAOS VirtualBox, sobre `1b3499c`, un salto desde
+`/smart-led-manager-editor` a `/home/overview` durante la edición o el
+guardado. También reportó campos que pedían JSON e identificadores de entidad
+en el catálogo gráfico. El reporte disponible describe las pantallas y la
+navegación. La evidencia adjunta al repositorio es textual.
+
+El código anterior retiraba el panel al descargar la entrada en cada
+guardado. El [enrutador del frontend 20261028.6](https://github.com/home-assistant/frontend/blob/20261028.6/src/layouts/partial-panel-resolver.ts)
+reconstruye las rutas y selecciona la vista predeterminada cuando la ruta
+activa desaparece. C.1 conserva el panel en la recarga de opciones, valida la
+disponibilidad antes de escribir y usa controles gráficos para las reglas.
+También comprueba la presencia de miembros de grupos, vuelve a resolver la
+membresía y valida el destino justo antes del envío. C-03, C-06, C-08,
+C-10 y C-19 incluyen regresiones específicas. Conserva las 10/10 de B.1
+sobre su commit y repite su recorrido de edición en C.1.
+
+### Casos
+
 Ejecuta esta batería en una copia de HAOS VirtualBox partiendo de B.1. Registra
 el SHA exacto instalado, fecha/hora, zona horaria, Home Assistant, navegador y
-resultado observado. El SHA funcional del Bloque C es `2b9c4dd`; usa el SHA
-documental final publicado para la ejecución. Todos los casos siguientes están
+resultado observado. Usa el HEAD publicado de C.1, cuyo SHA funcional figura
+en el [proceso de release](release.md). Todos los casos siguientes están
 **pendientes** y sólo el propietario puede cerrarlos.
 
 | Caso | Procedimiento | Resultado esperado | Estado |

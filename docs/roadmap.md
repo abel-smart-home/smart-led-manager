@@ -104,6 +104,16 @@ operativo; el Bloque C amplía el mismo panel sin crear otro.
 - [x] Panel unificado de reglas y backend compartido con Options Flow.
 - [ ] C-01 a C-20 en HAOS VirtualBox y pruebas Zigbee señaladas por separado.
 
+### Bloque C.1 — correcciones del panel y destinos
+
+- [x] Mantener la ruta y el contexto de edición durante el guardado.
+- [x] Selectores de origen, destinos, tiempo y disparadores, y constructor
+  de condiciones. Usar el contrato común de reglas en los dos editores.
+- [x] Volver a comprobar luces autorizadas, membresía de grupos y plazo de
+  eventos antes de despachar. Reconstruir suscripciones al cambiar un grupo.
+- [ ] Ejecutar el [recorrido de laboratorio](haos-block-c-walkthrough.md)
+  con C.1 y repetir las variantes Zigbee indicadas en el plan.
+
 ### Bloque D — alcance aprobado pendiente
 
 - Política de reintento y verificación física configurables.

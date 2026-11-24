@@ -92,6 +92,18 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 
 ### Compatibilidad y correcciones
 
+- C.1 conserva el panel al recargar después de guardar y muestra la confirmación
+  en el catálogo o el editor. El propietario había observado redirecciones a
+  `/home/overview` durante la edición. Se mantienen el borrador y la revisión
+  ante un error o conflicto.
+- C.1 incorpora selectores para orígenes y destinos, un constructor de
+  condiciones, horario, permanencia y disparadores visuales, y conserva las
+  curvas y el simulador de B.1. El horario nocturno vuelve a programar su
+  cierre al iniciar Core después de medianoche.
+- C.1 rechaza grupos con miembros ausentes, vuelve a seguir la composición
+  aunque el grupo llegue tarde y comprueba la autorización antes del envío
+  de cualquier comando, incluidos modos, acciones y recuperación.
+
 - Se conservan los `unique_id` de alpha.2; Home Assistant reasocia las mismas
   entidades a los dispositivos de zona y mantiene `entity_id`, nombres
   personalizados y referencias existentes.
@@ -168,6 +180,11 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   Node, Ruff, Hassfest y HACS/Marketplace. La batería manual C-01 a C-20 queda
   pendiente hasta el reporte del propietario; no se atribuye a CI ninguna
   validación visual o física.
+- C.1 (`85770ce`) aprobó 228 pruebas en cada variante Linux con Home
+  Assistant `2026.11.0` y `2026.11.2`. La cobertura global con ramas
+  habilitadas fue `85.13 %`. Pasaron las 9 pruebas Node, la regresión en
+  Edge con backend simulado, Ruff, Hassfest y HACS/Marketplace. Los pasos
+  de HAOS siguen en la [guía C-01 a C-20](docs/haos-block-c-walkthrough.md).
 
 ## [0.1.0-alpha.2] — Sin publicar
 

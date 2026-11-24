@@ -16,8 +16,8 @@ motor de prioridades determinista.
 > `6ad79e0c3c388f714f08c727ba17f315807310a4`; el antecedente
 > `MappingProxyType`, corregido inicialmente en `9ba3b0c`, permanece en el
 > registro. Son resultados comunicados por el propietario, no pruebas de CI ni
-> pruebas ejecutadas por Codex. El Bloque C y la repetición física indicada en
-> el plan para Raspberry Pi/ZHA/GLEDOPTO siguen pendientes.
+> pruebas ejecutadas por Codex. La validación manual del Bloque C y la
+> repetición en Raspberry Pi/ZHA/GLEDOPTO siguen pendientes.
 
 ## Qué hace esta alfa
 
@@ -40,7 +40,9 @@ motor de prioridades determinista.
   con acceso opcional desde la barra lateral y ruta estable. Su catálogo
   unificado permite crear, editar, duplicar, habilitar y eliminar reglas, y
   conserva el editor de puntos y el simulador exacto sin órdenes físicas. El
-  Options Flow continúa disponible como alternativa compatible.
+  Options Flow continúa disponible como alternativa compatible. La
+  [guía de laboratorio del Bloque C](docs/haos-block-c-walkthrough.md) explica
+  cómo ejecutar cada caso sobre el panel C.1.
 - Permite crear zonas no superpuestas y modos persistentes por zona. Cada zona
   expone un `select`; un modo puede exponer además un `switch` opcional para
   paneles o puentes, sin depender de Alexa o Matter.

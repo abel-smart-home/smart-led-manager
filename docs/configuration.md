@@ -167,7 +167,7 @@ configuración nativa. Usa primero nombres amigables; identificadores y el
 borrador normalizado quedan en detalles técnicos. Permite crear, editar,
 duplicar, habilitar, deshabilitar y eliminar. En una regla numérica conserva:
 
-- `interpolate` o `ranges`;
+- color fijo, interpolación o rangos;
 - valor numérico y color de cada punto;
 - alta y eliminación de puntos.
 
@@ -185,14 +185,16 @@ apagar una luz.
 sin modificar opciones; **Guardar cambios** valida otra vez en Python y provoca
 la recarga normal de la entrada. Si el Options Flow u otra pestaña cambió la
 configuración después de cargarla, el panel rechaza el guardado como conflicto:
-elige **Recargar configuración**, revisa la versión nueva y repite la edición.
-No se combinan silenciosamente dos borradores.
+conserva el borrador para consultar tus cambios, vuelve al catálogo, pulsa
+**Recargar** y abre la versión vigente para volver a editar.
 
 Las actualizaciones ordinarias de estados de Home Assistant no reconstruyen el
 formulario ni quitan el foco. Una respuesta antigua del simulador se descarta
-si ya existe una solicitud posterior; un valor vacío no se evalúa como cero. Si
-la entrada se descarga, el catálogo muestra el error y ofrece recargar en lugar
-de presentarlo como vacío.
+si ya existe una solicitud posterior o cambió el borrador. Los campos vacíos
+conservan su condición de vacíos. Durante la recarga se muestra el estado y
+se bloquean las escrituras. Una vez guardada la edición, el panel conserva el
+formulario. Después de crear o realizar una acción de catálogo, regresa a la
+lista en la misma ruta.
 
 La recarga no es edición completamente en caliente. Conserva solicitudes
 persistentes válidas y selecciones de modo, pero una notificación temporal no
@@ -203,24 +205,29 @@ pausa/reanudación temporal siguen reservadas al Bloque D.
 
 Una regla puede combinar luces individuales, zonas de Smart LED Manager, áreas,
 etiquetas, grupos transparentes y **todas las luces administradas**. La vista
-previa muestra las luces físicas resultantes y las excluidas de un área o
+previa muestra las luces físicas resultantes, los duplicados y las excluidas de un área o
 etiqueta. Un grupo no es una orden multicast: debe poder expandirse por completo
 a luces autorizadas. Si contiene un miembro opaco, ausente o no autorizado, o
 un ciclo, se rechaza. Nunca uses una entidad de grupo como luz administrada.
 
-Las condiciones admiten árboles AND/OR/NOT de estado, número y tiempo. Un dato
-`unknown`, `unavailable` o eliminado no cumple la regla, tampoco bajo NOT. El
-horario independiente define `after`, `before` y `weekdays` con claves `mon` a
-`sun`. Si cruza medianoche, el día elegido es el día en que comienza el
-intervalo. La permanencia mínima (`for_seconds`) se aplica al resultado total:
+En **Condiciones**, agrega **Todas (AND)**, **Al menos una (OR)**, **Negar
+(NOT)** o una condición de estado, número u horario. Los controles permiten
+anidar y reordenar ramas. Los datos inválidos conservan el resultado
+desconocido también bajo NOT. En **Horarios y permanencia**, activa el horario,
+elige horas y días. Si cruza medianoche, el día elegido es el día en que
+comienza el intervalo. La permanencia mínima se aplica al resultado total:
 si cualquier parte falla antes, el contador se cancela; tras una recarga o
 reinicio comienza otra vez.
 
-Las reglas de evento aceptan un trigger oficial de Home Assistant. Esto permite
-cambios de estado, eventos del bus, entidades `event`, `input_button` y device
-triggers que la plataforma instalada exponga. Define una duración, no una
-permanencia. Una repetición renueva la solicitud temporal de la misma regla; no
-forma una cola y un evento ocurrido antes de reiniciar no se reproduce.
+Las reglas de evento pueden usar cambios de estado, entidades de evento, un
+ayudante de tipo botón, el nombre de un evento del bus o una acción publicada
+por un dispositivo. Usa **Duración** para indicar cuánto se mostrará el aviso.
+Una repetición renueva la solicitud temporal de la misma regla. Los disparadores
+avanzados que el formulario local no puede representar se conservan hasta que
+los reemplaces explícitamente. El Options Flow ofrece el selector nativo de
+disparadores. El constructor nativo de condiciones admite el subconjunto que
+puede convertirse sin cambiar el resultado de Smart LED Manager. Usa el panel
+para comparaciones compuestas dentro/fuera de rango y condiciones preservadas.
 
 ### Ejemplos de diseño
 

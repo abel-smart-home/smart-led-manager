@@ -81,9 +81,13 @@ El pytest completo no se marca como aprobado en Windows: la dependencia
 `pytest-homeassistant` importa `fcntl`, disponible sólo en POSIX. Ruff, la
 compilación sintáctica y las seis pruebas Node del modelo/panel sí se ejecutaron
 localmente; la evidencia Python completa corresponde a la matriz Linux indicada
-arriba. El repositorio no incorpora un runner de navegador real; Node valida el
-modelo y el contrato del componente, mientras el recorrido visual, teclado,
-táctil y temas permanece en C-01 a C-20 para HAOS VirtualBox.
+arriba. C.1 añade una prueba de navegador Chromium opcional en
+`tests/frontend/browser-smoke.mjs`. Las pruebas de Node y de navegador con
+backend simulado cubren el componente. El recorrido integrado de HAOS,
+temas, teclado y táctil sigue en C-01 a C-20.
+
+Para repetir la prueba, ejecuta `node tests/frontend/browser-smoke.mjs <ruta-al-navegador>`
+desde el repositorio con Node 24 y una instalación de Edge o Chromium.
 
 ## Base física heredada de alpha.1
 
@@ -194,6 +198,34 @@ reversión general sin esa limpieza o restauración.
 
 El Bloque D conserva sin adelantos la política configurable de reintentos y
 verificación física, pausa/reanudación temporal y aliases de voz.
+
+### Validación de C.1
+
+El SHA funcional es `85770cec7143c775dcc2a69853df2a9b0523b07c`, sobre
+`feat/v0.1.0-alpha.3-advanced-rules`. CI aprobó 228 pruebas por variante
+en Home Assistant `2026.11.0` y `2026.11.2`, con cobertura global de
+`85.13 %` y medición de ramas habilitada. `core/conditions.py` alcanzó
+`95 %` y `modules/rules.py` alcanzó `82 %`. También aprobaron Ruff,
+Hassfest, HACS/Marketplace y 9 pruebas Node. La prueba de navegador en Edge
+con backend simulado pasó sobre ese SHA. C-01 a C-20 siguen pendientes.
+
+Aplica los mismos pasos de actualización del Bloque C al pasar de
+`1b3499c` a C.1. El cambio de formularios conserva la representación
+persistente. El [recorrido detallado](haos-block-c-walkthrough.md) indica
+cómo comprobar el catálogo, el estado de recarga y los destinos.
+
+Durante el guardado, C.1 conserva la ruta en la recarga iniciada por su
+listener de opciones. Una descarga directa de Core retira la ruta y
+el siguiente arranque de la entrada la registra de nuevo. El callback
+de descarga de Core no indica si Core volverá a cargar la misma entrada.
+
+La [API de paneles personalizados](https://contributors.home-assistant.io/frontend/custom-ui/panel/)
+entrega el objeto `hass` al componente. Las [interfaces de selectores](https://www.home-assistant.io/docs/blueprint/selectors/)
+se ofrecen al Options Flow. El componente web local usa controles propios
+y los catálogos de Home Assistant para funcionar desde una carga inicial
+de la ruta. Los disparadores de dispositivo dependen de lo que publique
+cada integración. Un formato avanzado sin controles equivalentes se conserva
+en los datos de la regla.
 
 ## Camino a `0.1.0`
 
