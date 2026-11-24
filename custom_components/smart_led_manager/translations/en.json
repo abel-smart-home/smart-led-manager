@@ -149,6 +149,7 @@
           "open_visual_editor": "Open advanced visual editor",
           "add_state_rule": "Add state rule",
           "add_numeric_rule": "Add numeric rule",
+          "add_event_rule": "Add event rule",
           "edit_rule": "Edit existing rule",
           "duplicate_rule": "Duplicate rule",
           "toggle_rule": "Enable or disable rule",
@@ -157,7 +158,7 @@
       },
       "open_visual_editor": {
         "title": "Advanced visual editor",
-        "description": "[Open the administration center]({path}). This supported local panel edits existing numeric rules. The native editor remains available here."
+        "description": "[Open the administration center]({path}). This supported local panel manages state, numeric, and event rules. The native editor remains available here."
       },
       "add_state_rule": {
         "title": "Add state rule",
@@ -172,7 +173,17 @@
           "rgb_color": "Color",
           "brightness": "Brightness",
           "transition": "Transition",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period"
         }
       },
       "add_numeric_rule": {
@@ -188,7 +199,42 @@
           "transition": "Transition",
           "minimum_change": "Minimum numeric change",
           "minimum_interval": "Minimum update interval",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "activation": "Threshold and hysteresis",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period"
+        }
+      },
+      "add_event_rule": {
+        "title": "Add event rule",
+        "description": "Use an official Home Assistant trigger. The resulting light request is always temporary.",
+        "data": {
+          "name": "Rule name",
+          "trigger": "Home Assistant trigger",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "duration": "Duration",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "animation": "Animation",
+          "period": "Animation period"
         }
       },
       "edit_rule": {
@@ -217,7 +263,17 @@
           "rgb_color": "Color",
           "brightness": "Brightness",
           "transition": "Transition",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period"
         }
       },
       "duplicate_state_rule": {
@@ -233,7 +289,17 @@
           "rgb_color": "Color",
           "brightness": "Brightness",
           "transition": "Transition",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period"
         }
       },
       "edit_numeric_rule": {
@@ -249,7 +315,18 @@
           "transition": "Transition",
           "minimum_change": "Minimum numeric change",
           "minimum_interval": "Minimum update interval",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "activation": "Threshold and hysteresis",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period"
         }
       },
       "duplicate_numeric_rule": {
@@ -265,7 +342,66 @@
           "transition": "Transition",
           "minimum_change": "Minimum numeric change",
           "minimum_interval": "Minimum update interval",
-          "enabled": "Enabled"
+          "enabled": "Enabled",
+          "activation": "Threshold and hysteresis",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period"
+        }
+      },
+      "edit_event_rule": {
+        "title": "Edit event rule",
+        "description": "The stable rule identifier is preserved.",
+        "data": {
+          "name": "Rule name",
+          "trigger": "Home Assistant trigger",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "duration": "Duration",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "animation": "Animation",
+          "period": "Animation period"
+        }
+      },
+      "duplicate_event_rule": {
+        "title": "Review event-rule copy",
+        "description": "The copy receives a new identifier and starts disabled.",
+        "data": {
+          "name": "Rule name",
+          "trigger": "Home Assistant trigger",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "duration": "Duration",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "animation": "Animation",
+          "period": "Animation period"
         }
       },
       "numeric_points": {
@@ -334,6 +470,7 @@
       "no_rules": "There are no configured rules",
       "rule_not_found": "The selected rule no longer exists",
       "invalid_rule": "The selected rule type is not supported",
+      "configuration_changed": "Configuration changed while this form was open. Reopen Options and try again.",
       "no_zones": "Create a zone first",
       "no_modes": "There are no configured modes"
     }

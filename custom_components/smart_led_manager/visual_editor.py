@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import json
 import logging
 from collections.abc import Mapping
 from pathlib import Path
@@ -14,16 +12,20 @@ import probatio
 from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT
+from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import area_registry as ar
+from homeassistant.helpers import label_registry as lr
 
 from .const import (
     CONF_LIGHTS,
     CONF_RULES,
     CONF_SHOW_SIDEBAR,
+    CONF_ZONES,
     DEFAULT_SHOW_SIDEBAR,
     DOMAIN,
     NAME,
+    RULE_TYPE_EVENT,
     RULE_TYPE_NUMERIC,
     VERSION,
 )
@@ -34,6 +36,9 @@ from .core.color import (
     parse_numeric_state,
     rgb_to_hex,
 )
+from .modules.configuration import mutable_json, options_revision
+from .modules.rule_schema import RuleCatalog, RuleValidationError
+from .modules.targeting import AdvancedTargetError, AdvancedTargetResolver
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -65,6 +70,9 @@ async def async_setup_visual_editor(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, websocket_get_numeric_rules)
         websocket_api.async_register_command(hass, websocket_preview_numeric_rule)
         websocket_api.async_register_command(hass, websocket_save_numeric_rule)
+        websocket_api.async_register_command(hass, websocket_get_smart_rules)
+        websocket_api.async_register_command(hass, websocket_mutate_smart_rule)
+        websocket_api.async_register_command(hass, websocket_preview_targets)
         domain_data[_DATA_COMMANDS] = True
     if not domain_data.get(_DATA_STATIC):
         await hass.http.async_register_static_paths(
@@ -124,26 +132,8 @@ def async_remove_visual_editor_panel(hass: HomeAssistant) -> None:
     domain_data.pop(_DATA_PANEL_ENTRY, None)
 
 
-def _mutable_json(value: object) -> Any:
-    """Return a mutable JSON-compatible copy, including mapping proxies."""
-
-    if isinstance(value, Mapping):
-        return {key: _mutable_json(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_mutable_json(item) for item in value]
-    return value
-
-
-def _options_revision(options: object) -> str:
-    """Return a deterministic optimistic-concurrency token."""
-
-    encoded = json.dumps(
-        _mutable_json(options),
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    ).encode()
-    return hashlib.sha256(encoded).hexdigest()
+_mutable_json = mutable_json
+_options_revision = options_revision
 
 
 def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry:
@@ -169,7 +159,9 @@ def _authorized_targets(entry: ConfigEntry) -> frozenset[str]:
     return frozenset(raw)
 
 
-def _numeric_rule(entry: ConfigEntry, rule_id: str) -> Mapping[str, Any]:
+def _numeric_rule(
+    hass: HomeAssistant, entry: ConfigEntry, rule_id: str
+) -> tuple[Mapping[str, Any], frozenset[str]]:
     rules = entry.options.get(CONF_RULES, [])
     if not isinstance(rules, list):
         raise VisualEditorError("invalid_options", "Configured rules are invalid")
@@ -183,17 +175,11 @@ def _numeric_rule(entry: ConfigEntry, rule_id: str) -> Mapping[str, Any]:
     rule = matches[0]
     if rule.get("type") != RULE_TYPE_NUMERIC:
         raise VisualEditorError("invalid_rule", "Selected rule is not numeric")
-    targets = rule.get("targets")
-    if (
-        not isinstance(targets, list)
-        or not targets
-        or not all(isinstance(target, str) for target in targets)
-        or not set(targets).issubset(_authorized_targets(entry))
-    ):
-        raise VisualEditorError(
-            "unauthorized_targets", "Rule contains a light that is not managed"
-        )
-    return rule
+    try:
+        targets = _advanced_target_resolver(hass, entry).resolve_rule(rule).targets
+    except AdvancedTargetError as err:
+        raise VisualEditorError(err.code, str(err)) from err
+    return rule, targets
 
 
 def _validated_mode(value: object) -> str:
@@ -220,7 +206,7 @@ def _rule_payload(
         raise VisualEditorError("invalid_rule", "Numeric rule identifier is invalid")
     if not isinstance(source, str) or not source:
         raise VisualEditorError("invalid_rule", "Numeric rule source is invalid")
-    _numeric_rule(entry, rule_id)
+    _validated_rule, resolved_targets = _numeric_rule(hass, entry, rule_id)
     payload = _mutable_json(rule)
     payload["points"] = _validated_points(rule.get("points"))
     payload["mode"] = _validated_mode(rule.get("mode", "interpolate"))
@@ -228,7 +214,7 @@ def _rule_payload(
     unit = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) if state else None
     source_name = getattr(state, "name", source) if state else source
     target_details = []
-    for target in payload.get("targets", []):
+    for target in sorted(resolved_targets):
         target_state = hass.states.get(target)
         target_details.append(
             {
@@ -312,8 +298,7 @@ def websocket_preview_numeric_rule(
     """Simulate draft points with the production algorithm and no light I/O."""
 
     try:
-        entry = _entry(hass, msg["entry_id"])
-        _numeric_rule(entry, msg["rule_id"])
+        _entry(hass, msg["entry_id"])
         mode = _validated_mode(msg["mode"])
         raw_points = _validated_points(msg["points"])
         points = tuple(
@@ -382,7 +367,9 @@ async def websocket_save_numeric_rule(
                 )
             mode = _validated_mode(msg["mode"])
             points = _validated_points(msg["points"])
-            current = _numeric_rule(entry, msg["rule_id"])
+            current, _resolved_targets = _numeric_rule(
+                hass, entry, msg["rule_id"]
+            )
             options = _mutable_json(entry.options)
             rules = list(options.get(CONF_RULES, []))
             for index, rule in enumerate(rules):
@@ -406,3 +393,312 @@ async def websocket_save_numeric_rule(
         )
         return
     connection.send_result(msg["id"], {"revision": revision, "rule": saved_rule})
+
+
+def _configured_rules(entry: ConfigEntry) -> list[Mapping[str, Any]]:
+    raw = entry.options.get(CONF_RULES, [])
+    if not isinstance(raw, list) or not all(isinstance(rule, Mapping) for rule in raw):
+        raise VisualEditorError("invalid_options", "Configured rules are invalid")
+    return raw
+
+
+def _advanced_target_resolver(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> AdvancedTargetResolver:
+    zones = entry.options.get(CONF_ZONES, [])
+    if not isinstance(zones, list):
+        raise VisualEditorError("invalid_options", "Configured zones are invalid")
+    try:
+        return AdvancedTargetResolver(
+            hass,
+            _authorized_targets(entry),
+            [zone for zone in zones if isinstance(zone, Mapping)],
+        )
+    except AdvancedTargetError as err:
+        raise VisualEditorError(err.code, str(err)) from err
+
+
+def _friendly_entity(hass: HomeAssistant, entity_id: str) -> dict[str, str]:
+    state = hass.states.get(entity_id)
+    return {
+        "entity_id": entity_id,
+        "name": getattr(state, "name", entity_id) if state is not None else entity_id,
+    }
+
+
+def _condition_summary(condition: object) -> str | None:
+    if not isinstance(condition, Mapping):
+        return None
+    kind = str(condition.get("type", ""))
+    if kind in {"and", "or"}:
+        children = condition.get("conditions", [])
+        count = len(children) if isinstance(children, list) else 0
+        return f"{kind.upper()} · {count}"
+    if kind == "not":
+        return "NOT"
+    if kind in {"state", "numeric"}:
+        return f"{kind} · {condition.get('entity_id', '')}"
+    if kind == "time":
+        return f"{condition.get('after', '')}-{condition.get('before', '')}"
+    return None
+
+
+def _smart_rule_payload(
+    hass: HomeAssistant,
+    resolver: AdvancedTargetResolver,
+    rule: Mapping[str, Any],
+) -> dict[str, Any]:
+    try:
+        resolved = resolver.resolve_rule(rule)
+    except AdvancedTargetError as err:
+        raise VisualEditorError(err.code, str(err)) from err
+    raw = _mutable_json(rule)
+    source = raw.get("source")
+    if raw.get("type") == RULE_TYPE_EVENT:
+        trigger = raw.get("trigger", {})
+        platform = trigger.get("platform", "event") if isinstance(trigger, dict) else "event"
+        source_detail = {"entity_id": "", "name": f"Evento · {platform}"}
+    elif isinstance(source, str):
+        source_detail = _friendly_entity(hass, source)
+    else:
+        source_detail = {"entity_id": "", "name": "—"}
+    unit = None
+    if raw.get("type") == RULE_TYPE_NUMERIC and isinstance(source, str):
+        state = hass.states.get(source)
+        candidate = state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) if state else None
+        unit = candidate if isinstance(candidate, str) and candidate else None
+    return {
+        "rule": raw,
+        "source": source_detail,
+        "unit": unit,
+        "targets": [
+            _friendly_entity(hass, entity_id) for entity_id in sorted(resolved.targets)
+        ],
+        "excluded": [
+            _friendly_entity(hass, entity_id) for entity_id in sorted(resolved.excluded)
+        ],
+        "condition_summary": _condition_summary(raw.get("conditions")),
+        "schedule_summary": _condition_summary(
+            {"type": "time", **raw["schedule"]}
+            if isinstance(raw.get("schedule"), dict)
+            else None
+        ),
+    }
+
+
+def _selection_catalog(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    zones = entry.options.get(CONF_ZONES, [])
+    area_registry = ar.async_get(hass)
+    label_registry = lr.async_get(hass)
+    states = hass.states.async_all() if hasattr(hass.states, "async_all") else []
+    groups = [
+        _friendly_entity(hass, state.entity_id)
+        for state in states
+        if state.entity_id.startswith("light.")
+        and isinstance(state.attributes.get(ATTR_ENTITY_ID), (list, tuple))
+    ]
+    return {
+        "managed_lights": [
+            _friendly_entity(hass, entity_id)
+            for entity_id in sorted(_authorized_targets(entry))
+        ],
+        "zones": [
+            {
+                "id": str(zone.get("zone_id")),
+                "name": str(zone.get("name", zone.get("zone_id"))),
+            }
+            for zone in zones
+            if isinstance(zone, Mapping) and zone.get("zone_id")
+        ],
+        "areas": [
+            {"id": area.id, "name": area.name}
+            for area in sorted(area_registry.areas.values(), key=lambda item: item.name)
+        ],
+        "labels": [
+            {"id": label.label_id, "name": label.name}
+            for label in sorted(label_registry.labels.values(), key=lambda item: item.name)
+        ],
+        "groups": groups,
+    }
+
+
+async def _async_validate_rule_catalog(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    rules: list[dict[str, Any]],
+) -> None:
+    resolver = _advanced_target_resolver(hass, entry)
+    for rule in rules:
+        try:
+            resolver.resolve_rule(rule)
+        except AdvancedTargetError as err:
+            raise VisualEditorError(err.code, str(err)) from err
+        if rule.get("type") == RULE_TYPE_EVENT:
+            from homeassistant.helpers import trigger as trigger_helper
+
+            try:
+                await trigger_helper.async_validate_trigger_config(
+                    hass, [dict(rule["trigger"])]
+                )
+            except Exception as err:  # Home Assistant trigger validation boundary
+                raise VisualEditorError("invalid_trigger", str(err)) from err
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/smart_rules/get",
+        probatio.Required("entry_id"): str,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_get_smart_rules(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Return one normalized catalog for every rule type."""
+
+    try:
+        entry = _entry(hass, msg["entry_id"])
+        try:
+            catalog = RuleCatalog(_configured_rules(entry)).snapshot()
+        except (RuleValidationError, ValueError) as err:
+            raise VisualEditorError(
+                getattr(err, "code", "invalid_rule"), str(err)
+            ) from err
+        resolver = _advanced_target_resolver(hass, entry)
+        payload = [
+            _smart_rule_payload(hass, resolver, rule)
+            for rule in catalog
+        ]
+        selections = _selection_catalog(hass, entry)
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    connection.send_result(
+        msg["id"],
+        {
+            "entry_id": entry.entry_id,
+            "revision": _options_revision(entry.options),
+            "rules": payload,
+            "selections": selections,
+        },
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/smart_rules/mutate",
+        probatio.Required("entry_id"): str,
+        probatio.Required("revision"): str,
+        probatio.Required("operation"): str,
+        probatio.Optional("rule_id"): str,
+        probatio.Optional("rule"): dict,
+        probatio.Optional("enabled"): bool,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_mutate_smart_rule(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Apply one validated CRUD mutation with optimistic concurrency."""
+
+    try:
+        lock: asyncio.Lock = hass.data[DOMAIN][_DATA_LOCK]
+        async with lock:
+            entry = _entry(hass, msg["entry_id"])
+            if msg["revision"] != _options_revision(entry.options):
+                raise VisualEditorError(
+                    "conflict",
+                    "Configuration changed in another session; reload before saving",
+                )
+            try:
+                catalog = RuleCatalog(_configured_rules(entry))
+                operation = msg["operation"]
+                if operation == "create":
+                    result = catalog.create(msg.get("rule", {}))
+                elif operation == "update":
+                    result = catalog.update(
+                        str(msg.get("rule_id", "")), msg.get("rule", {})
+                    )
+                elif operation == "duplicate":
+                    result = catalog.duplicate(str(msg.get("rule_id", "")))
+                elif operation == "toggle":
+                    result = catalog.toggle(
+                        str(msg.get("rule_id", "")), bool(msg.get("enabled"))
+                    )
+                elif operation == "delete":
+                    catalog.delete(str(msg.get("rule_id", "")))
+                    result = None
+                else:
+                    raise RuleValidationError(
+                        "invalid_operation", "unsupported rule operation"
+                    )
+                rules = catalog.snapshot()
+            except (RuleValidationError, ValueError) as err:
+                raise VisualEditorError(
+                    getattr(err, "code", "invalid_rule"), str(err)
+                ) from err
+            await _async_validate_rule_catalog(hass, entry, rules)
+            options = _mutable_json(entry.options)
+            options[CONF_RULES] = rules
+            hass.config_entries.async_update_entry(entry, options=options)
+            revision = _options_revision(options)
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    except Exception:  # pragma: no cover - defensive HA transport boundary
+        _LOGGER.exception("Unexpected smart-rule mutation failure")
+        connection.send_error(
+            msg["id"], "internal_error", "Unexpected error while saving the rule"
+        )
+        return
+    connection.send_result(
+        msg["id"],
+        {"revision": revision, "rule": result, "rules": rules},
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/targets/preview",
+        probatio.Required("entry_id"): str,
+        probatio.Required("target_selection"): dict,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_preview_targets(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+) -> None:
+    """Resolve a draft selection without changing intent or persistence."""
+
+    try:
+        entry = _entry(hass, msg["entry_id"])
+        resolver = _advanced_target_resolver(hass, entry)
+        try:
+            resolved = resolver.resolve(msg["target_selection"])
+        except AdvancedTargetError as err:
+            raise VisualEditorError(err.code, str(err)) from err
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    connection.send_result(
+        msg["id"],
+        {
+            "targets": [
+                _friendly_entity(hass, entity_id)
+                for entity_id in sorted(resolved.targets)
+            ],
+            "excluded": [
+                _friendly_entity(hass, entity_id)
+                for entity_id in sorted(resolved.excluded)
+            ],
+        },
+    )

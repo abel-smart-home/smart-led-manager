@@ -112,6 +112,160 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.submitted[0].command.color, (128, 0, 128))
         self.assertEqual(self.cancelled, ["rule:temperature"])
 
+    async def test_secondary_condition_is_reevaluated_and_unknown_not_is_safe(
+        self,
+    ) -> None:
+        rule = {
+            "id": "door_at_home",
+            "type": "state",
+            "name": "Door at home",
+            "source": "binary_sensor.door",
+            "operator": "equals",
+            "state": "on",
+            "targets": ["light.strip"],
+            "conditions": {
+                "type": "not",
+                "condition": {
+                    "type": "state",
+                    "entity_id": "person.owner",
+                    "state": "not_home",
+                },
+            },
+            "rgb_color": [255, 128, 0],
+        }
+        hass = _Hass(
+            {
+                "binary_sensor.door": State("binary_sensor.door", "on"),
+                "person.owner": State("person.owner", "unknown"),
+            }
+        )
+        manager = RuleManager(
+            hass,
+            [rule],
+            frozenset({"light.strip"}),
+            self.submit,
+            self.cancel,
+        )
+
+        await manager._async_evaluate(rule)
+        hass.states.values["person.owner"] = State("person.owner", "home")
+        await manager._async_evaluate(rule)
+
+        self.assertEqual([request.request_id for request in self.submitted], ["rule:door_at_home"])
+        self.assertEqual(self.cancelled, ["rule:door_at_home"])
+
+    async def test_numeric_activation_hysteresis_is_independent_from_color(self) -> None:
+        rule = {
+            "id": "hot",
+            "type": "numeric",
+            "name": "Hot",
+            "source": "sensor.temperature",
+            "targets": ["light.strip"],
+            "activation": {"operator": "above", "threshold": 28, "hysteresis": 2},
+            "rgb_color": [255, 0, 0],
+            "minimum_change": 0,
+            "minimum_interval": 0,
+        }
+        hass = _Hass({"sensor.temperature": State("sensor.temperature", "28")})
+        manager = RuleManager(
+            hass,
+            [rule],
+            frozenset({"light.strip"}),
+            self.submit,
+            self.cancel,
+        )
+
+        await manager._async_evaluate(rule)
+        hass.states.values["sensor.temperature"] = State("sensor.temperature", "29")
+        await manager._async_evaluate(rule)
+        hass.states.values["sensor.temperature"] = State("sensor.temperature", "27")
+        await manager._async_evaluate(rule)
+        hass.states.values["sensor.temperature"] = State("sensor.temperature", "25.9")
+        await manager._async_evaluate(rule)
+
+        self.assertEqual(len(self.submitted), 2)
+        self.assertTrue(all(request.command.color == (255, 0, 0) for request in self.submitted))
+        self.assertEqual(self.cancelled.count("rule:hot"), 2)
+
+    async def test_minimum_dwell_rechecks_and_cancels_when_condition_breaks(self) -> None:
+        rule = {
+            "id": "door",
+            "type": "state",
+            "name": "Door",
+            "source": "binary_sensor.door",
+            "operator": "equals",
+            "state": "on",
+            "targets": ["light.strip"],
+            "for_seconds": 30,
+        }
+        hass = _Hass({"binary_sensor.door": State("binary_sensor.door", "on")})
+        callbacks = []
+
+        def schedule(_hass, _delay, callback):
+            callbacks.append(callback)
+            return Mock()
+
+        with patch(
+            "custom_components.smart_led_manager.modules.rules.async_call_later",
+            side_effect=schedule,
+        ):
+            manager = RuleManager(
+                hass,
+                [rule],
+                frozenset({"light.strip"}),
+                self.submit,
+                self.cancel,
+            )
+            await manager._async_evaluate(rule)
+            self.assertFalse(self.submitted)
+            callbacks[0](utc_now())
+            await asyncio.sleep(0)
+            await asyncio.sleep(0)
+            self.assertEqual(len(self.submitted), 1)
+
+            await manager._release(rule)
+            await manager._async_evaluate(rule)
+            hass.states.values["binary_sensor.door"] = State(
+                "binary_sensor.door", "off"
+            )
+            await manager._async_evaluate(rule)
+            self.assertEqual(manager._holds, {})
+
+    async def test_repeated_event_renews_one_request_and_never_replays(self) -> None:
+        rule = {
+            "id": "button",
+            "type": "event",
+            "name": "Button",
+            "trigger": {"platform": "event", "event_type": "demo"},
+            "targets": ["light.strip"],
+            "priority": 80,
+            "rgb_color": [255, 128, 0],
+            "animation": "blink",
+            "period": 1,
+            "duration": 8,
+        }
+        manager = RuleManager(
+            _Hass({}),
+            [rule],
+            frozenset({"light.strip"}),
+            self.submit,
+            self.cancel,
+        )
+
+        await manager._async_event_fired(
+            rule, {"trigger": {"description": "first"}}, None
+        )
+        first = self.submitted[-1]
+        await manager._async_event_fired(
+            rule, {"trigger": {"description": "second"}}, None
+        )
+        second = self.submitted[-1]
+
+        self.assertEqual(first.request_id, second.request_id)
+        self.assertGreater(second.expires_at, first.expires_at)
+        self.assertEqual(second.command.animation.kind, "blink")
+        self.assertEqual(len(manager._event_expiry), 1)
+
     async def test_shutdown_releases_listener_and_deferred_evaluation(self) -> None:
         rule = {
             "id": "door",

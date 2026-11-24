@@ -101,6 +101,7 @@ class SmartLEDCoordinator:
             self.targets.authorized,
             self.async_submit,
             self.async_cancel,
+            zones=list(options.get(CONF_ZONES, [])),
         )
         self.manual_policy = str(options.get(CONF_MANUAL_POLICY, DEFAULT_MANUAL_POLICY))
         self.history: deque[dict[str, Any]] = deque(maxlen=MAX_ACTIVITY_ITEMS)

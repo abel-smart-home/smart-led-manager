@@ -149,6 +149,7 @@
           "open_visual_editor": "Abrir editor gráfico avanzado",
           "add_state_rule": "Agregar regla de estado",
           "add_numeric_rule": "Agregar regla numérica",
+          "add_event_rule": "Agregar regla de evento",
           "edit_rule": "Editar regla existente",
           "duplicate_rule": "Duplicar regla",
           "toggle_rule": "Activar o desactivar regla",
@@ -157,7 +158,7 @@
       },
       "open_visual_editor": {
         "title": "Editor gráfico avanzado",
-        "description": "[Abrir el Centro de administración]({path}). Este panel local compatible edita reglas numéricas existentes. El editor nativo sigue disponible aquí."
+        "description": "[Abrir el Centro de administración]({path}). Este panel local administra reglas de estado, numéricas y de eventos. El editor nativo sigue disponible aquí."
       },
       "add_state_rule": {
         "title": "Agregar regla de estado",
@@ -172,7 +173,17 @@
           "rgb_color": "Color",
           "brightness": "Brillo",
           "transition": "Transición",
-          "enabled": "Habilitada"
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación"
         }
       },
       "add_numeric_rule": {
@@ -188,7 +199,42 @@
           "transition": "Transición",
           "minimum_change": "Variación numérica mínima",
           "minimum_interval": "Intervalo mínimo de actualización",
-          "enabled": "Habilitada"
+          "enabled": "Habilitada",
+          "activation": "Umbral e histéresis",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación"
+        }
+      },
+      "add_event_rule": {
+        "title": "Agregar regla de evento",
+        "description": "Usa un disparador oficial de Home Assistant. La solicitud luminosa resultante siempre es temporal.",
+        "data": {
+          "name": "Nombre de la regla",
+          "trigger": "Disparador de Home Assistant",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "duration": "Duración",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "animation": "Animación",
+          "period": "Periodo de animación"
         }
       },
       "edit_rule": {
@@ -217,7 +263,17 @@
           "rgb_color": "Color",
           "brightness": "Brillo",
           "transition": "Transición",
-          "enabled": "Habilitada"
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación"
         }
       },
       "duplicate_state_rule": {
@@ -233,7 +289,17 @@
           "rgb_color": "Color",
           "brightness": "Brillo",
           "transition": "Transición",
-          "enabled": "Habilitada"
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación"
         }
       },
       "edit_numeric_rule": {
@@ -249,7 +315,18 @@
           "transition": "Transición",
           "minimum_change": "Variación numérica mínima",
           "minimum_interval": "Intervalo mínimo de actualización",
-          "enabled": "Habilitada"
+          "enabled": "Habilitada",
+          "activation": "Umbral e histéresis",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación"
         }
       },
       "duplicate_numeric_rule": {
@@ -265,7 +342,66 @@
           "transition": "Transición",
           "minimum_change": "Variación numérica mínima",
           "minimum_interval": "Intervalo mínimo de actualización",
-          "enabled": "Habilitada"
+          "enabled": "Habilitada",
+          "activation": "Umbral e histéresis",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación"
+        }
+      },
+      "edit_event_rule": {
+        "title": "Editar regla de evento",
+        "description": "Se conserva el identificador estable de la regla.",
+        "data": {
+          "name": "Nombre de la regla",
+          "trigger": "Disparador de Home Assistant",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "duration": "Duración",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "animation": "Animación",
+          "period": "Periodo de animación"
+        }
+      },
+      "duplicate_event_rule": {
+        "title": "Revisar copia de regla de evento",
+        "description": "La copia recibe un identificador nuevo y comienza deshabilitada.",
+        "data": {
+          "name": "Nombre de la regla",
+          "trigger": "Disparador de Home Assistant",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "duration": "Duración",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "animation": "Animación",
+          "period": "Periodo de animación"
         }
       },
       "numeric_points": {
@@ -334,6 +470,7 @@
       "no_rules": "No hay reglas configuradas",
       "rule_not_found": "La regla seleccionada ya no existe",
       "invalid_rule": "El tipo de regla seleccionado no es compatible",
+      "configuration_changed": "La configuración cambió mientras este formulario estaba abierto. Vuelve a abrir Opciones e inténtalo de nuevo.",
       "no_zones": "Primero crea una zona",
       "no_modes": "No hay modos configurados"
     }

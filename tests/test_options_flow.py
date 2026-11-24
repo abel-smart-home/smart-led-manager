@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from homeassistant.data_entry_flow import FlowResultType
 
@@ -40,7 +40,10 @@ def _flow(
         options=options or {},
     )
     flow = SmartLEDManagerOptionsFlow()
-    flow.hass = SimpleNamespace(config_entries=_ConfigEntries(entry))
+    flow.hass = SimpleNamespace(
+        config_entries=_ConfigEntries(entry),
+        states=SimpleNamespace(get=lambda _entity_id: None),
+    )
     flow.handler = "entry-1"
     return flow, entry
 
@@ -137,6 +140,7 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
                 "open_visual_editor",
                 "add_state_rule",
                 "add_numeric_rule",
+                "add_event_rule",
                 "edit_rule",
                 "duplicate_rule",
                 "toggle_rule",
@@ -535,6 +539,67 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(result["type"], FlowResultType.ABORT)
         self.assertEqual(result["reason"], "invalid_rule")
+
+    async def test_event_rule_uses_official_trigger_validation_and_stable_crud(
+        self,
+    ) -> None:
+        flow, entry = _flow()
+        submitted = {
+            "name": "Timbre",
+            "trigger": {"platform": "event", "event_type": "doorbell"},
+            "targets": ["light.one"],
+            "priority": 80,
+            "rgb_color": [255, 128, 0],
+            "brightness": 255,
+            "transition": 0,
+            "duration": 8,
+            "enabled": True,
+            "animation": "blink",
+            "period": 1,
+        }
+        with patch(
+            "homeassistant.helpers.trigger.async_validate_trigger_config",
+            new=AsyncMock(return_value=[submitted["trigger"]]),
+        ) as validate:
+            saved = await flow.async_step_add_event_rule(submitted)
+
+        rule = saved["data"][CONF_RULES][0]
+        self.assertEqual(rule["type"], "event")
+        self.assertEqual(rule["duration"], 8.0)
+        self.assertEqual(validate.await_count, 1)
+
+        entry.options = saved["data"]
+        selected = await flow.async_step_duplicate_rule({"rule_id": rule["id"]})
+        self.assertEqual(selected["step_id"], "duplicate_event_rule")
+        defaults = selected["data_schema"]({})
+        with patch(
+            "homeassistant.helpers.trigger.async_validate_trigger_config",
+            new=AsyncMock(return_value=[submitted["trigger"]]),
+        ):
+            duplicated = await flow.async_step_duplicate_event_rule(defaults)
+        self.assertEqual(len(duplicated["data"][CONF_RULES]), 2)
+        self.assertFalse(duplicated["data"][CONF_RULES][1]["enabled"])
+        self.assertNotEqual(
+            duplicated["data"][CONF_RULES][0]["id"],
+            duplicated["data"][CONF_RULES][1]["id"],
+        )
+
+    async def test_options_flow_rejects_stale_panel_revision(self) -> None:
+        original = _state_rule()
+        flow, entry = _flow(options={CONF_RULES: [original]})
+        await flow.async_step_edit_rule({"rule_id": "door"})
+        entry.options = {CONF_RULES: [{**original, "name": "Panel change"}]}
+
+        stale = await flow.async_step_edit_state_rule(
+            {
+                **{key: value for key, value in original.items() if key not in {"id", "type"}},
+                "name": "Stale form",
+                "enabled": True,
+            }
+        )
+
+        self.assertEqual(stale["type"], FlowResultType.ABORT)
+        self.assertEqual(stale["reason"], "configuration_changed")
 
     async def test_stale_toggle_and_delete_selections_abort_without_changes(
         self,

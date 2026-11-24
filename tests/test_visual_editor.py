@@ -25,7 +25,10 @@ from custom_components.smart_led_manager.visual_editor import (
     async_remove_visual_editor_panel,
     async_setup_visual_editor,
     websocket_get_numeric_rules,
+    websocket_get_smart_rules,
+    websocket_mutate_smart_rule,
     websocket_preview_numeric_rule,
+    websocket_preview_targets,
     websocket_save_numeric_rule,
 )
 
@@ -125,6 +128,14 @@ async def _save_handler(hass, connection, message) -> None:
     await websocket_save_numeric_rule.__wrapped__.__wrapped__(hass, connection, message)
 
 
+async def _mutation_handler(hass, connection, message) -> None:
+    """Call through the two wrappers around the async CRUD coroutine."""
+
+    await websocket_mutate_smart_rule.__wrapped__.__wrapped__(
+        hass, connection, message
+    )
+
+
 class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
     """Exercise read, exact preview, safe save and security boundaries."""
 
@@ -150,6 +161,32 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(rule["future_field"], {"preserve": True})
         self.assertEqual(
             [point["value"] for point in rule["points"]], [-10.0, 20.0, 80.0]
+        )
+
+    async def test_legacy_numeric_endpoint_supports_advanced_targets(self) -> None:
+        rule = _rule()
+        rule.pop("targets")
+        rule["target_selection"] = {
+            "entities": ["light.strip"],
+            "zones": [],
+            "areas": [],
+            "labels": [],
+            "groups": [],
+            "all_managed": False,
+        }
+        hass = _Hass(_Entry(rule))
+        connection = _Connection()
+
+        websocket_get_numeric_rules(
+            hass,
+            connection,
+            _message("smart_led_manager/rules/get"),
+        )
+
+        self.assertFalse(connection.errors)
+        self.assertEqual(
+            connection.results[0][1]["rules"][0]["targets"][0]["name"],
+            "Tira del salón",
         )
 
     async def test_preview_uses_exact_core_algorithm_without_light_calls(self) -> None:
@@ -251,6 +288,27 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
             read.results[0][1]["rules"][0]["rule"]["future_field"],
             {"preserve": True},
         )
+        unified = _Connection()
+        with patch(
+            "custom_components.smart_led_manager.visual_editor._selection_catalog",
+            return_value={
+                "managed_lights": [],
+                "zones": [],
+                "areas": [],
+                "labels": [],
+                "groups": [],
+            },
+        ):
+            websocket_get_smart_rules(
+                hass,
+                unified,
+                _message("smart_led_manager/smart_rules/get"),
+            )
+        self.assertFalse(unified.errors)
+        self.assertEqual(
+            unified.results[0][1]["rules"][0]["rule"]["future_field"],
+            {"preserve": True},
+        )
 
         saved = _Connection()
         await _save_handler(
@@ -338,6 +396,92 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(connection.errors[0][1], "unauthorized_targets")
 
+    async def test_unified_catalog_and_crud_preserve_ids_and_revision(self) -> None:
+        hass = _Hass()
+        read = _Connection()
+        with patch(
+            "custom_components.smart_led_manager.visual_editor._selection_catalog",
+            return_value={"managed_lights": [], "zones": [], "areas": [], "labels": [], "groups": []},
+        ):
+            websocket_get_smart_rules(
+                hass,
+                read,
+                _message("smart_led_manager/smart_rules/get"),
+            )
+        payload = read.results[0][1]
+        self.assertEqual(payload["rules"][0]["rule"]["id"], "temperature")
+        self.assertEqual(payload["rules"][0]["source"]["name"], "Temperatura del salón")
+
+        updated = deepcopy(payload["rules"][0]["rule"])
+        updated["name"] = "Temperatura segura"
+        connection = _Connection()
+        with patch(
+            "custom_components.smart_led_manager.visual_editor._async_validate_rule_catalog",
+            new=AsyncMock(),
+        ):
+            await _mutation_handler(
+                hass,
+                connection,
+                _message(
+                    "smart_led_manager/smart_rules/mutate",
+                    revision=payload["revision"],
+                    operation="update",
+                    rule_id="temperature",
+                    rule=updated,
+                ),
+            )
+        self.assertFalse(connection.errors)
+        self.assertEqual(connection.results[0][1]["rule"]["id"], "temperature")
+        self.assertEqual(
+            hass.entry.options[CONF_RULES][0]["name"], "Temperatura segura"
+        )
+
+        stale = _Connection()
+        with patch(
+            "custom_components.smart_led_manager.visual_editor._async_validate_rule_catalog",
+            new=AsyncMock(),
+        ):
+            await _mutation_handler(
+                hass,
+                stale,
+                _message(
+                    "smart_led_manager/smart_rules/mutate",
+                    revision=payload["revision"],
+                    operation="delete",
+                    rule_id="temperature",
+                ),
+            )
+        self.assertEqual(stale.errors[0][1], "conflict")
+
+    async def test_target_preview_is_read_only_and_reports_exclusions(self) -> None:
+        hass = _Hass()
+        connection = _Connection()
+        resolved = SimpleNamespace(
+            targets=frozenset({"light.strip"}),
+            excluded=frozenset({"light.outside"}),
+        )
+        resolver = SimpleNamespace(resolve=lambda _selection: resolved)
+        original = deepcopy(hass.entry.options)
+        with patch(
+            "custom_components.smart_led_manager.visual_editor._advanced_target_resolver",
+            return_value=resolver,
+        ):
+            websocket_preview_targets(
+                hass,
+                connection,
+                _message(
+                    "smart_led_manager/targets/preview",
+                    target_selection={"entities": ["light.strip"]},
+                ),
+            )
+        self.assertEqual(
+            connection.results[0][1]["targets"][0]["entity_id"], "light.strip"
+        )
+        self.assertEqual(
+            connection.results[0][1]["excluded"][0]["entity_id"], "light.outside"
+        )
+        self.assertEqual(hass.entry.options, original)
+
     async def test_all_commands_require_an_administrator(self) -> None:
         hass = _Hass()
         connection = _Connection(admin=False)
@@ -364,6 +508,26 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
                     revision="unused",
                     mode="interpolate",
                     points=_rule()["points"],
+                ),
+            ),
+            (
+                websocket_get_smart_rules,
+                _message("smart_led_manager/smart_rules/get"),
+            ),
+            (
+                websocket_mutate_smart_rule,
+                _message(
+                    "smart_led_manager/smart_rules/mutate",
+                    revision="unused",
+                    operation="delete",
+                    rule_id="temperature",
+                ),
+            ),
+            (
+                websocket_preview_targets,
+                _message(
+                    "smart_led_manager/targets/preview",
+                    target_selection={"entities": ["light.strip"]},
                 ),
             ),
         ]
@@ -401,7 +565,7 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
             await async_register_visual_editor_panel(hass, entry)
             async_remove_visual_editor_panel(hass)
 
-        self.assertEqual(register_command.call_count, 3)
+        self.assertEqual(register_command.call_count, 6)
         hass.http.async_register_static_paths.assert_awaited_once()
         static_path = hass.http.async_register_static_paths.await_args.args[0][0]
         self.assertEqual(static_path.url_path, STATIC_URL)

@@ -28,6 +28,14 @@ DEFAULT_SHOW_SIDEBAR: Final = True
 
 RULE_TYPE_STATE: Final = "state"
 RULE_TYPE_NUMERIC: Final = "numeric"
+RULE_TYPE_EVENT: Final = "event"
+
+TARGET_ENTITIES: Final = "entities"
+TARGET_ZONES: Final = "zones"
+TARGET_AREAS: Final = "areas"
+TARGET_LABELS: Final = "labels"
+TARGET_GROUPS: Final = "groups"
+TARGET_ALL_MANAGED: Final = "all_managed"
 
 PLATFORMS: Final = [Platform.SELECT, Platform.SENSOR, Platform.SWITCH]
 

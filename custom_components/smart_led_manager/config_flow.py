@@ -31,11 +31,15 @@ from .const import (
     DEFAULT_TIE_BREAKER,
     DOMAIN,
     NAME,
+    RULE_TYPE_EVENT,
     RULE_TYPE_NUMERIC,
     RULE_TYPE_STATE,
 )
 from .core.color import normalize_color_points
+from .modules.configuration import options_revision
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
+from .modules.rule_schema import RuleValidationError, normalize_rule
+from .modules.targeting import AdvancedTargetError, AdvancedTargetResolver
 
 _STATE_SOURCE_DOMAINS = [
     "alarm_control_panel",
@@ -174,13 +178,21 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         self._rule_operation = "add"
         self._numeric_rule_draft: dict[str, Any] | None = None
         self._selected_point_index: int | None = None
+        self._initial_revision: str | None = None
+
+    def _capture_revision(self) -> None:
+        revision = options_revision(self.config_entry.options)
+        if self._initial_revision is None:
+            self._initial_revision = revision
 
     def _options(self) -> dict[str, Any]:
         """Return a mutable copy of all current options."""
+        self._capture_revision()
         return deepcopy(dict(self.config_entry.options))
 
     def _lights(self) -> list[str]:
         """Return currently managed lights."""
+        self._capture_revision()
         return list(
             self.config_entry.options.get(
                 CONF_LIGHTS, self.config_entry.data.get(CONF_LIGHTS, [])
@@ -189,20 +201,29 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
 
     def _zones(self) -> list[dict[str, Any]]:
         """Return configured zone definitions."""
+        self._capture_revision()
         return deepcopy(list(self.config_entry.options.get(CONF_ZONES, [])))
 
     def _modes(self) -> list[dict[str, Any]]:
         """Return configured mode definitions."""
+        self._capture_revision()
         return deepcopy(list(self.config_entry.options.get(CONF_MODES, [])))
 
     def _rules(self) -> list[dict[str, Any]]:
         """Return configured rule definitions."""
+        self._capture_revision()
         return deepcopy(list(self.config_entry.options.get(CONF_RULES, [])))
 
     def _create_options_entry(self, updates: dict[str, Any]) -> ConfigFlowResult:
         """Merge options so one flow step never discards unrelated settings."""
+        if (
+            self._initial_revision is not None
+            and options_revision(self.config_entry.options) != self._initial_revision
+        ):
+            return self.async_abort(reason="configuration_changed")
         options = self._options()
         options.update(updates)
+        self._initial_revision = options_revision(options)
         return self.async_create_entry(data=options)
 
     @override
@@ -366,6 +387,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
                 "open_visual_editor",
                 "add_state_rule",
                 "add_numeric_rule",
+                "add_event_rule",
                 "edit_rule",
                 "duplicate_rule",
                 "toggle_rule",
@@ -752,6 +774,20 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         }
         return self._numeric_rule_form("add_numeric_rule", current, user_input)
 
+    async def async_step_add_event_rule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Add a one-shot rule backed by an official Home Assistant trigger."""
+
+        self._rule_operation = "add"
+        current = {
+            "id": uuid4().hex,
+            "type": RULE_TYPE_EVENT,
+            "enabled": True,
+            "trigger": {"platform": "event", "event_type": ""},
+        }
+        return await self._event_rule_form("add_event_rule", current, user_input)
+
     async def async_step_edit_rule(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
@@ -770,6 +806,8 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             return await self.async_step_edit_state_rule()
         if rule.get("type") == RULE_TYPE_NUMERIC:
             return await self.async_step_edit_numeric_rule()
+        if rule.get("type") == RULE_TYPE_EVENT:
+            return await self.async_step_edit_event_rule()
         return self.async_abort(reason="invalid_rule")
 
     async def async_step_duplicate_rule(
@@ -790,6 +828,8 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             return await self.async_step_duplicate_state_rule()
         if rule.get("type") == RULE_TYPE_NUMERIC:
             return await self.async_step_duplicate_numeric_rule()
+        if rule.get("type") == RULE_TYPE_EVENT:
+            return await self.async_step_duplicate_event_rule()
         return self.async_abort(reason="invalid_rule")
 
     async def async_step_toggle_rule(
@@ -848,6 +888,28 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         if current is None:
             return self.async_abort(reason="rule_not_found")
         return self._numeric_rule_form("duplicate_numeric_rule", current, user_input)
+
+    async def async_step_edit_event_rule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Edit an event rule while preserving its stable identifier."""
+
+        current = self._editable_rule()
+        if current is None:
+            return self.async_abort(reason="rule_not_found")
+        return await self._event_rule_form("edit_event_rule", current, user_input)
+
+    async def async_step_duplicate_event_rule(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Create a disabled event-rule copy with a new identifier."""
+
+        current = self._editable_rule()
+        if current is None:
+            return self.async_abort(reason="rule_not_found")
+        return await self._event_rule_form(
+            "duplicate_event_rule", current, user_input
+        )
 
     async def async_step_numeric_points(
         self, user_input: dict[str, Any] | None = None
@@ -1006,11 +1068,11 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
     ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            error = self._targets_error(user_input.get("targets"))
+            error = self._rule_targets_error(user_input)
             if error is not None:
                 errors["targets"] = error
             else:
-                rule = dict(user_input)
+                rule = self._prepare_rule_input(user_input)
                 if self._rule_operation == "duplicate":
                     rule["enabled"] = False
                 rule.update({"id": current["id"], "type": RULE_TYPE_STATE})
@@ -1035,11 +1097,11 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         except ValueError:
             return self.async_abort(reason="invalid_rule")
         if user_input is not None:
-            error = self._targets_error(user_input.get("targets"))
+            error = self._rule_targets_error(user_input)
             if error is not None:
                 errors["targets"] = error
             else:
-                submitted = dict(user_input)
+                submitted = self._prepare_rule_input(user_input)
                 if self._rule_operation == "duplicate":
                     submitted["enabled"] = False
                 self._numeric_rule_draft = {
@@ -1096,7 +1158,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
                 "state", default=current.get("state", "")
             ): selector.TextSelector(),
             probatio.Required(
-                "targets", default=list(current.get("targets", []))
+                "targets", default=self._current_rule_entities(current)
             ): _light_selector(entities=self._lights()),
             probatio.Required(
                 "priority", default=current.get("priority", 40)
@@ -1115,6 +1177,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             fields[
                 probatio.Required("enabled", default=self._rule_enabled(current))
             ] = selector.BooleanSelector()
+        self._add_advanced_rule_fields(fields, current)
         return probatio.Schema(fields)
 
     def _numeric_rule_schema(
@@ -1130,7 +1193,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
                 selector.EntitySelectorConfig(domain=_NUMERIC_SOURCE_DOMAINS)
             ),
             probatio.Required(
-                "targets", default=list(current.get("targets", []))
+                "targets", default=self._current_rule_entities(current)
             ): _light_selector(entities=self._lights()),
             probatio.Required(
                 "priority", default=current.get("priority", 40)
@@ -1160,7 +1223,186 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             fields[
                 probatio.Required("enabled", default=self._rule_enabled(current))
             ] = selector.BooleanSelector()
+        activation_marker = (
+            probatio.Optional("activation", default=current["activation"])
+            if isinstance(current.get("activation"), Mapping)
+            else probatio.Optional("activation")
+        )
+        fields[activation_marker] = selector.ObjectSelector()
+        self._add_advanced_rule_fields(fields, current)
         return probatio.Schema(fields)
+
+    async def _event_rule_form(
+        self,
+        step_id: str,
+        current: dict[str, Any],
+        user_input: dict[str, Any] | None,
+    ) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            error = self._rule_targets_error(user_input)
+            if error is not None:
+                errors["targets"] = error
+            else:
+                rule = self._prepare_rule_input(user_input)
+                if self._rule_operation == "duplicate":
+                    rule["enabled"] = False
+                rule.update({"id": current["id"], "type": RULE_TYPE_EVENT})
+                try:
+                    normalized = self._validated_rule(rule)
+                    from homeassistant.helpers import trigger as trigger_helper
+
+                    await trigger_helper.async_validate_trigger_config(
+                        self.hass, [dict(normalized["trigger"])]
+                    )
+                except (
+                    RuleValidationError,
+                    AdvancedTargetError,
+                    ValueError,
+                    probatio.Invalid,
+                ):
+                    errors["base"] = "invalid_rule"
+                else:
+                    return self._save_rule(normalized)
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=self._event_rule_schema(
+                current, include_enabled=self._rule_operation != "duplicate"
+            ),
+            errors=errors,
+        )
+
+    def _event_rule_schema(
+        self, current: Mapping[str, Any], *, include_enabled: bool = True
+    ) -> probatio.Schema:
+        fields: dict[Any, Any] = {
+            probatio.Required(
+                "name", default=current.get("name", "")
+            ): selector.TextSelector(),
+            probatio.Required(
+                "trigger", default=current.get("trigger", {})
+            ): selector.ObjectSelector(),
+            probatio.Required(
+                "targets", default=self._current_rule_entities(current)
+            ): _light_selector(entities=self._lights()),
+            probatio.Required(
+                "priority", default=current.get("priority", 70)
+            ): _number_selector(0, 100),
+            probatio.Required(
+                "rgb_color", default=current.get("rgb_color", [255, 128, 0])
+            ): selector.ColorRGBSelector(),
+            probatio.Required(
+                "brightness", default=current.get("brightness", 255)
+            ): _number_selector(1, 255),
+            probatio.Required(
+                "transition", default=current.get("transition", 0)
+            ): _number_selector(0, 300, step=0.1),
+            probatio.Required(
+                "duration", default=current.get("duration", 5)
+            ): _number_selector(0.1, 86400, step=0.1),
+        }
+        if include_enabled:
+            fields[
+                probatio.Required("enabled", default=self._rule_enabled(current))
+            ] = selector.BooleanSelector()
+        self._add_advanced_rule_fields(fields, current, include_dwell=False)
+        return probatio.Schema(fields)
+
+    def _add_advanced_rule_fields(
+        self,
+        fields: dict[Any, Any],
+        current: Mapping[str, Any],
+        *,
+        include_dwell: bool = True,
+    ) -> None:
+        selection = current.get("target_selection")
+        selection = selection if isinstance(selection, Mapping) else {}
+        zone_options = self._zone_choices()
+        fields[
+            probatio.Optional(
+                "target_zones", default=list(selection.get("zones", []))
+            )
+        ] = selector.SelectSelector(
+            selector.SelectSelectorConfig(options=zone_options, multiple=True)
+        )
+        fields[
+            probatio.Optional(
+                "target_areas", default=list(selection.get("areas", []))
+            )
+        ] = selector.AreaSelector(selector.AreaSelectorConfig(multiple=True))
+        fields[
+            probatio.Optional(
+                "target_labels", default=list(selection.get("labels", []))
+            )
+        ] = selector.LabelSelector(selector.LabelSelectorConfig(multiple=True))
+        fields[
+            probatio.Optional(
+                "target_groups", default=list(selection.get("groups", []))
+            )
+        ] = _light_selector()
+        fields[
+            probatio.Required(
+                "all_managed", default=bool(selection.get("all_managed", False))
+            )
+        ] = selector.BooleanSelector()
+        condition_marker = (
+            probatio.Optional("conditions", default=current["conditions"])
+            if isinstance(current.get("conditions"), Mapping)
+            else probatio.Optional("conditions")
+        )
+        fields[condition_marker] = selector.ObjectSelector()
+        schedule_marker = (
+            probatio.Optional("schedule", default=current["schedule"])
+            if isinstance(current.get("schedule"), Mapping)
+            else probatio.Optional("schedule")
+        )
+        fields[schedule_marker] = selector.ObjectSelector()
+        if include_dwell:
+            fields[
+                probatio.Required(
+                    "for_seconds", default=current.get("for_seconds", 0)
+                )
+            ] = _number_selector(0, 604800, step=0.1)
+        fields[
+            probatio.Required(
+                "animation", default=current.get("animation", "fixed")
+            )
+        ] = selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=["fixed", "blink", "pulse"],
+                translation_key="mode_animation",
+            )
+        )
+        fields[
+            probatio.Required("period", default=current.get("period", 1))
+        ] = _number_selector(0.1, 3600, step=0.1)
+
+    def _prepare_rule_input(self, user_input: Mapping[str, Any]) -> dict[str, Any]:
+        rule = dict(user_input)
+        zones = list(rule.pop("target_zones", []))
+        areas = list(rule.pop("target_areas", []))
+        labels = list(rule.pop("target_labels", []))
+        groups = list(rule.pop("target_groups", []))
+        all_managed = bool(rule.pop("all_managed", False))
+        if zones or areas or labels or groups or all_managed:
+            rule["target_selection"] = {
+                "entities": list(rule.pop("targets", [])),
+                "zones": zones,
+                "areas": areas,
+                "labels": labels,
+                "groups": groups,
+                "all_managed": all_managed,
+            }
+        return rule
+
+    @staticmethod
+    def _current_rule_entities(current: Mapping[str, Any]) -> list[str]:
+        selection = current.get("target_selection")
+        if isinstance(selection, Mapping):
+            entities = selection.get("entities", [])
+            if isinstance(entities, list):
+                return list(entities)
+        return list(current.get("targets", []))
 
     def _numeric_point_schema(
         self,
@@ -1243,7 +1485,10 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         )
 
     def _save_rule(self, rule: Mapping[str, Any]) -> ConfigFlowResult:
-        saved = deepcopy(dict(rule))
+        try:
+            saved = self._validated_rule(rule)
+        except (RuleValidationError, AdvancedTargetError, ValueError) as err:
+            return self.async_abort(reason=getattr(err, "code", "invalid_rule"))
         rules = self._rules()
         for index, current in enumerate(rules):
             if str(current.get("id")) == str(saved["id"]):
@@ -1254,6 +1499,31 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         self._numeric_rule_draft = None
         self._selected_point_index = None
         return self._create_options_entry({CONF_RULES: rules})
+
+    def _validated_rule(self, rule: Mapping[str, Any]) -> dict[str, Any]:
+        normalized = normalize_rule(rule)
+        AdvancedTargetResolver(
+            self.hass, self._lights(), self._zones()
+        ).resolve_rule(normalized)
+        return normalized
+
+    def _rule_targets_error(self, user_input: Mapping[str, Any]) -> str | None:
+        targets = user_input.get("targets")
+        has_indirect = any(
+            user_input.get(key)
+            for key in (
+                "target_zones",
+                "target_areas",
+                "target_labels",
+                "target_groups",
+                "all_managed",
+            )
+        )
+        if not targets and not has_indirect:
+            return "at_least_one_target"
+        if targets and not set(targets).issubset(self._lights()):
+            return "target_not_managed"
+        return None
 
     def _targets_error(self, targets: object) -> str | None:
         if not targets:
