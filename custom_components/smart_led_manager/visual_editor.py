@@ -117,7 +117,7 @@ def _options_revision(options: object) -> str:
     """Return a deterministic optimistic-concurrency token."""
 
     encoded = json.dumps(
-        options,
+        dict(options),
         ensure_ascii=False,
         separators=(",", ":"),
         sort_keys=True,
