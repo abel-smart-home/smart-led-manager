@@ -4,7 +4,7 @@ export const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g,
   (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 export const DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-const NUMERIC_DOMAINS = ["sensor", "number", "input_number", "counter"];
+const NUMERIC_DOMAINS = ["number", "input_number", "counter"];
 const INVALID_STATES = new Set(["unknown", "unavailable"]);
 
 export const CONTROL_TEXT = {
@@ -61,13 +61,16 @@ export function entityItems(states, registered, kind) {
       name: attributes.friendly_name ?? byId.get(id)?.name ?? id,
       state: entity.state, unit: attributes.unit_of_measurement,
       icon: attributes.icon, options: attributes.options ?? attributes.hvac_modes ?? attributes.preset_modes,
+      deviceClass: attributes.device_class, stateClass: attributes.state_class,
     });
   }
   return [...byId.values()].filter((item) => {
     const domain = item.entity_id.split(".")[0];
     if (kind === "numeric") {
-      return NUMERIC_DOMAINS.includes(domain) ||
-        (!INVALID_STATES.has(item.state) && item.state?.trim() && Number.isFinite(Number(item.state)));
+      if (NUMERIC_DOMAINS.includes(domain)) return true;
+      if (item.state?.trim() && Number.isFinite(Number(item.state))) return true;
+      if (domain !== "sensor" || ["enum", "date", "timestamp"].includes(item.deviceClass)) return false;
+      return Boolean(item.unit || item.stateClass || !item.state || INVALID_STATES.has(item.state));
     }
     if (kind === "input_button" || kind === "event") return domain === kind;
     return !["event", "input_button", "button"].includes(domain) || kind === "trigger_state";

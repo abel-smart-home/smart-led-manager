@@ -239,6 +239,8 @@ const selectionFor = (rule) => rule.target_selection
   ? { ...blankTargets(), ...deepClone(rule.target_selection) }
   : { ...blankTargets(), entities: [...(rule.targets ?? [])] };
 
+const draftValue = (rule, key, fallback) => Object.hasOwn(rule, key) ? rule[key] : fallback;
+
 class SmartLEDManagerVisualEditor extends HTMLElement {
   constructor() {
     super();
@@ -814,8 +816,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       [["fixed", t.fixedColor], ["interpolate", t.interpolate], ["ranges", t.ranges]], mode);
     const activation = `<section class="card"><h3>${t.activation}</h3>
       ${numericControls("activation", r.activation, t, unit, true)}
-      <div class="form-grid">${numberField(t.variability + unitLabel, "minimum_change", r.minimum_change ?? 0, 'min="0" step="any"')}
-      ${numberField(t.interval, "minimum_interval", r.minimum_interval ?? 0, 'min="0" step="any"')}</div></section>`;
+      <div class="form-grid">${numberField(t.variability + unitLabel, "minimum_change", draftValue(r, "minimum_change", 0), 'min="0" step="any"')}
+      ${numberField(t.interval, "minimum_interval", draftValue(r, "minimum_interval", 0), 'min="0" step="any"')}</div></section>`;
     if (mode === "fixed") return activation + `<section class="card">${style}</section>`;
     const points = sortPoints(r.points ?? []);
     const stops = gradientStopEntries(points, mode);
@@ -892,14 +894,14 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       <section class="card"><h3>${t.colorSection}</h3><div class="form-grid">
         ${r.type !== "numeric" || !r.points ? `<label>${t.color}<input type="color" data-color
           value="${rgbToHex(r.rgb_color ?? [255,255,255])}"></label>` : ""}
-        ${numberField(t.brightness, "brightness", r.brightness ?? 255, 'min="1" max="255"')}
-        ${numberField(t.transition, "transition", r.transition ?? 0, 'min="0" step="0.1"')}
+        ${numberField(t.brightness, "brightness", draftValue(r, "brightness", 255), 'min="1" max="255"')}
+        ${numberField(t.transition, "transition", draftValue(r, "transition", 0), 'min="0" step="0.1"')}
         ${selectField(t.animation, "animation", ["fixed","blink","pulse"].map((key) => [key, t[key]]), r.animation ?? "fixed")}
-        ${r.animation && r.animation !== "fixed" ? numberField(t.period, "period", r.period ?? 1, 'min="0.1" step="0.1"') : ""}
+        ${r.animation && r.animation !== "fixed" ? numberField(t.period, "period", draftValue(r, "period", 1), 'min="0.1" step="0.1"') : ""}
       </div><p class="muted">${t.transitionHelp}</p></section>
       <section class="card"><h3>${t.policySection}</h3><div class="form-grid">
-        ${numberField(t.priority, "priority", r.priority ?? 40, 'min="0" max="100"')}
-        ${r.type === "event" ? numberField(t.duration, "duration", r.duration ?? 5, 'min="0.1" step="0.1"') : ""}
+        ${numberField(t.priority, "priority", draftValue(r, "priority", 40), 'min="0" max="100"')}
+        ${r.type === "event" ? numberField(t.duration, "duration", draftValue(r, "duration", 5), 'min="0.1" step="0.1"') : ""}
       </div>${r.type === "event" ? `<p class="muted">${t.durationHelp}</p>` : ""}</section>
       <section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p>
         <details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section>

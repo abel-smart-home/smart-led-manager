@@ -26,6 +26,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.translation import async_get_translations
+from homeassistant.setup import async_setup_component
 from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.smart_led_manager.const import (
@@ -41,6 +42,7 @@ from custom_components.smart_led_manager.const import (
     SERVICE_CANCEL,
     SERVICE_NOTIFY,
 )
+from custom_components.smart_led_manager.modules.rules import RuleManager
 from custom_components.smart_led_manager.registry import (
     central_device_identifier,
     mode_switch_unique_id,
@@ -137,6 +139,71 @@ async def test_saving_options_keeps_registered_panel_across_real_entry_reload(
         assert PANEL_PATH not in panels
     finally:
         remove_listener()
+
+
+async def test_official_bus_button_and_event_entity_triggers_do_not_replay(
+    hass,
+) -> None:
+    assert await async_setup_component(hass, "homeassistant", {})
+    events = []
+
+    async def submit(request):
+        events.append(request)
+
+    async def cancel(_):
+        pass
+
+    guard = {"type": "state", "entity_id": "input_boolean.permission", "state": "on"}
+    triggers = {
+        "bus": {"platform": "event", "event_type": "slm_test_c1"},
+        "button": {"platform": "state", "entity_id": "input_button.lab", "to": None},
+        "event": {"platform": "state", "entity_id": "event.lab", "to": None},
+    }
+    rules = [
+        {
+            "id": name,
+            "name": name,
+            "type": "event",
+            "trigger": trigger,
+            "targets": ["light.strip"],
+            "duration": 8,
+            "conditions": guard,
+        }
+        for name, trigger in triggers.items()
+    ]
+    states = hass.states
+    states.async_set("input_boolean.permission", "off")
+    states.async_set("input_button.lab", "2026-11-24T14:00:00+00:00")
+    states.async_set("event.lab", "2026-11-24T14:00:00+00:00")
+    manager = RuleManager(hass, rules, frozenset({"light.strip"}), submit, cancel)
+    try:
+        await manager.async_setup()
+        hass.bus.async_fire("slm_test_c1")
+        await hass.async_block_till_done()
+        assert not events
+        states.async_set("input_boolean.permission", "on")
+        await hass.async_block_till_done()
+        assert not events
+        states.async_set("input_button.lab", "2026-11-24T14:00:01+00:00")
+        states.async_set("event.lab", "2026-11-24T14:00:01+00:00")
+        hass.bus.async_fire("slm_test_c1")
+        await hass.async_block_till_done()
+        assert {item.request_id for item in events} == {
+            "rule:bus",
+            "rule:button",
+            "rule:event",
+        }
+        states.async_set(
+            "event.lab", "2026-11-24T14:00:01+00:00", {"metadata": "changed"}
+        )
+        await hass.async_block_till_done()
+        assert len(events) == 3
+    finally:
+        await manager.async_shutdown()
+    hass.bus.async_fire("slm_test_c1")
+    states.async_set("input_button.lab", "2026-11-24T14:00:02+00:00")
+    await hass.async_block_till_done()
+    assert len(events) == 3
 
 
 async def test_setup_action_and_unload_lifecycle(hass) -> None:

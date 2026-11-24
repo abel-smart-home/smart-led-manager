@@ -286,6 +286,62 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.command.animation.kind, "blink")
         self.assertEqual(len(manager._event_expiry), 1)
 
+    async def test_active_event_moves_to_current_group_members_without_extending_lifetime(
+        self,
+    ) -> None:
+        root, first, second = "light.root", "light.first", "light.second"
+        states = {
+            root: State(root, "on", {"entity_id": [first]}),
+            first: State(first, "off"),
+            second: State(second, "off"),
+        }
+        rule = {
+            "id": "dynamic-event",
+            "type": "event",
+            "duration": 8,
+            "trigger": {"platform": "event", "event_type": "demo"},
+            "target_selection": {"groups": [root]},
+        }
+        manager = RuleManager(
+            _Hass(states), [rule], frozenset({first, second}), self.submit, self.cancel
+        )
+        await manager._async_refresh_event_targets(rule)
+        assert not self.submitted
+        await manager._async_event_fired(rule, {}, None)
+        assert manager.allows_target("rule:dynamic-event", first)
+        original = self.submitted[-1]
+        states[root] = State(root, "on", {"entity_id": [second]})
+        assert not manager.allows_target("rule:dynamic-event", first)
+        await manager._async_refresh_event_targets(rule)
+        moved = self.submitted[-1]
+        assert moved.request_id == original.request_id
+        assert moved.targets == frozenset({second})
+        assert moved.expires_at == original.expires_at
+        await manager._async_refresh_event_targets(rule)
+        assert len(self.submitted) == 2
+        states.pop(second)
+        await manager._async_refresh_event_targets(rule)
+        assert self.cancelled[-1] == original.request_id
+        states[second] = State(second, "off")
+        await manager._async_refresh_event_targets(rule)
+        assert len(self.submitted) == 2
+
+        assert original.expires_at is not None
+        with patch(
+            "custom_components.smart_led_manager.modules.rules.utc_now",
+            return_value=original.expires_at,
+        ):
+            await manager._async_event_fired(rule, {}, None)
+        last_expiry = self.submitted[-1].expires_at
+        with patch(
+            "custom_components.smart_led_manager.modules.rules.utc_now",
+            return_value=last_expiry,
+        ):
+            assert not manager.allows_target("rule:dynamic-event", second)
+            await manager._async_refresh_event_targets(rule)
+        assert len(self.submitted) == 3
+        assert not manager._event_expiry
+
     async def test_shutdown_releases_listener_and_deferred_evaluation(self) -> None:
         rule = {
             "id": "door",
@@ -395,7 +451,7 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
     ) -> None:
         root, nested, leaf = "light.root", "light.nested", "light.strip"
         states = {
-            root: State(root, "on", {"entity_id": [nested]}),
+            root: State(root, "on", {"entity_id": []}),
             "binary_sensor.door": State("binary_sensor.door", "on"),
         }
         hass = _Hass(states)
@@ -430,6 +486,8 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
             track,
         ):
             await manager.async_setup()
+            assert listeners[-1][0] == {root, "binary_sensor.door"}
+            await change(root, State(root, "on", {"entity_id": [nested]}))
             assert listeners[-1][0] == {root, nested, "binary_sensor.door"}
             assert not self.submitted
             assert not manager.allows_target("rule:groups", leaf)

@@ -11,7 +11,7 @@ from typing import Any
 import probatio
 from homeassistant.components import frontend, panel_custom, websocket_api
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import area_registry as ar
@@ -201,8 +201,13 @@ def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry:
             "entry_not_found", "Smart LED Manager config entry was not found"
         )
     loaded_entries = hass.data.get(DOMAIN, {}).get("entries", {})
-    if entry_id not in loaded_entries or entry_id in hass.data.get(DOMAIN, {}).get(
-        _DATA_RELOADING, set()
+    if (
+        entry_id not in loaded_entries
+        or entry_id in hass.data.get(DOMAIN, {}).get(_DATA_RELOADING, set())
+        or (
+            isinstance(entry, ConfigEntry)
+            and entry.state is not ConfigEntryState.LOADED
+        )
     ):
         raise VisualEditorError(
             "entry_not_loaded", "Smart LED Manager config entry is not loaded"
