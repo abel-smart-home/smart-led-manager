@@ -367,9 +367,7 @@ async def websocket_save_numeric_rule(
                 )
             mode = _validated_mode(msg["mode"])
             points = _validated_points(msg["points"])
-            current, _resolved_targets = _numeric_rule(
-                hass, entry, msg["rule_id"]
-            )
+            current, _resolved_targets = _numeric_rule(hass, entry, msg["rule_id"])
             options = _mutable_json(entry.options)
             rules = list(options.get(CONF_RULES, []))
             for index, rule in enumerate(rules):
@@ -456,7 +454,9 @@ def _smart_rule_payload(
     source = raw.get("source")
     if raw.get("type") == RULE_TYPE_EVENT:
         trigger = raw.get("trigger", {})
-        platform = trigger.get("platform", "event") if isinstance(trigger, dict) else "event"
+        platform = (
+            trigger.get("platform", "event") if isinstance(trigger, dict) else "event"
+        )
         source_detail = {"entity_id": "", "name": f"Evento · {platform}"}
     elif isinstance(source, str):
         source_detail = _friendly_entity(hass, source)
@@ -516,7 +516,9 @@ def _selection_catalog(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any
         ],
         "labels": [
             {"id": label.label_id, "name": label.name}
-            for label in sorted(label_registry.labels.values(), key=lambda item: item.name)
+            for label in sorted(
+                label_registry.labels.values(), key=lambda item: item.name
+            )
         ],
         "groups": groups,
     }
@@ -568,10 +570,7 @@ def websocket_get_smart_rules(
                 getattr(err, "code", "invalid_rule"), str(err)
             ) from err
         resolver = _advanced_target_resolver(hass, entry)
-        payload = [
-            _smart_rule_payload(hass, resolver, rule)
-            for rule in catalog
-        ]
+        payload = [_smart_rule_payload(hass, resolver, rule) for rule in catalog]
         selections = _selection_catalog(hass, entry)
     except VisualEditorError as err:
         _send_editor_error(connection, msg["id"], err)

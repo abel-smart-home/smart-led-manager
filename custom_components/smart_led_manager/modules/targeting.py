@@ -77,7 +77,9 @@ def normalize_target_definition(value: object) -> dict[str, Any]:
     if not isinstance(all_managed, bool):
         raise AdvancedTargetError("invalid_targets", "all_managed must be boolean")
     normalized[TARGET_ALL_MANAGED] = all_managed
-    if not all_managed and not any(normalized[key] for key in normalized if key != TARGET_ALL_MANAGED):
+    if not all_managed and not any(
+        normalized[key] for key in normalized if key != TARGET_ALL_MANAGED
+    ):
         raise AdvancedTargetError("empty_targets", "at least one target is required")
     return normalized
 
@@ -85,7 +87,9 @@ def normalize_target_definition(value: object) -> dict[str, Any]:
 def legacy_or_advanced_targets(rule: Mapping[str, Any]) -> dict[str, Any]:
     """Return the advanced selection, falling back to the legacy list."""
 
-    return normalize_target_definition(rule.get("target_selection", rule.get("targets", [])))
+    return normalize_target_definition(
+        rule.get("target_selection", rule.get("targets", []))
+    )
 
 
 class AdvancedTargetResolver:
@@ -111,8 +115,11 @@ class AdvancedTargetResolver:
         return self._explicit.authorized
 
     def _audit_authorized(self) -> None:
+        states = getattr(self._hass, "states", None)
+        if states is None:
+            return
         for entity_id in self.authorized:
-            state = self._hass.states.get(entity_id)
+            state = states.get(entity_id)
             members = state.attributes.get(ATTR_ENTITY_ID) if state else None
             if isinstance(members, (list, tuple)):
                 raise AdvancedTargetError(
@@ -220,7 +227,9 @@ class AdvancedTargetResolver:
                     "opaque_group", f"group {entity_id} has invalid members"
                 )
             member_state = self._hass.states.get(member)
-            nested = member_state.attributes.get(ATTR_ENTITY_ID) if member_state else None
+            nested = (
+                member_state.attributes.get(ATTR_ENTITY_ID) if member_state else None
+            )
             if isinstance(nested, (list, tuple)):
                 known_groups.add(member)
                 resolved.update(self._expand_group(member, next_path, known_groups))

@@ -118,7 +118,9 @@ def validate_condition_tree(value: object | None) -> dict[str, Any] | None:
                 "before": before,
                 "weekdays": list(dict.fromkeys(weekdays)),
             }
-        raise ConditionValidationError(f"unsupported condition type: {kind or '<empty>'}")
+        raise ConditionValidationError(
+            f"unsupported condition type: {kind or '<empty>'}"
+        )
 
     return _validate(value, 1)
 
@@ -140,7 +142,9 @@ def condition_entity_ids(condition: Mapping[str, Any] | None) -> frozenset[str]:
     return frozenset()
 
 
-def condition_schedules(condition: Mapping[str, Any] | None) -> tuple[dict[str, Any], ...]:
+def condition_schedules(
+    condition: Mapping[str, Any] | None,
+) -> tuple[dict[str, Any], ...]:
     """Return normalized time nodes for boundary scheduling."""
 
     if not condition:

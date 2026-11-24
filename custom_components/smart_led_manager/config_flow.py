@@ -223,8 +223,12 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             return self.async_abort(reason="configuration_changed")
         options = self._options()
         options.update(updates)
-        self._initial_revision = options_revision(options)
-        return self.async_create_entry(data=options)
+        result = self.async_create_entry(data=options)
+        # A successful options entry terminates this flow. Clearing the token
+        # also keeps direct unit-level reuse from treating a later operation as
+        # the same stale form; a real new flow captures a fresh revision.
+        self._initial_revision = None
+        return result
 
     @override
     async def async_step_init(
@@ -907,9 +911,7 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         current = self._editable_rule()
         if current is None:
             return self.async_abort(reason="rule_not_found")
-        return await self._event_rule_form(
-            "duplicate_event_rule", current, user_input
-        )
+        return await self._event_rule_form("duplicate_event_rule", current, user_input)
 
     async def async_step_numeric_points(
         self, user_input: dict[str, Any] | None = None
@@ -1319,16 +1321,12 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         selection = selection if isinstance(selection, Mapping) else {}
         zone_options = self._zone_choices()
         fields[
-            probatio.Optional(
-                "target_zones", default=list(selection.get("zones", []))
-            )
+            probatio.Optional("target_zones", default=list(selection.get("zones", [])))
         ] = selector.SelectSelector(
             selector.SelectSelectorConfig(options=zone_options, multiple=True)
         )
         fields[
-            probatio.Optional(
-                "target_areas", default=list(selection.get("areas", []))
-            )
+            probatio.Optional("target_areas", default=list(selection.get("areas", [])))
         ] = selector.AreaSelector(selector.AreaSelectorConfig(multiple=True))
         fields[
             probatio.Optional(
@@ -1359,23 +1357,19 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         fields[schedule_marker] = selector.ObjectSelector()
         if include_dwell:
             fields[
-                probatio.Required(
-                    "for_seconds", default=current.get("for_seconds", 0)
-                )
+                probatio.Required("for_seconds", default=current.get("for_seconds", 0))
             ] = _number_selector(0, 604800, step=0.1)
         fields[
-            probatio.Required(
-                "animation", default=current.get("animation", "fixed")
-            )
+            probatio.Required("animation", default=current.get("animation", "fixed"))
         ] = selector.SelectSelector(
             selector.SelectSelectorConfig(
                 options=["fixed", "blink", "pulse"],
                 translation_key="mode_animation",
             )
         )
-        fields[
-            probatio.Required("period", default=current.get("period", 1))
-        ] = _number_selector(0.1, 3600, step=0.1)
+        fields[probatio.Required("period", default=current.get("period", 1))] = (
+            _number_selector(0.1, 3600, step=0.1)
+        )
 
     def _prepare_rule_input(self, user_input: Mapping[str, Any]) -> dict[str, Any]:
         rule = dict(user_input)
@@ -1502,9 +1496,9 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
 
     def _validated_rule(self, rule: Mapping[str, Any]) -> dict[str, Any]:
         normalized = normalize_rule(rule)
-        AdvancedTargetResolver(
-            self.hass, self._lights(), self._zones()
-        ).resolve_rule(normalized)
+        AdvancedTargetResolver(self.hass, self._lights(), self._zones()).resolve_rule(
+            normalized
+        )
         return normalized
 
     def _rule_targets_error(self, user_input: Mapping[str, Any]) -> str | None:

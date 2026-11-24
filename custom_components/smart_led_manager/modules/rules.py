@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
+from contextlib import suppress
 from datetime import datetime, time, timedelta
 from time import monotonic
 from typing import Any
@@ -14,6 +15,7 @@ from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import label_registry as lr
 from homeassistant.helpers.event import (
     async_call_later,
     async_track_point_in_time,
@@ -100,6 +102,8 @@ class RuleManager:
                     or _string_items(selection.get("labels"))
                     or _string_items(selection.get("groups"))
                 )
+                with suppress(AdvancedTargetError):
+                    sources.update(self._targets.resolve_rule(rule).groups)
             if rule.get("type") == RULE_TYPE_EVENT:
                 await self._async_setup_event_rule(rule)
                 continue
@@ -121,6 +125,9 @@ class RuleManager:
                 ),
                 self._hass.bus.async_listen(
                     ar.EVENT_AREA_REGISTRY_UPDATED, self._async_registry_changed
+                ),
+                self._hass.bus.async_listen(
+                    lr.EVENT_LABEL_REGISTRY_UPDATED, self._async_registry_changed
                 ),
             ]
         self._schedule_next_boundary()
@@ -419,9 +426,7 @@ class RuleManager:
             self._resolved_targets[rule_id] = targets
             trigger = variables.get("trigger")
             description = (
-                trigger.get("description")
-                if isinstance(trigger, Mapping)
-                else None
+                trigger.get("description") if isinstance(trigger, Mapping) else None
             )
             await self._submit(
                 self._request(
@@ -594,9 +599,7 @@ class RuleManager:
                 end_date = (
                     start_date + timedelta(days=1) if after > before else start_date
                 )
-                candidates.append(
-                    datetime.combine(end_date, before, tzinfo=now.tzinfo)
-                )
+                candidates.append(datetime.combine(end_date, before, tzinfo=now.tzinfo))
         future = [candidate for candidate in candidates if candidate > now]
         if not future:
             return
@@ -634,9 +637,7 @@ class RuleManager:
                 condition_schedules(validate_condition_tree(rule.get("conditions")))
             )
             if isinstance(rule.get("schedule"), Mapping):
-                schedule = validate_condition_tree(
-                    {"type": "time", **rule["schedule"]}
-                )
+                schedule = validate_condition_tree({"type": "time", **rule["schedule"]})
                 if schedule is not None:
                     schedules.append(schedule)
         except ConditionValidationError:

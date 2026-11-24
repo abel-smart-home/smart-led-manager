@@ -29,6 +29,16 @@ class _Hass:
         return asyncio.create_task(coroutine, name=name)
 
 
+class _Bus:
+    def __init__(self) -> None:
+        self.listeners = []
+
+    def async_listen(self, event_type, callback):
+        unsubscribe = Mock()
+        self.listeners.append((event_type, callback, unsubscribe))
+        return unsubscribe
+
+
 class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
     """Verify valid state conversion and sentinel handling."""
 
@@ -151,10 +161,14 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         hass.states.values["person.owner"] = State("person.owner", "home")
         await manager._async_evaluate(rule)
 
-        self.assertEqual([request.request_id for request in self.submitted], ["rule:door_at_home"])
+        self.assertEqual(
+            [request.request_id for request in self.submitted], ["rule:door_at_home"]
+        )
         self.assertEqual(self.cancelled, ["rule:door_at_home"])
 
-    async def test_numeric_activation_hysteresis_is_independent_from_color(self) -> None:
+    async def test_numeric_activation_hysteresis_is_independent_from_color(
+        self,
+    ) -> None:
         rule = {
             "id": "hot",
             "type": "numeric",
@@ -184,10 +198,14 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         await manager._async_evaluate(rule)
 
         self.assertEqual(len(self.submitted), 2)
-        self.assertTrue(all(request.command.color == (255, 0, 0) for request in self.submitted))
+        self.assertTrue(
+            all(request.command.color == (255, 0, 0) for request in self.submitted)
+        )
         self.assertEqual(self.cancelled.count("rule:hot"), 2)
 
-    async def test_minimum_dwell_rechecks_and_cancels_when_condition_breaks(self) -> None:
+    async def test_minimum_dwell_rechecks_and_cancels_when_condition_breaks(
+        self,
+    ) -> None:
         rule = {
             "id": "door",
             "type": "state",
@@ -305,6 +323,70 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         deferred_unsubscribe.assert_called_once_with()
         self.assertIsNone(manager._unsubscribe)
         self.assertEqual(manager._pending, {})
+
+    async def test_dynamic_targets_track_nested_groups_and_all_registries(self) -> None:
+        rule = {
+            "id": "dynamic",
+            "type": "state",
+            "source": "binary_sensor.door",
+            "operator": "equals",
+            "state": "on",
+            "target_selection": {
+                "entities": [],
+                "zones": [],
+                "areas": [],
+                "labels": ["accent"],
+                "groups": ["light.group_a"],
+                "all_managed": False,
+            },
+        }
+        hass = _Hass(
+            {
+                "binary_sensor.door": State("binary_sensor.door", "on"),
+                "light.group_a": State(
+                    "light.group_a", "on", {"entity_id": ["light.group_b"]}
+                ),
+                "light.group_b": State(
+                    "light.group_b", "on", {"entity_id": ["light.strip"]}
+                ),
+            }
+        )
+        hass.bus = _Bus()
+        listener_unsubscribe = Mock()
+        manager = RuleManager(
+            hass,
+            [rule],
+            frozenset({"light.strip"}),
+            self.submit,
+            self.cancel,
+        )
+        with (
+            patch(
+                "custom_components.smart_led_manager.modules.rules."
+                "async_track_state_change_event",
+                return_value=listener_unsubscribe,
+            ) as track_states,
+            patch(
+                "custom_components.smart_led_manager.modules.targeting.lr.async_get",
+                return_value=Mock(labels={"accent": object()}),
+            ),
+            patch.object(
+                manager._targets, "_registry_entities", return_value={"light.strip"}
+            ),
+        ):
+            await manager.async_setup()
+
+        tracked = set(track_states.call_args.args[1])
+        self.assertEqual(
+            tracked,
+            {"binary_sensor.door", "light.group_a", "light.group_b"},
+        )
+        self.assertEqual(len(hass.bus.listeners), 4)
+
+        await manager.async_shutdown()
+        listener_unsubscribe.assert_called_once_with()
+        for _event_type, _callback, unsubscribe in hass.bus.listeners:
+            unsubscribe.assert_called_once_with()
 
     async def test_legacy_rule_defaults_enabled_and_disabled_rule_releases(
         self,

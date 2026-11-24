@@ -96,12 +96,8 @@ def test_schedule_uses_start_day_when_crossing_midnight() -> None:
     }
     timezone = ZoneInfo("America/Tijuana")
 
-    assert schedule_is_active(
-        schedule, datetime(2026, 11, 23, 23, 0, tzinfo=timezone)
-    )
-    assert schedule_is_active(
-        schedule, datetime(2026, 11, 24, 5, 59, tzinfo=timezone)
-    )
+    assert schedule_is_active(schedule, datetime(2026, 11, 23, 23, 0, tzinfo=timezone))
+    assert schedule_is_active(schedule, datetime(2026, 11, 24, 5, 59, tzinfo=timezone))
     assert not schedule_is_active(
         schedule, datetime(2026, 11, 24, 22, 30, tzinfo=timezone)
     )
@@ -110,10 +106,22 @@ def test_schedule_uses_start_day_when_crossing_midnight() -> None:
 @pytest.mark.parametrize(
     ("policy", "sequence"),
     [
-        ({"operator": "above", "threshold": 28, "hysteresis": 2}, [False, True, True, False]),
-        ({"operator": "below", "threshold": 10, "hysteresis": 1}, [False, True, True, False]),
-        ({"operator": "inside", "lower": 10, "upper": 20, "hysteresis": 2}, [False, True, True, False]),
-        ({"operator": "outside", "lower": 10, "upper": 20, "hysteresis": 2}, [False, True, True, False]),
+        (
+            {"operator": "above", "threshold": 28, "hysteresis": 2},
+            [False, True, True, False],
+        ),
+        (
+            {"operator": "below", "threshold": 10, "hysteresis": 1},
+            [False, True, True, False],
+        ),
+        (
+            {"operator": "inside", "lower": 10, "upper": 20, "hysteresis": 2},
+            [False, True, True, False],
+        ),
+        (
+            {"operator": "outside", "lower": 10, "upper": 20, "hysteresis": 2},
+            [False, True, True, False],
+        ),
     ],
 )
 def test_numeric_hysteresis(policy: dict[str, object], sequence: list[bool]) -> None:
@@ -143,6 +151,4 @@ def test_condition_limits_and_invalid_numeric_values() -> None:
     with pytest.raises(ConditionValidationError, match="deep"):
         validate_condition_tree(nested)
     with pytest.raises(ConditionValidationError, match="finite"):
-        validate_numeric_activation(
-            {"operator": "above", "threshold": float("nan")}
-        )
+        validate_numeric_activation({"operator": "above", "threshold": float("nan")})

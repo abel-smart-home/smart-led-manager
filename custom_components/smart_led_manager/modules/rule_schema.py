@@ -50,7 +50,9 @@ def _number(
     return result
 
 
-def normalize_rule(raw: Mapping[str, Any], *, rule_id: str | None = None) -> dict[str, Any]:
+def normalize_rule(
+    raw: Mapping[str, Any], *, rule_id: str | None = None
+) -> dict[str, Any]:
     """Return a JSON-safe rule while preserving compatible extension fields."""
 
     rule = mutable_json(raw)
@@ -104,9 +106,7 @@ def normalize_rule(raw: Mapping[str, Any], *, rule_id: str | None = None) -> dic
     if animation not in {"fixed", "blink", "pulse"}:
         raise RuleValidationError("invalid_rule", "unsupported animation")
     rule["animation"] = animation
-    rule["period"] = _number(
-        rule.get("period", 1), "period", minimum=0.1, maximum=3600
-    )
+    rule["period"] = _number(rule.get("period", 1), "period", minimum=0.1, maximum=3600)
 
     if kind in {RULE_TYPE_STATE, RULE_TYPE_NUMERIC}:
         source = rule.get("source")
@@ -153,7 +153,9 @@ def normalize_rule(raw: Mapping[str, Any], *, rule_id: str | None = None) -> dic
         activation = rule.get("activation")
         if activation is not None:
             if not isinstance(activation, Mapping):
-                raise RuleValidationError("invalid_rule", "activation must be an object")
+                raise RuleValidationError(
+                    "invalid_rule", "activation must be an object"
+                )
             try:
                 rule["activation"] = validate_numeric_activation(activation)
             except ConditionValidationError as err:
@@ -224,9 +226,7 @@ class RuleCatalog:
     def _index(self, rule_id: str) -> int:
         try:
             return next(
-                index
-                for index, rule in enumerate(self._rules)
-                if rule["id"] == rule_id
+                index for index, rule in enumerate(self._rules) if rule["id"] == rule_id
             )
         except StopIteration as err:
             raise RuleValidationError("rule_not_found", "rule was not found") from err

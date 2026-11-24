@@ -131,9 +131,7 @@ async def _save_handler(hass, connection, message) -> None:
 async def _mutation_handler(hass, connection, message) -> None:
     """Call through the two wrappers around the async CRUD coroutine."""
 
-    await websocket_mutate_smart_rule.__wrapped__.__wrapped__(
-        hass, connection, message
-    )
+    await websocket_mutate_smart_rule.__wrapped__.__wrapped__(hass, connection, message)
 
 
 class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
@@ -401,7 +399,13 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         read = _Connection()
         with patch(
             "custom_components.smart_led_manager.visual_editor._selection_catalog",
-            return_value={"managed_lights": [], "zones": [], "areas": [], "labels": [], "groups": []},
+            return_value={
+                "managed_lights": [],
+                "zones": [],
+                "areas": [],
+                "labels": [],
+                "groups": [],
+            },
         ):
             websocket_get_smart_rules(
                 hass,

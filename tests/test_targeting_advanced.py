@@ -53,13 +53,9 @@ def test_nested_group_expands_and_cycle_or_unsafe_member_is_rejected() -> None:
         "light.group_a": State(
             "light.group_a", "on", {ATTR_ENTITY_ID: ["light.one", "light.group_b"]}
         ),
-        "light.group_b": State(
-            "light.group_b", "on", {ATTR_ENTITY_ID: ["light.two"]}
-        ),
+        "light.group_b": State("light.group_b", "on", {ATTR_ENTITY_ID: ["light.two"]}),
     }
-    resolver = AdvancedTargetResolver(
-        _hass(states), ["light.one", "light.two"], []
-    )
+    resolver = AdvancedTargetResolver(_hass(states), ["light.one", "light.two"], [])
     selection = {
         "entities": [],
         "zones": [],
@@ -69,9 +65,7 @@ def test_nested_group_expands_and_cycle_or_unsafe_member_is_rejected() -> None:
         "all_managed": False,
     }
 
-    assert resolver.resolve(selection).targets == frozenset(
-        {"light.one", "light.two"}
-    )
+    assert resolver.resolve(selection).targets == frozenset({"light.one", "light.two"})
 
     states["light.group_b"] = State(
         "light.group_b", "on", {ATTR_ENTITY_ID: ["light.group_a"]}
@@ -152,6 +146,4 @@ def test_area_and_label_filter_to_managed_and_report_exclusions() -> None:
         )
 
     assert resolved.targets == frozenset({"light.one", "light.two"})
-    assert resolved.excluded == frozenset(
-        {"light.outside", "light.outside_two"}
-    )
+    assert resolved.excluded == frozenset({"light.outside", "light.outside_two"})

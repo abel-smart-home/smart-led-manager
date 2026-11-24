@@ -592,7 +592,11 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
 
         stale = await flow.async_step_edit_state_rule(
             {
-                **{key: value for key, value in original.items() if key not in {"id", "type"}},
+                **{
+                    key: value
+                    for key, value in original.items()
+                    if key not in {"id", "type"}
+                },
                 "name": "Stale form",
                 "enabled": True,
             }
