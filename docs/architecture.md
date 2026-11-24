@@ -9,10 +9,11 @@ La primera versión se diseña para RGB, RGBW, RGB+CCT y RGBWW sin lógica exclu
 ## Capas
 
 1. **Modelo y motor puro** (`models.py`, `core/priority.py`, `core/engine.py`). Conservan solicitudes activas, validan tiempos/prioridades y resuelven un ganador independiente por destino bajo un bloqueo asíncrono.
-2. **Módulos** (`modules/`). Las reglas traducen estados y valores numéricos a
-   solicitudes estables. `ModeManager` valida zonas/modos y representa la
-   selección de cada zona con una solicitud persistente protegida. `RuleManager`
-   posee sus listeners, demoras y tareas de evaluación y las cancela y espera
+2. **Módulos** (`modules/`). `rule_schema.py` normaliza un catálogo común;
+   `targeting.py` expande destinos contra el límite autorizado y `rules.py`
+   traduce estados, valores y disparadores oficiales a solicitudes del mismo
+   motor. `ModeManager` conserva las zonas/modos. `RuleManager` posee listeners,
+   demoras, límites horarios, disparadores y tareas, y los cancela y espera
    antes de una recarga.
 3. **Orquestación** (`coordinator.py`). Posee suscripciones, historial acotado, persistencia, vencimientos, disponibilidad y ciclo de vida de la entrada.
 4. **Planificación** (`core/scheduler.py`). Cancela el trabajo del ganador anterior y ejecuta expiraciones/animaciones con tareas asíncronas por destino.
@@ -94,7 +95,52 @@ fuentes actuales. Las tareas de la instancia anterior se cancelan y esperan
 antes de crear listeners nuevos, por lo que no pueden reinsertar una solicitud
 obsoleta.
 
-## Editor gráfico avanzado de reglas
+El Bloque C tampoco incrementa el esquema de ConfigEntry ni el Store. Las
+reglas heredadas conservan `targets`; una definición nueva puede usar
+`target_selection`, condiciones, horario, permanencia, activación numérica o
+trigger. Esos campos se normalizan al editar, pero no cambian el `id` ni crean
+estado derivado persistente.
+
+## Destinos avanzados y autorización
+
+`AdvancedTargetResolver` convierte luces, zonas, áreas, etiquetas, grupos
+transparentes y “todas las administradas” en un conjunto de entidades físicas
+individuales antes de tocar el motor. La lista explícita de luces autorizadas
+es el límite absoluto. Un destino explícito ajeno se rechaza; áreas y etiquetas
+se intersectan con la lista y exponen sus exclusiones; un grupo opaco, circular,
+desconocido o con un solo miembro inseguro se rechaza completo. La lista
+autorizada también se audita para impedir que una entidad `light` con miembros
+actúe como puerta trasera.
+
+Las reglas continuas vuelven a resolver destinos ante cambios de estado de los
+grupos y eventos oficiales de Entity, Device y Area Registry. Retiran la misma
+solicitud de los destinos anteriores y la aplican a los nuevos. Una solicitud
+de evento ya activa puede moverse mientras no venza, sin renovar su plazo; un
+evento pasado no se recrea. Las acciones explícitas conservan la semántica de
+instantánea en el momento de la llamada. No existe sondeo general.
+
+## Condiciones, tiempo y activación numérica
+
+`core/conditions.py` es puro y usa `TRUE`, `FALSE` y `UNKNOWN`. AND, OR y NOT
+propagan lo desconocido para que `unknown`, `unavailable`, una entidad ausente
+o un número inválido nunca se conviertan en éxito por negación. Los árboles se
+limitan a cinco niveles y 32 nodos. `RuleManager` escucha la fuente principal y
+todas las fuentes secundarias.
+
+Los horarios usan la zona local de Home Assistant y callbacks en el próximo
+límite, sin polling. En un intervalo que cruza medianoche el día configurado es
+el día de inicio. Core iniciado dentro del intervalo evalúa inmediatamente; la
+recarga vuelve a calcular el siguiente límite. La permanencia mínima se aplica
+al resultado completo de una regla continua, se cancela si deja de cumplirse y
+se reevalúa al vencer. No se restaura como ya cumplida después de reiniciar.
+
+La activación numérica mantiene un estado de histéresis sólo en memoria y está
+separada de `core/color.py`. Tras iniciar o recuperar un sensor inválido parte
+inactiva: `above` exige `>`, `below` exige `<`, `inside` incluye ambos límites y
+`outside` los excluye. Una vez activa, la banda de histéresis determina la
+liberación; el color puede seguir siendo fijo, interpolado o por rangos.
+
+## Centro de administración y editor de reglas
 
 El Bloque B.1 añade una superficie de configuración; no añade otro motor de
 reglas. Home Assistant sirve los módulos ES incluidos en `frontend/` mediante
@@ -104,21 +150,20 @@ lateral puede omitirse mediante una opción persistente sin retirar el panel ni
 duplicar backend. Cada comando WebSocket también aplica `require_admin`, por lo
 que ocultar la interfaz no constituye la barrera de seguridad.
 
-La pantalla inicial actúa como centro modular: identidad y versión, reglas
-numéricas y enlace a la configuración nativa. No implementa todavía las
-secciones futuras. El frontend mantiene un borrador de `mode` y `points`.
-Agregar, modificar, eliminar, simular, restaurar o descartar no toca
-ConfigEntry, Store, motor ni servicios `light.*`. La simulación envía el
-borrador al backend, que llama a `core/color.py`; el navegador sólo calcula
-geometría de presentación. Así no existe una segunda implementación de
-interpolación o rangos.
+El Bloque C conserva el mismo panel y lo amplía a un catálogo unificado de
+reglas de estado, numéricas y de eventos. Crear, editar, duplicar, habilitar,
+eliminar, previsualizar destinos o simular puntos usa contratos WebSocket
+administrativos compartidos con el validador del Options Flow. El frontend
+mantiene un borrador completo. Ninguna previsualización toca ConfigEntry,
+Store, motor ni servicios `light.*`; el cálculo numérico continúa delegado a
+`core/color.py`, sin una segunda implementación.
 
-Al guardar, `visual_editor.py` vuelve a comprobar la entrada, el tipo y `id` de
-la regla, sus destinos contra las luces autorizadas, el modo, valores finitos,
-unicidad y RGB. Relee las opciones bajo un bloqueo, compara una revisión
-SHA-256 de las opciones completas y rechaza una sesión obsoleta con
-`conflict`. Sólo sustituye `mode` y `points` de la regla vigente, preserva el
-resto de opciones y usa `async_update_entry`; el listener normal ejecuta la
+Al guardar, `visual_editor.py` construye un `RuleCatalog`, vuelve a validar la
+regla completa, expande sus destinos y, para eventos, delega la validación al
+helper oficial de triggers. Relee las opciones bajo un bloqueo, compara una
+revisión SHA-256 y rechaza una sesión obsoleta con `conflict`. El endpoint
+heredado que sólo modifica `mode` y `points` se conserva para compatibilidad;
+el catálogo nuevo usa `async_update_entry` y el listener normal ejecuta la
 recarga ya probada por el Bloque B.
 
 Al descargar se retira el panel visible y se cancelan las tareas normales del
@@ -145,14 +190,18 @@ internos de `.storage` directamente.
 
 Al descargar la integración se eliminan listeners, se cancelan vencimientos/animaciones/tareas de controlador y se vacía el registro de runtime. La política de descarga no fuerza restauraciones físicas ciegas.
 
-## Reglas iniciales
+## Reglas inteligentes
 
 - **Estado:** igualdad o desigualdad sobre entidades persistentes (sensores binarios, interruptores, ayudantes, clima, alarma, presencia, persona y sol). La condición falsa libera su solicitud.
 - **Numérica:** N puntos ordenados, interpolación RGB o rango inferior, clamp en extremos, variación mínima e intervalo mínimo. `unknown`, `unavailable`, NaN e infinito liberan/ignoran la solicitud según corresponda.
 - **Administración:** alta, edición con identificador estable, copia inicialmente
   deshabilitada, activación/desactivación y eliminación. El editor multipaso usa
   selectores nativos y no aplica órdenes hasta guardar.
-- **Eventos/botones:** se activan mediante acciones explícitas en `alpha.1`; listeners de eventos y disparadores por dispositivo se añadirán sin fingir semántica de interruptor persistente.
+- **Eventos/botones:** usan la validación e inicialización oficial de triggers
+  de Home Assistant. Un cambio de estado, evento del bus, entidad `event`,
+  `input_button` o device trigger compatible crea una solicitud temporal. Un
+  evento repetido renueva el mismo `request_id`; no crea cola, no usa
+  permanencia y no se reproduce al iniciar.
 
 ## Animaciones iniciales
 

@@ -148,6 +148,56 @@ La pre-release solo puede considerarse lista cuando:
     de simulación vacíos no equivalen a cero, respuestas antiguas no reemplazan
     resultados recientes y un error de carga no se presenta como catálogo vacío.
 
+## Criterios verificables de `0.1.0-alpha.3`, Bloque C
+
+1. Estado, número y evento comparten un único catálogo, `RuleManager`,
+   coordinador y `PriorityEngine`; ninguna ruta nueva ordena luces por fuera.
+2. Luces, zonas, áreas, etiquetas, grupos transparentes y todas las
+   administradas se pueden combinar y deduplicar por entidad física.
+3. La lista administrada es el límite absoluto: explícitos ajenos y grupos
+   inseguros se rechazan; áreas/etiquetas filtran y muestran exclusiones; un
+   destino vacío nunca equivale a todas.
+4. Grupos anidados se expanden sin enviar al grupo; ciclos, miembros ausentes,
+   opacos, no `light` o no autorizados provocan rechazo completo.
+5. Cambios oficiales de estado/registro reevalúan una regla activa, retiran sus
+   destinos anteriores y aplican sólo la intención vigente a los nuevos.
+6. AND, OR y NOT admiten estado, número, hora y día, con límites de cinco
+   niveles y 32 nodos; todas las fuentes relevantes disparan reevaluación.
+7. `unknown`, `unavailable`, entidad ausente, NaN e infinito producen estado
+   desconocido o liberación, nunca éxito accidental mediante NOT.
+8. Los horarios usan la zona de Home Assistant, días locales, cruces de
+   medianoche y callbacks de límites; el día nocturno es el del inicio.
+9. La permanencia se aplica al resultado completo de una regla continua, se
+   cancela al romperse y vuelve a empezar después de reinicio/recarga.
+10. Activación numérica y color están separados. Se admiten `above`, `below`,
+    `inside` y `outside`, color fijo, interpolación o rangos e histéresis en
+    memoria con límites documentados.
+11. Los triggers oficiales de Home Assistant cubren estado, bus, entidades
+    `event`, `input_button` y device triggers compatibles sin tratarlos como
+    interruptores persistentes.
+12. Cada evento crea o renueva una única solicitud temporal de la regla. No hay
+    cola ilimitada, reproducción histórica ni reactivación posterior porque una
+    condición descartada pase a verdadera.
+13. El panel administrativo lista y administra los tres tipos de regla con CRUD
+    completo, destinos, condiciones, horario, estilo, prioridad y duración, y
+    conserva el editor numérico y simulador del Bloque B.1.
+14. Panel y Options Flow usan `normalize_rule`, el mismo resolvedor y la misma
+    validación; ambos preservan identificadores y reglas heredadas.
+15. Todo WebSocket exige administrador, rechaza entradas descargadas y datos no
+    validados, protege la revisión y no produce efectos al previsualizar.
+16. Descarga, eliminación, desactivación y recarga cancelan listeners,
+    disparadores, límites, permanencias y tareas; una evaluación vieja no puede
+    reinsertar intención.
+17. Reglas enmascaradas, cambios de destinos y eventos temporales conservan la
+    resolución independiente por luz y nunca recuperan una intención vencida.
+18. Ruff y formato, pytest con cobertura de ramas, Node, compilación, JSON,
+    traducciones, matriz Linux 2026.11.0/2026.11.2, Hassfest y HACS/Marketplace
+    deben aprobar antes de solicitar C-01 a C-20.
+19. C-01 a C-20 sólo se marcan aprobados con el reporte del propietario; CI no
+    se presenta como prueba visual, HAOS, Zigbee, Alexa o Matter.
+20. Las políticas configurables de reintento/verificación física,
+    pausa/reanudación temporal y aliases de voz siguen reservadas al Bloque D.
+
 ## Requisitos no funcionales
 
 - Operación completamente local y asíncrona.

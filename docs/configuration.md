@@ -89,8 +89,7 @@ de cada luz.
 
 Ejemplos: un `input_boolean` para modo cine, un `binary_sensor` de puerta, el
 estado de una persona o el estado de `sun`. Para botones o eventos de un solo
-instante usa por ahora una acción explícita; no simules un evento como estado
-persistente.
+instante crea una regla de evento; no los simules como estado persistente.
 
 ## Regla numérica
 
@@ -105,7 +104,9 @@ por ejemplo `[{"value": 20, "rgb": [0, 0, 255]}, ...]`; no hace falta escribir
 ni mantener una cadena técnica. El modo `interpolate` mezcla linealmente los
 puntos contiguos; `ranges` usa el rango inferior más próximo. Fuera de los
 extremos se usa el color del punto más cercano. **Variación mínima** e
-**intervalo mínimo** evitan ruido y exceso de órdenes.
+**intervalo mínimo** evitan ruido y exceso de órdenes. La activación opcional
+puede ser por encima, debajo, dentro o fuera de rango, con histéresis. Esto
+decide si la regla participa; los puntos o el color fijo deciden su RGB.
 
 `unknown`, `unavailable`, NaN e infinito nunca se convierten en cero ni en un
 color válido. Comprueba que la entidad de origen publique un valor numérico
@@ -149,7 +150,7 @@ la solicitud desde la definición y el estado actuales. Una regla activa que
 cambia de destinos deja de participar en los anteriores; una deshabilitada o
 eliminada no reaparece al terminar una solicitud superior.
 
-### Editor gráfico avanzado B.1
+### Centro gráfico de reglas inteligentes
 
 Una cuenta administradora puede abrir **Smart LED Manager** en la barra lateral,
 entrar directamente en `/smart-led-manager-editor` o seguir el enlace interno
@@ -157,15 +158,14 @@ de **Configurar > Centro de administración**. Esa pantalla también permite
 mostrar u ocultar el acceso lateral; ocultarlo no elimina la ruta. **Configurar
 > Reglas inteligentes > Abrir editor gráfico avanzado** conserva otro enlace.
 El Options Flow no intenta forzar navegación con una API interna de Home
-Assistant. El editor nativo anterior continúa disponible para crear reglas y
-editar todos sus metadatos.
+Assistant. El Options Flow nativo continúa disponible y usa el mismo modelo y
+validación.
 
-El panel abre en un centro modular que muestra identidad y versión, acceso a las
-reglas numéricas y acceso a la configuración nativa de la integración. No
-simula secciones futuras. En el catálogo usa primero los nombres amigables de
-sensores y luces; los `entity_id` y el `id` interno permanecen en información
-técnica desplegable. Al elegir una regla carga unidad, prioridad, destinos y
-brillo como información de sólo lectura. En B.1 sólo cambia:
+El panel abre en un centro modular que muestra identidad y versión, una lista
+unificada de reglas de estado, numéricas y de eventos, y acceso a la
+configuración nativa. Usa primero nombres amigables; identificadores y el
+borrador normalizado quedan en detalles técnicos. Permite crear, editar,
+duplicar, habilitar, deshabilitar y eliminar. En una regla numérica conserva:
 
 - `interpolate` o `ranges`;
 - valor numérico y color de cada punto;
@@ -196,7 +196,50 @@ de presentarlo como vacío.
 
 La recarga no es edición completamente en caliente. Conserva solicitudes
 persistentes válidas y selecciones de modo, pero una notificación temporal no
-persistente puede terminar. Destinos por área/etiqueta, condiciones compuestas,
-horarios, duración mínima, histéresis, eventos y políticas configurables de
-recuperación o pausa/reanudación siguen reservados a los Bloques C y D. El área
-opcional de una zona sólo organiza su dispositivo virtual; no expande destinos.
+persistente puede terminar. Las políticas configurables de recuperación y la
+pausa/reanudación temporal siguen reservadas al Bloque D.
+
+## Destinos, condiciones y tiempo del Bloque C
+
+Una regla puede combinar luces individuales, zonas de Smart LED Manager, áreas,
+etiquetas, grupos transparentes y **todas las luces administradas**. La vista
+previa muestra las luces físicas resultantes y las excluidas de un área o
+etiqueta. Un grupo no es una orden multicast: debe poder expandirse por completo
+a luces autorizadas. Si contiene un miembro opaco, ausente o no autorizado, o
+un ciclo, se rechaza. Nunca uses una entidad de grupo como luz administrada.
+
+Las condiciones admiten árboles AND/OR/NOT de estado, número y tiempo. Un dato
+`unknown`, `unavailable` o eliminado no cumple la regla, tampoco bajo NOT. El
+horario independiente define `after`, `before` y `weekdays` con claves `mon` a
+`sun`. Si cruza medianoche, el día elegido es el día en que comienza el
+intervalo. La permanencia mínima (`for_seconds`) se aplica al resultado total:
+si cualquier parte falla antes, el contador se cancela; tras una recarga o
+reinicio comienza otra vez.
+
+Las reglas de evento aceptan un trigger oficial de Home Assistant. Esto permite
+cambios de estado, eventos del bus, entidades `event`, `input_button` y device
+triggers que la plataforma instalada exponga. Define una duración, no una
+permanencia. Una repetición renueva la solicitud temporal de la misma regla; no
+forma una cola y un evento ocurrido antes de reiniciar no se reproduce.
+
+### Ejemplos de diseño
+
+- **Temperatura:** `sensor.temperatura_sala`, activación `above 28`, histéresis
+  `2`, prioridad 40 y puntos azul–verde–rojo. Se activa sólo al superar 28 °C y
+  conserva la activación dentro de la banda configurada.
+- **Seguridad consultiva:** puerta abierta AND horario 22:00–06:00 AND persona
+  en casa, permanencia 30 s, rojo `pulse` P90. No sustituye una alarma.
+- **Energía:** consumo por encima de 3000 W durante 60 s, naranja fijo P60. La
+  unidad se muestra, pero Smart LED Manager no la convierte.
+- **Presencia:** persona `home` y horario permitido, todas las luces de una zona
+  con prioridad baja; al salir libera su solicitud.
+- **Horario:** luz de cortesía de lunes a viernes, 22:00–01:00. La madrugada del
+  martes pertenece al intervalo iniciado el lunes.
+- **Botón:** trigger `input_button` o evento oficial, verde `blink`, P80 y ocho
+  segundos. Otra pulsación renueva esos ocho segundos sin crear otra cola.
+
+Los destinos de reglas continuas se vuelven a resolver ante eventos oficiales
+de estado y registro. Una regla temporal activa puede moverse sólo mientras no
+haya vencido y conserva su fecha final. Las acciones explícitas resuelven sus
+destinos al ejecutarse. Las zonas y modos existentes no cambian: cada modo
+sigue limitado a las luces de su propia zona.

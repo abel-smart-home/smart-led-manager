@@ -60,6 +60,36 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Nombres amigables de sensores y luces en la vista habitual; los `entity_id` y
   el identificador interno de la regla quedan en información técnica desplegable.
 
+### Añadido — Bloque C
+
+- Catálogo común de reglas de estado, numéricas y de eventos, usado por el
+  panel y el Options Flow con identificadores estables, validación Python y
+  revisión optimista de las opciones.
+- Destinos combinables por luz, zona de Smart LED Manager, área, etiqueta,
+  grupo transparente o todas las administradas. La expansión deduplica luces,
+  filtra áreas/etiquetas y rechaza grupos opacos, ciclos y miembros inseguros.
+- Condiciones AND/OR/NOT con estado, comparación numérica, horario y día; la
+  evaluación usa tres estados para que un dato desconocido no se acepte por
+  negación. Los árboles tienen límites explícitos de profundidad y tamaño.
+- Horarios locales con días y cruce de medianoche, reevaluados mediante
+  callbacks de límites; el día seleccionado identifica el inicio del intervalo
+  nocturno. La permanencia mínima se aplica al resultado completo de una regla
+  continua y se reinicia tras recarga o reinicio.
+- Activación numérica por encima, debajo, dentro o fuera de rango, con
+  histéresis independiente del cálculo de color. Los límites de entrada son
+  estrictos para `above`/`below`, inclusivos para `inside` y se liberan en el
+  borde ampliado por la histéresis.
+- Reglas temporales conectadas a los disparadores oficiales de Home Assistant,
+  incluidos estado, bus, entidades `event`, `input_button` y device triggers
+  compatibles. Repetir el evento renueva la misma solicitud; no se mantiene
+  una cola ni se reproduce historia al iniciar.
+- Centro de administración ampliado a **Reglas inteligentes**, con lista
+  unificada, CRUD completo, destinos previsualizables, animaciones existentes,
+  editor numérico conservado y protección frente a respuestas obsoletas.
+- Listeners, temporizadores de permanencia, límites horarios y tareas de
+  evaluación quedan bajo `RuleManager`; descarga y recarga los cancelan y
+  esperan sin crear un segundo motor ni un sondeo permanente.
+
 ### Compatibilidad y correcciones
 
 - Se conservan los `unique_id` de alpha.2; Home Assistant reasocia las mismas
@@ -90,6 +120,9 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   respuestas de simulación obsoletas, no interpreta una entrada vacía como cero
   y distingue carga, catálogo vacío y error de WebSocket. Los comandos rechazan
   explícitamente una ConfigEntry descargada.
+- La ampliación unificada conserva **Restaurar borrador**, la barra, la gráfica
+  numérica y la selección accesible de puntos validadas en B.1; el catálogo
+  nuevo no sustituye esas interacciones por una representación reducida.
 
 ### Validación
 
@@ -114,9 +147,10 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   ordenamiento de puntos, simulación exacta, guardado conservador, rechazo de
   datos inválidos y destinos no autorizados, conflictos concurrentes,
   autorización administrativa y ciclo de vida del panel. El propietario
-  confirmó parcialmente B1-01/B1-02: tras corregir la serialización inicial, el
-  panel cargó en HAOS VirtualBox una regla existente con barra y distribución
-  correctas. No se consideran aprobados los casos completos restantes.
+  reportó B1-01 a B1-10 aprobadas, 10/10, en HAOS VirtualBox sobre
+  `6ad79e0c3c388f714f08c727ba17f315807310a4`. Se conserva el fallo inicial de
+  serialización `MappingProxyType`, su corrección manual en `9ba3b0c` y el
+  endurecimiento posterior. La suma reportada A/B/B.1 es 28/28.
 - El commit del Bloque B cerró 148 pruebas con cobertura de ramas `87.14 %` en
   Home Assistant `2026.11.0` como en `2026.11.2`; Ruff, Hassfest y
   HACS/Marketplace también aprobaron. El pytest completo no se atribuye al
@@ -125,8 +159,15 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Para B.1, la matriz Linux aprobó 157 pruebas Python con cobertura de ramas
   `87.21 %` en Home Assistant `2026.11.0` y `2026.11.2`; el job Node aprobó 6
   pruebas del modelo/panel. Ruff, Hassfest y HACS/Marketplace aprobaron sin
-  exclusiones. La comprobación visual B1-01 a B1-10 permanece manual y
-  pendiente.
+  exclusiones. B1-01 a B1-10 son evidencia manual comunicada por el propietario;
+  B1-05, B1-06, B1-07 y B1-10 todavía requieren repetición física separada.
+- El Bloque C añade pruebas puras y de integración para condiciones, horarios,
+  histéresis, seguridad de destinos, CRUD, concurrencia, eventos, permanencia y
+  ciclo de vida. El SHA funcional `2b9c4dd` aprobó 185 pruebas con cobertura de
+  ramas `80.72 %` en Home Assistant `2026.11.0` y `2026.11.2`, 6/6 pruebas
+  Node, Ruff, Hassfest y HACS/Marketplace. La batería manual C-01 a C-20 queda
+  pendiente hasta el reporte del propietario; no se atribuye a CI ninguna
+  validación visual o física.
 
 ## [0.1.0-alpha.2] — Sin publicar
 

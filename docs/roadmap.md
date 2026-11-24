@@ -82,24 +82,33 @@ La hoja de ruta mantiene todo el alcance aprobado para `0.1.0`; distribuirlo en 
   lateral persistente sin duplicar ruta ni backend.
 - [x] Estabilidad del formulario ante actualizaciones globales, simulaciones
   concurrentes, valor vacío y ConfigEntry descargada.
-- [ ] B1-01/B1-02 parcialmente comprobadas en HAOS VirtualBox: tras corregir el
-  error inicial `MappingProxyType`, cargó una regla existente con barra y
-  distribución correctas. Falta completar B1-01 a B1-10 y la repetición física
-  Zigbee separada.
+- [x] B1-01 a B1-10 reportadas por el propietario como aprobadas, 10/10, en
+  HAOS VirtualBox sobre `6ad79e0c3c388f714f08c727ba17f315807310a4`.
+  Se conserva el incidente inicial `MappingProxyType`, la corrección manual en
+  `9ba3b0c` y el endurecimiento posterior. A/B/B.1 suman 28/28 reportadas.
+- [ ] Repetición física B1-05, B1-06, B1-07 y B1-10 en
+  Raspberry Pi/ZHA/GLEDOPTO.
 
-El Bloque B.1 adelanta únicamente esta superficie especializada por la
-limitación de usabilidad observada y aprobada por el propietario. No absorbe el
-dashboard operativo ni las capacidades de destinos y disparadores previstas en
-los Bloques C y D.
+El Bloque B.1 cerró la superficie especializada. No absorbe el dashboard
+operativo; el Bloque C amplía el mismo panel sin crear otro.
 
-### Bloques C y D — alcance aprobado pendiente
+### Bloque C — reglas avanzadas
 
-- Áreas, etiquetas, grupos compatibles y “todas las administradas”, con expansión acíclica y deduplicación.
-- Condiciones compuestas, horarios y duración mínima.
-- Histéresis numérica, unidades y políticas por debajo/encima/rango.
-- Botones, `event`, `input_button` y device triggers con semántica real de evento.
+- [x] Áreas, etiquetas, grupos transparentes, zonas y “todas las
+  administradas”, con expansión segura, acíclica y deduplicada.
+- [x] Condiciones AND/OR/NOT, horarios locales, días y permanencia mínima.
+- [x] Histéresis numérica y activación por encima/debajo/dentro/fuera,
+  separadas del color fijo, interpolado o por rangos.
+- [x] Triggers oficiales de Home Assistant para estado, bus, `event`,
+  `input_button` y device triggers compatibles, con solicitud temporal única.
+- [x] Panel unificado de reglas y backend compartido con Options Flow.
+- [ ] C-01 a C-20 en HAOS VirtualBox y pruebas Zigbee señaladas por separado.
+
+### Bloque D — alcance aprobado pendiente
+
 - Política de reintento y verificación física configurables.
-- Política temporal opcional de pausa/reanudación además del vencimiento en tiempo real.
+- Política temporal opcional de pausa/reanudación además del vencimiento en
+  tiempo real.
 - Nombres y aliases naturales para voz, breves y opcionalmente cualificados por
   zona, sin cambiar los `unique_id` existentes; el Bloque A cubre los nombres
   nativos y deja pendiente la gestión explícita de aliases.

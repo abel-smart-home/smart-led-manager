@@ -357,7 +357,7 @@ No ejecutes eliminaciones sobre la instalación principal sin copia de
 seguridad. Este 10/10 corresponde a HAOS VirtualBox y no sustituye la repetición
 física Zigbee pendiente.
 
-## Plan pendiente de `0.1.0-alpha.3`, Bloque B.1
+## Registro de `0.1.0-alpha.3`, Bloque B.1
 
 Usa una copia de seguridad o una instancia aislada. Registra SHA completo,
 fecha/hora, versión de Home Assistant, navegador, tamaño de pantalla y resultado
@@ -367,27 +367,66 @@ real. Las pruebas automatizadas no cuentan como ejecución visual HAOS.
 
 | Caso | Procedimiento | Resultado esperado | Estado |
 |---|---|---|---|
-| B1-01 | Actualiza la carpeta completa sin eliminar la entrada, reinicia Core e inicia sesión como administrador. | Smart LED Manager aparece en la barra lateral; `/smart-led-manager-editor` abre el panel sin YAML, CDN ni error de carga. Un usuario no administrador no puede acceder. | **Parcial**: el primer intento falló por serialización de `MappingProxyType`. Tras la corrección manual en `9ba3b0c`, el propietario confirmó que el panel carga en HAOS VirtualBox. Falta comprobar usuario no administrador y el recorrido completo. |
-| B1-02 | Abre una regla numérica creada en el Bloque B. | Aparecen el mismo nombre, `id`, origen, estado, unidad, modo y puntos; prioridad, destinos y brillo se muestran sin alterarse. | **Parcial**: se confirmó una regla existente y la representación correcta de barra de color y distribución numérica. No se atribuye todavía la revisión completa de todos los metadatos. |
-| B1-03 | Revisa una curva con intervalos desiguales, negativos y decimales en tema claro y oscuro, escritorio y móvil. | Barra, eje, marcas y etiquetas respetan posiciones reales; los datos siguen legibles y utilizables con teclado y tacto. | Pendiente |
-| B1-04 | Agrega un punto, cambia valor/color, selecciona desde barra y gráfica, elimina otro y prueba duplicado/NaN/menos de dos. | Ordena automáticamente; RGB/hex y muestra coinciden; validación impide guardar datos inválidos sin perder el borrador. | Pendiente |
-| B1-05 | Simula valores exactos, intermedios y fuera de extremos en `interpolate` y `ranges`. | Color, RGB/hex y punto/intervalo coinciden con la regla; no se envían órdenes `light.*` ni cambia la tira. | Pendiente |
-| B1-06 | Modifica puntos y usa **Restaurar borrador**; repite y usa **Descartar y volver**. | Restaurar recupera lo cargado; descartar deja opciones, Store, motor y estado físico sin cambios. | Pendiente |
-| B1-07 | Guarda una edición válida y vuelve a abrir tras la recarga. | Conserva `id` y todos los campos no editados; persiste sólo modo/puntos nuevos y la regla activa se reevalúa normalmente. | Pendiente |
-| B1-08 | Abre la misma regla en dos sesiones; guarda en la primera y luego intenta guardar el borrador antiguo. | La segunda recibe conflicto claro, no sobrescribe y puede recargar la configuración vigente. | Pendiente |
-| B1-09 | Reinicia Core, descarga/recarga y elimina la entrada en la instancia aislada. | El panel reaparece sólo con entrada cargada; no quedan tareas, animaciones ni panel visible tras descargar/eliminar, y una instalación nueva no muestra reglas antiguas. | Pendiente |
-| B1-10 | Edita la misma regla con el editor nativo y repite una prioridad/modo/notificación del Bloque B. | Ambos editores siguen disponibles, el formato heredado continúa compatible y no hay regresión de prioridades, modos, zonas o recuperación. | Pendiente |
+| B1-01 | Actualiza la carpeta completa sin eliminar la entrada, reinicia Core e inicia sesión como administrador. | Smart LED Manager aparece en la barra lateral; `/smart-led-manager-editor` abre el panel sin YAML, CDN ni error de carga. Un usuario no administrador no puede acceder. | **Aprobada (reporte del propietario)**. El primer intento falló por `MappingProxyType`; se corrigió manualmente en `9ba3b0c` y se endureció después. |
+| B1-02 | Abre una regla numérica creada en el Bloque B. | Aparecen el mismo nombre, `id`, origen, estado, unidad, modo y puntos; prioridad, destinos y brillo se muestran sin alterarse. | **Aprobada (reporte del propietario)** |
+| B1-03 | Revisa una curva con intervalos desiguales, negativos y decimales en tema claro y oscuro, escritorio y móvil. | Barra, eje, marcas y etiquetas respetan posiciones reales; los datos siguen legibles y utilizables con teclado y tacto. | **Aprobada (reporte del propietario)** |
+| B1-04 | Agrega un punto, cambia valor/color, selecciona desde barra y gráfica, elimina otro y prueba duplicado/NaN/menos de dos. | Ordena automáticamente; RGB/hex y muestra coinciden; validación impide guardar datos inválidos sin perder el borrador. | **Aprobada (reporte del propietario)** |
+| B1-05 | Simula valores exactos, intermedios y fuera de extremos en `interpolate` y `ranges`. | Color, RGB/hex y punto/intervalo coinciden con la regla; no se envían órdenes `light.*` ni cambia la tira. | **Aprobada en HAOS VirtualBox (reporte); repetición física pendiente** |
+| B1-06 | Modifica puntos y usa **Restaurar borrador**; repite y usa **Descartar y volver**. | Restaurar recupera lo cargado; descartar deja opciones, Store, motor y estado físico sin cambios. | **Aprobada en HAOS VirtualBox (reporte); repetición física pendiente** |
+| B1-07 | Guarda una edición válida y vuelve a abrir tras la recarga. | Conserva `id` y todos los campos no editados; persiste sólo modo/puntos nuevos y la regla activa se reevalúa normalmente. | **Aprobada en HAOS VirtualBox (reporte); repetición física pendiente** |
+| B1-08 | Abre la misma regla en dos sesiones; guarda en la primera y luego intenta guardar el borrador antiguo. | La segunda recibe conflicto claro, no sobrescribe y puede recargar la configuración vigente. | **Aprobada (reporte del propietario)** |
+| B1-09 | Reinicia Core, descarga/recarga y elimina la entrada en la instancia aislada. | El panel reaparece sólo con entrada cargada; no quedan tareas, animaciones ni panel visible tras descargar/eliminar, y una instalación nueva no muestra reglas antiguas. | **Aprobada (reporte del propietario)** |
+| B1-10 | Edita la misma regla con el editor nativo y repite una prioridad/modo/notificación del Bloque B. | Ambos editores siguen disponibles, el formato heredado continúa compatible y no hay regresión de prioridades, modos, zonas o recuperación. | **Aprobada en HAOS VirtualBox (reporte); repetición física pendiente** |
 
-La iteración de centralización añade al recorrido pendiente: enlace interno
-desde **Centro de administración**, visibilidad lateral activada/desactivada sin
-perder `/smart-led-manager-editor`, regreso al inicio, nombres amigables,
-estados separados de carga/vacío/error, conservación de foco, simulación vacía
-y respuestas concurrentes. La evidencia visual confirmada no aprueba por sí
-sola estos puntos nuevos.
+El propietario reportó el recorrido B1-01 a B1-10 como 10/10 sobre
+`6ad79e0c3c388f714f08c727ba17f315807310a4` en HAOS VirtualBox. Sumado a A
+8/8 y B 10/10, el total comunicado es 28/28. Este registro no atribuye capturas,
+logs ni métricas no entregados y no convierte VirtualBox en prueba Zigbee.
 
 ### Repetición física separada
 
 Después de B1-01 a B1-10 en VirtualBox, repite B1-05, B1-06, B1-07 y B1-10
 con Raspberry Pi 5/ZHA/GLEDOPTO. Distingue la ausencia de órdenes durante la
 simulación de la aplicación real posterior al guardado. No marques el panel
-validado físicamente ni B.1 aprobado hasta recibir el reporte del propietario.
+validado en hardware físico hasta recibir el reporte del propietario.
+
+## Plan pendiente de `0.1.0-alpha.3`, Bloque C
+
+Ejecuta esta batería en una copia de HAOS VirtualBox partiendo de B.1. Registra
+el SHA exacto instalado, fecha/hora, zona horaria, Home Assistant, navegador y
+resultado observado. El SHA funcional del Bloque C es `2b9c4dd`; usa el SHA
+documental final publicado para la ejecución. Todos los casos siguientes están
+**pendientes** y sólo el propietario puede cerrarlos.
+
+| Caso | Procedimiento | Resultado esperado | Estado |
+|---|---|---|---|
+| C-01 | Haz copia, actualiza la carpeta completa desde B.1 sin eliminar la entrada y reinicia Core. | Conserva `entry_id`, luces, Store, zonas, modos, entidades, nombres y reglas; aparece el catálogo unificado sin duplicados. | Pendiente |
+| C-02 | Abre y ejecuta reglas heredadas de estado y numéricas, incluida una sin `enabled`. | Mantienen `id`, puntos, prioridad y comportamiento; la ausencia de `enabled` equivale a habilitada. | Pendiente |
+| C-03 | Desde el panel crea, edita, duplica, deshabilita y elimina una regla de cada tipo; descarta otro borrador. | CRUD completo, copia con `id` nuevo y deshabilitada, guardado estable y descarte sin efectos físicos. | Pendiente |
+| C-04 | Combina luces individuales y dos zonas con destinos superpuestos. | Se resuelve cada luz física una sola vez y ningún modo deja las luces de su zona. | Pendiente |
+| C-05 | Selecciona un área y una etiqueta que incluyan luces administradas y ajenas. | Sólo aparecen/controlan las administradas; la vista previa muestra las exclusiones. | Pendiente |
+| C-06 | Prueba grupo anidado válido y después ciclo, grupo opaco, miembro ausente y luz no autorizada. | El válido se expande a luces físicas; cada variante insegura se rechaza completa y no envía al grupo. | Pendiente |
+| C-07 | Selecciona “todas las administradas” junto con otros destinos y luego intenta guardar una selección vacía. | Deduplica todas las autorizadas; vacío se rechaza y nunca se interpreta como todas. | Pendiente |
+| C-08 | Con una regla continua activa cambia membresía de grupo, área o etiqueta y elimina/renombra una entidad. | Retira destinos anteriores, aplica sólo a los nuevos seguros, registra inválidos y no toca solicitudes ajenas. | Pendiente |
+| C-09 | Crea puerta abierta AND (presencia OR ayudante) AND NOT alarma; alterna cada fuente y usa `unknown`/`unavailable`. | Reevalúa fuentes secundarias; NOT no convierte datos desconocidos en verdadero. | Pendiente |
+| C-10 | Prueba horario diurno, 22:00–06:00, cambio de día y arranque dentro del intervalo en la zona local. | Entra/sale sin cambio del sensor; en el nocturno el día es el de inicio y no hay polling visible. | Pendiente |
+| C-11 | Exige permanencia y rompe la condición antes del plazo; repite hasta cumplir y después recarga durante la espera. | Cancela el primer contador, reevalúa al cumplir y tras recarga empieza desde cero. | Pendiente |
+| C-12 | Prueba `above`, `below`, `inside` y `outside` en los límites exactos, primero con color fijo y después con puntos/rangos. | Activación y RGB son independientes y respetan límites documentados y unidades sin conversión. | Pendiente |
+| C-13 | Recorre la banda de histéresis y después publica `unknown`, `unavailable`, NaN/valor no numérico y recuperación. | No oscila en la banda; inválidos liberan y la recuperación parte del estado inicial seguro. | Pendiente |
+| C-14 | Dispara una regla desde `input_button` y desde un trigger de cambio de estado. | Cada pulso crea una solicitud temporal; el botón no se interpreta como interruptor persistente. | Pendiente |
+| C-15 | Dispara un evento del bus y una entidad del dominio `event`; haz que una condición descartada se cumpla después. | Sólo el evento actual activa; el descartado no se reproduce posteriormente. | Pendiente |
+| C-16 | Configura un device trigger realmente disponible en la instancia y luego uno inválido. | El compatible se registra y cancela correctamente; el inválido se rechaza al guardar sin listener residual. | Pendiente |
+| C-17 | Repite rápidamente el mismo evento, enmárcalo con prioridad superior y deja que venza. | Renueva una sola solicitud, no crea cola ni animación duplicada y una vencida nunca aparece al liberar la superior. | Pendiente |
+| C-18 | Edita destinos, color y prioridad de una regla activa mientras está enmascarada; deshabilítala antes de liberar la superior. | Sólo existe la intención editada vigente y la deshabilitada no reaparece. | Pendiente |
+| C-19 | Guarda en dos sesiones, prueba usuario no administrador, entrada descargada y previsualizaciones. | Conflicto claro, acceso denegado, escritura rechazada y cero cambios en luces, Store o motor. | Pendiente |
+| C-20 | Reinicia, descarga/recarga, elimina en instancia aislada y repite prioridades, zonas, modos, panel y recuperación anteriores. | Sin listeners, timers, tareas, animaciones o solicitudes tardías; una instalación nueva no hereda reglas. | Pendiente |
+
+### Repetición física Zigbee separada para C
+
+Tras cerrar VirtualBox, repite C-04, C-08, C-12, C-13, C-17, C-18 y C-20 en
+Raspberry Pi 5 con ZHA y controladores reales cuando el caso lo permita. M-06
+sigue exigiendo dos controladores Zigbee. B-02, B-04, B-07, B-08, B1-05,
+B1-06, B1-07 y B1-10 conservan su repetición física pendiente. Alexa/Matter
+Hub, M-10, M-15 y M-17 mantienen el alcance parcial ya documentado. La mera
+instalación de Matter Hub o la existencia de un device trigger no aprueba esas
+pruebas.

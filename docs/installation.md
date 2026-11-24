@@ -51,7 +51,7 @@ secundario si la release declara y prueba esa compatibilidad.
 
 ## Actualización manual
 
-Para actualizar desde alpha.2 o desde los Bloques A/B de alpha.3 al Bloque B.1
+Para actualizar desde alpha.2 o desde los Bloques A/B/B.1 de alpha.3 al Bloque C
 sin perder la entrada:
 
 1. Crea una copia de seguridad de Home Assistant y conserva una copia de la
@@ -68,9 +68,10 @@ sin perder la entrada:
 6. Abre **Configurar > Reglas inteligentes** y confirma que las reglas antiguas
    aparecen habilitadas, conservan sus valores y se pueden editar. Una regla
    duplicada debe usar un identificador nuevo y comenzar deshabilitada.
-7. Abre una regla numérica, comprueba sus puntos en el editor visual y descarta
-   el flujo sin guardar; no debe producir cambios físicos. Guarda después una
-   edición controlada y comprueba la recarga.
+7. Abre el centro de administración y comprueba el catálogo unificado. Abre una
+   regla numérica, revisa sus puntos y descarta sin guardar; no debe producir
+   cambios físicos. Guarda después una edición controlada y comprueba la
+   recarga.
 8. Abre **Configurar** con el perfil en Español o Español (Latinoamérica). Si el
    navegador conservaba recursos anteriores, recarga la página sin caché o
    cierra y vuelve a abrir la aplicación.
@@ -85,7 +86,7 @@ sin perder la entrada:
     edición controlada, espera la recarga normal y confirma que la regla
     conserva su identificador y metadatos.
 
-## Acceso al editor gráfico B.1
+## Acceso al centro de administración
 
 El panel se registra automáticamente cuando carga la única ConfigEntry y exige
 administrador. No requiere añadir un recurso Lovelace ni configuración YAML.
@@ -101,9 +102,10 @@ Hay tres referencias de acceso:
 Home Assistant 2026.11 no ofrece una API pública estable para redirigir
 automáticamente desde un Options Flow; usa el enlace Markdown compatible. Si
 se oculta la entrada lateral, `/smart-led-manager-editor` continúa disponible.
-El panel sólo edita puntos y modo de reglas
-numéricas existentes; para crear una regla o cambiar origen, prioridad,
-destinos y otros metadatos usa el editor nativo.
+El panel administra reglas de estado, numéricas y de eventos. Permite CRUD
+completo, destinos avanzados, condiciones, horarios, estilo, prioridad y
+duración, y conserva el editor numérico. El Options Flow nativo sigue disponible
+como alternativa compatible.
 
 La interfaz `es-419` fue comprobada físicamente; el catálogo `es` tiene
 cobertura automatizada, pero no una ejecución física independiente registrada.
@@ -126,6 +128,20 @@ panel, detén Core, restaura la carpeta completa del commit `f8b9fc9` y reinicia
 Las reglas y los puntos guardados siguen siendo compatibles, pero el rollback
 de código no deshace ediciones: restaura la copia de seguridad si también
 quieres recuperar los valores anteriores.
+
+El Bloque C tampoco incrementa ConfigEntry ni Store, pero sí guarda campos que
+el código B.1 no interpreta: `target_selection`, condiciones, horarios,
+permanencia, activación numérica y reglas de evento. Para actualizar desde B.1,
+detén Core y copia la carpeta completa; no elimines la entrada ni edites
+`.storage`. Para revertir de forma segura, deshabilita o elimina primero las
+reglas que usen campos del Bloque C y restaura la copia de seguridad completa.
+Volver sólo a `6ad79e0` puede ignorar esas reglas nuevas y no deshace cambios de
+opciones.
+
+Después de actualizar, ejecuta C-01 a C-20 en una instancia aislada. Confirma
+primero la compatibilidad de reglas antiguas y después crea reglas avanzadas.
+No marques destinos dinámicos, triggers de dispositivo o hardware Zigbee como
+aprobados por el solo hecho de que el formulario permita guardarlos.
 
 ## Desinstalación
 

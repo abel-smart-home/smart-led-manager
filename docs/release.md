@@ -28,10 +28,20 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
       la compatibilidad con runtime sin frontend, la cobertura frontend y el
       rechazo de campos numéricos vacíos quedan en
       `1d8926bcf8307a480d585174cfb7eb8550fb816a`.
+- [x] El Bloque C parte del HEAD B.1
+      `6ad79e0c3c388f714f08c727ba17f315807310a4`; la implementación inicial es
+      `6ea6eca`, el endurecimiento de ciclo de vida `88862a5`, el seguimiento de
+      grupos anidados `6a74106`, el ajuste de pruebas `8903be0` y el SHA
+      funcional final, que conserva restauración, barra y gráfica B.1, es
+      `2b9c4dd` en `feat/v0.1.0-alpha.3-advanced-rules`. No cambia la versión,
+      ConfigEntry ni Store.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
 - [x] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
       pasan para B.1: 157 pruebas y cobertura de ramas `87.21 %` en ambas
       variantes; el job frontend aprueba 6 pruebas Node.
+- [x] El SHA funcional C `2b9c4dd` aprueba Ruff y 185 pruebas Python con
+      cobertura de ramas `80.72 %` tanto en Home Assistant `2026.11.0` como en
+      `2026.11.2`; el job frontend aprueba 6/6 pruebas Node.
 - [x] Hassfest y HACS/Marketplace Action pasan sin exclusiones engañosas.
 - [x] Manifest, Python, changelog y notas coinciden para alpha.3.
 - [x] Traducciones `en`, `es` y `es-419` cubren flujos, entidades, acciones y
@@ -46,12 +56,15 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
 - [x] El propietario reportó B-01 a B-10, 10/10 en HAOS VirtualBox con
       `f8b9fc9`, el 23 de noviembre de 2026; no se atribuyen evidencias no
       entregadas.
-- [ ] El propietario ejecuta B1-01 a B1-10 en HAOS VirtualBox y repite los
-      Bloques A/B/B.1 en Raspberry Pi/ZHA/GLEDOPTO donde corresponda.
-      B1-01/B1-02 tienen evidencia parcial: el primer arranque falló al
-      serializar `MappingProxyType`; con la corrección del propietario el panel
-      cargó una regla existente y mostró barra y distribución. No se extrapola
-      esa comprobación al resto de casos.
+- [x] El propietario reportó B1-01 a B1-10 aprobadas, 10/10, en HAOS VirtualBox
+      con `6ad79e0c3c388f714f08c727ba17f315807310a4`. Se conserva el primer fallo
+      `MappingProxyType`, su corrección manual en `9ba3b0c` y el endurecimiento
+      posterior. A/B/B.1 suman 28/28 reportadas; no son resultados de Codex ni
+      de CI.
+- [ ] Se repiten B-02, B-04, B-07, B-08, B1-05, B1-06, B1-07 y B1-10 sobre el
+      hardware físico señalado en el plan, además de los pendientes heredados.
+- [ ] El propietario ejecuta C-01 a C-20. Ningún caso C se considera aprobado
+      por compilación, pytest, CI, HAOS anterior o presencia del formulario.
 - [x] El propietario confirmó con `8e21b28` que la entrada reclasificada aparece
       en **Integraciones** y que el perfil `es-419` muestra el Options Flow en
       español. No se atribuye una prueba independiente al perfil `es`.
@@ -68,7 +81,9 @@ El pytest completo no se marca como aprobado en Windows: la dependencia
 `pytest-homeassistant` importa `fcntl`, disponible sólo en POSIX. Ruff, la
 compilación sintáctica y las seis pruebas Node del modelo/panel sí se ejecutaron
 localmente; la evidencia Python completa corresponde a la matriz Linux indicada
-arriba.
+arriba. El repositorio no incorpora un runner de navegador real; Node valida el
+modelo y el contrato del componente, mientras el recorrido visual, teclado,
+táctil y temas permanece en C-01 a C-20 para HAOS VirtualBox.
 
 ## Base física heredada de alpha.1
 
@@ -160,6 +175,25 @@ puntos: detén Core, restaura la carpeta completa de `f8b9fc9` y reinicia. El
 panel lateral desaparecerá y las reglas guardadas seguirán disponibles en el
 editor nativo. Restaura la copia de seguridad si el objetivo es deshacer
 también los cambios de puntos, porque sustituir código no revierte opciones.
+
+### Actualización y reversión del Bloque C
+
+1. Crea una copia completa y conserva la carpeta B.1.
+2. Detén Core y sustituye la carpeta completa de la integración por la rama C;
+   no elimines la entrada ni modifiques `.storage`.
+3. Inicia Core y verifica primero luces autorizadas, zonas, modos, entidades y
+   reglas heredadas. Después abre el catálogo unificado con un administrador.
+4. Previsualiza destinos y simulaciones antes de guardar. Ejecuta C-01 a C-20
+   en la instancia aislada y separa los casos que exigen Zigbee real.
+
+El esquema de entrada y Store no aumenta, pero B.1 desconoce reglas de evento y
+campos avanzados. Para revertir, deshabilita o elimina desde C las reglas que los
+usen, detén Core y restaura la copia completa. Volver sólo al código B.1 no
+deshace opciones y puede ignorar definiciones C; no se declara compatible como
+reversión general sin esa limpieza o restauración.
+
+El Bloque D conserva sin adelantos la política configurable de reintentos y
+verificación física, pausa/reanudación temporal y aliases de voz.
 
 ## Camino a `0.1.0`
 

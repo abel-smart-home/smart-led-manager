@@ -11,11 +11,13 @@ motor de prioridades determinista.
 > M completos, 3 parciales y M-06 pendiente con dos controladores Zigbee reales,
 > combinando evidencia física y de laboratorio HAOS con luces Demo. No equivale
 > a 16 pruebas completas sobre Zigbee ni autoriza la publicación. El propietario
-> aprobó 8/8 pruebas del Bloque A y reportó 10/10 del Bloque B en HAOS
-> VirtualBox. El Bloque B se ejecutó el 23 de noviembre de 2026 sobre
-> `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe`. La validación manual del nuevo
-> editor avanzado B.1 y la repetición física en Raspberry Pi/ZHA/GLEDOPTO
-> siguen pendientes.
+> aprobó 8/8 pruebas del Bloque A, 10/10 del Bloque B y 10/10 del Bloque B.1
+> en HAOS VirtualBox: 28/28 acumuladas. B.1 se comprobó sobre
+> `6ad79e0c3c388f714f08c727ba17f315807310a4`; el antecedente
+> `MappingProxyType`, corregido inicialmente en `9ba3b0c`, permanece en el
+> registro. Son resultados comunicados por el propietario, no pruebas de CI ni
+> pruebas ejecutadas por Codex. El Bloque C y la repetición física indicada en
+> el plan para Raspberry Pi/ZHA/GLEDOPTO siguen pendientes.
 
 ## Qué hace esta alfa
 
@@ -24,18 +26,21 @@ motor de prioridades determinista.
   configurable (`newest`, `oldest` o `lexical`).
 - Conserva y actualiza solicitudes de prioridad inferior mientras están
   ocultas, para mostrar la vigente al terminar la solicitud superior.
-- Admite reglas de estado y reglas numéricas de color con N puntos,
-  interpolación o rangos.
+- Admite reglas de estado, numéricas y de eventos. Las numéricas separan la
+  activación por umbral/histéresis del color fijo, interpolado o por rangos.
+- Combina destinos individuales, zonas, áreas, etiquetas, grupos transparentes
+  y todas las luces administradas, siempre dentro de la lista autorizada.
+- Evalúa condiciones AND/OR/NOT, estado, números, horarios/días y permanencia
+  mínima; `unknown` y `unavailable` nunca se vuelven verdaderos por negación.
 - Administra reglas desde el Options Flow: editar sin cambiar su identificador,
   duplicar como copia inicialmente deshabilitada, activar/desactivar y eliminar.
   Los puntos numéricos se agregan, editan, ordenan y colorean con controles
   nativos, sin escribir cadenas RGB.
 - Incluye un centro de administración local y exclusivo para administradores,
-  con acceso opcional desde la barra lateral y ruta estable. Permite editar
-  puntos con selector de color, ver su
-  distribución numérica real y simular exactamente interpolación o rangos sin
-  enviar órdenes físicas. El editor nativo del Options Flow continúa
-  disponible como alternativa.
+  con acceso opcional desde la barra lateral y ruta estable. Su catálogo
+  unificado permite crear, editar, duplicar, habilitar y eliminar reglas, y
+  conserva el editor de puntos y el simulador exacto sin órdenes físicas. El
+  Options Flow continúa disponible como alternativa compatible.
 - Permite crear zonas no superpuestas y modos persistentes por zona. Cada zona
   expone un `select`; un modo puede exponer además un `switch` opcional para
   paneles o puentes, sin depender de Alexa o Matter.
@@ -83,8 +88,8 @@ quieras delegar al motor. Después abre **Configurar > Zonas** y **Configurar >
 Modos de iluminación** o **Configurar > Reglas inteligentes** para crear el
 catálogo; no hace falta YAML ni introducir puntos RGB como texto.
 
-Para editar gráficamente una regla numérica existente, abre **Smart LED
-Manager** en la barra lateral con una cuenta administradora, visita
+Para administrar gráficamente las reglas, abre **Smart LED Manager** en la
+barra lateral con una cuenta administradora, visita
 `/smart-led-manager-editor` o usa el enlace de **Configurar > Centro de
 administración**. La misma pantalla permite mostrar u ocultar el acceso lateral
 sin deshabilitar la ruta. **Configurar > Reglas inteligentes > Abrir editor
