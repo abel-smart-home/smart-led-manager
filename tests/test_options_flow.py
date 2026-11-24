@@ -228,7 +228,10 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         blocked = await flow.async_step_delete_zone({"zone_id": zone["zone_id"]})
         self.assertEqual(blocked["errors"]["base"], "zone_has_modes")
         entry.options = {CONF_ZONES: [zone], CONF_MODES: []}
-        deleted = await flow.async_step_delete_zone({"zone_id": zone["zone_id"]})
+        stale = await flow.async_step_delete_zone({"zone_id": zone["zone_id"]})
+        fresh_flow, _ = _flow(options={CONF_ZONES: [zone], CONF_MODES: []})
+        deleted = await fresh_flow.async_step_delete_zone({"zone_id": zone["zone_id"]})
+        self.assertEqual(stale["reason"], "configuration_changed")
         self.assertEqual(deleted["data"][CONF_ZONES], [])
 
     async def test_zone_edit_cannot_orphan_mode_targets(self) -> None:
