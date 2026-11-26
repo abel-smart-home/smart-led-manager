@@ -11,3 +11,4 @@ Orden de referencia: políticas vigentes de AGENTS.md y seguridad del backend > 
 - [Aceptación](acceptance-criteria.md)
 - [Prototipo](prototypes/Smart_LED_Manager_prototipo_v1.0.html)
 - [Capturas](reference/README.md)
+- [Comparación visual de C.2.2](c22-evidence/README.md)

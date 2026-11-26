@@ -40,6 +40,7 @@ contiene íntegramente C.1 y los 46 commits de desarrollo que la separaban de
 | C, reglas avanzadas | `2b9c4dd453c71faf19b5a27d1346d9ef127f49d4` |
 | C.1, candidato funcional | `85770cec7143c775dcc2a69853df2a9b0523b07c` |
 | C.2.1, guardar y conservar borradores | `cf2f371353dc6321baaef67c0ca8858e6d564110` |
+| C.2.2, centro de administración | `7a0fc49c2eda8a15e9b0e658e10b6da2efaede29` |
 
 Los SHA que el propietario instaló y los resultados de cada prueba figuran en
 el [registro HAOS](../haos-test-plan.md).

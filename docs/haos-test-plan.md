@@ -471,3 +471,10 @@ B1-06, B1-07 y B1-10 conservan su repetición física pendiente. Alexa/Matter
 Hub, M-10, M-15 y M-17 mantienen el alcance parcial ya documentado. La mera
 instalación de Matter Hub o la existencia de un device trigger no aprueba esas
 pruebas.
+
+## Recorrido de C.2.2 en VirtualBox
+
+La [guía de instalación y validación C.2.2](haos-c22-checks.md) fija el SHA y
+el recorrido del centro, luces, zonas y modos. La ejecución práctica está
+pendiente. Este recorrido conserva los estados de C-01–C-20, U-01–U-06 y las
+pruebas físicas registradas por separado.
