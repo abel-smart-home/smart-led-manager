@@ -18,11 +18,9 @@ decisión posterior del propietario sobre el alcance.
 | `feat/v0.1.0-alpha.3-visual-editor` | `6ad79e0c3c388f714f08c727ba17f315807310a4` | Candidata, con revisión de enlaces en documentación. |
 | `feat/v0.1.0-alpha.3-advanced-rules` | `a0df3c48711f8b40fe48f8ded122d5a572906c83` | Base común; conviene conservarla al validar C.2. |
 
-[PR #1](https://github.com/abel-smart-home/smart-led-manager/pull/1) y
-[PR #2](https://github.com/abel-smart-home/smart-led-manager/pull/2) permanecen
-abiertos en borrador. Se requiere autorización específica antes de cerrarlos
-o eliminar ramas. El inventario local y remoto de etiquetas estaba vacío y
-GitHub devolvió cero releases.
+Al abrir el PR consolidado, #1 y #2 estaban abiertos en borrador. El inventario
+local y remoto de etiquetas estaba vacío y GitHub devolvió cero releases.
+[PR #1](https://github.com/abel-smart-home/smart-led-manager/pull/1) · [PR #2](https://github.com/abel-smart-home/smart-led-manager/pull/2).
 
 El commit exclusivamente documental
 `87be81fd745c9a3c9230bde973466d04f54e869f` inició C.2 en GitHub. La rama
@@ -41,6 +39,7 @@ contiene íntegramente C.1 y los 46 commits de desarrollo que la separaban de
 | B.1, centro de administración inicial | `ff49295bb5b6ba315eef65d7fd46e769b72d396e` |
 | C, reglas avanzadas | `2b9c4dd453c71faf19b5a27d1346d9ef127f49d4` |
 | C.1, candidato funcional | `85770cec7143c775dcc2a69853df2a9b0523b07c` |
+| C.2.1, guardar y conservar borradores | `cf2f371353dc6321baaef67c0ca8858e6d564110` |
 
 Los SHA que el propietario instaló y los resultados de cada prueba figuran en
 el [registro HAOS](../haos-test-plan.md).

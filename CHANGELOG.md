@@ -357,6 +357,6 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Recibir aprobación explícita antes de fusionar, etiquetar, crear la
   pre-release o enviar la integración al catálogo Marketplace.
 
-[0.1.0-alpha.1]: https://github.com/abel-smart-home/smart-led-manager/compare/main...feat/v0.1.0-alpha.1
-[0.1.0-alpha.2]: https://github.com/abel-smart-home/smart-led-manager/compare/feat/v0.1.0-alpha.1...feat/v0.1.0-alpha.2-modes
-[0.1.0-alpha.3]: https://github.com/abel-smart-home/smart-led-manager/compare/feat/v0.1.0-alpha.2-modes...feat/v0.1.0-alpha.3-zone-devices
+[0.1.0-alpha.1]: https://github.com/abel-smart-home/smart-led-manager/compare/a04e925b9fea426464742644943fd79bb4ed9550...163ff8f274d6894ab239ef74ef5ba6a8b545c77a
+[0.1.0-alpha.2]: https://github.com/abel-smart-home/smart-led-manager/compare/163ff8f274d6894ab239ef74ef5ba6a8b545c77a...a14d9afb465c698c0354d18892ecac3537d5f6b4
+[0.1.0-alpha.3]: https://github.com/abel-smart-home/smart-led-manager/compare/a14d9afb465c698c0354d18892ecac3537d5f6b4...fa9ecd650485e27ee1f1f22654972a1c47379c17
