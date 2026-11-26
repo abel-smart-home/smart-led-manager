@@ -523,3 +523,18 @@ tamaño del inicio y la validación visual de C.2.3, sin observaciones.
 | R-12 | Persistencia y regresiones | Aprobada |
 
 C-01–C-20, U-01–U-06 y las pruebas físicas conservan sus estados.
+
+## Validación pendiente de C.2.4 en VirtualBox
+
+SHA funcional `05e0674c941f8b67f7b3a21bd66eb32a998eae68`.
+Linux pasó 253 pruebas por versión de Core (`2026.11.0`, `2026.11.2` y
+`2026.11.3`), con 85,19 % de cobertura con ramas. Pasaron las 12 pruebas
+frontend, Ruff, Hassfest, HACS/Marketplace y el navegador con la integración
+instalada en Core 2026.11.3.
+[CI](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45897281530) ·
+[Validadores de HA](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45897281548).
+
+Los casos S-01–S-08, la revisión visual en HAOS y la ejecución en luces
+físicas quedan pendientes de confirmación del propietario.
+[Guía de instalación, recuperación y recorrido](haos-c24-checks.md) ·
+[Comparación visual y capturas de Core](design/c24-evidence/README.md).

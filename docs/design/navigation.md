@@ -13,7 +13,7 @@ Smart LED Manager
 │  ├─ Energía → potencia / consumo → editor numérico
 │  ├─ Seguridad → editor de estados
 │  ├─ Presencia → editor de estados
-│  ├─ Notificaciones → editor de avisos temporales
+│  ├─ Notificaciones → catálogo de avisos → crear / editar / duplicar / eliminar / simular / probar
 │  ├─ Horarios → editor temporal
 │  └─ Regla avanzada → condiciones simples + horario opcional
 └─ Configuración
@@ -28,7 +28,9 @@ Guardar correctamente vuelve al listado pertinente y muestra confirmación. Atr�
 
 C.2.3 abre **Iluminación inteligente** con las nueve entradas del árbol.
 **Energía** ofrece potencia instantánea y energía acumulada por separado.
-**Mis automatizaciones** usa el catálogo común. **Notificaciones** enlaza
-a las acciones de Home Assistant, **Horarios** ofrece el horario del editor
-compatible y **Regla avanzada** abre ese mismo editor. **Configuración**
-conserva el acceso a **Configuración nativa**.
+**Mis automatizaciones** usa el catálogo común. Desde C.2.4,
+**Notificaciones** muestra los avisos guardados de ese catálogo, **Horarios**
+abre el formulario sin fuente y **Regla avanzada** abre el editor de
+condiciones. El editor compatible sigue disponible para árboles anidados y
+configuraciones avanzadas. **Configuración** conserva el acceso a
+**Configuración nativa**.

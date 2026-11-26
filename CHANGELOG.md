@@ -57,8 +57,11 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 
 - Catálogo de avisos guardados, simulación en pantalla y prueba explícita en
   luces autorizadas. La acción `smart_led_manager.run_notice` usa un ID estable.
+  Recarga el editor de automatizaciones de Home Assistant para ver los cambios
+  del catálogo si ya estaba abierto.
 - Horarios independientes y reglas continuas basadas sólo en condiciones.
   La simulación evalúa el borrador localmente sin enviar órdenes a luces.
+- [Guía de instalación y validación práctica en VirtualBox](docs/haos-c24-checks.md).
 
 ### Añadido — Bloque A
 
