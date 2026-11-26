@@ -176,16 +176,27 @@ heredado que sólo modifica `mode` y `points` se conserva para compatibilidad;
 el catálogo nuevo usa `async_update_entry` y el listener normal ejecuta la
 recarga ya probada por el Bloque B.
 
-Al actualizar opciones, el panel mantiene su ruta y recibe el estado de la
-recarga por evento. Se cancelan los trabajos del coordinador anterior y las
-escrituras quedan bloqueadas hasta que el runtime vuelva a estar listo.
-La descarga definitiva y la eliminación retiran el panel. Los manejadores
-WebSocket y la ruta estática, registrados una sola
-vez a nivel de integración, no crean tareas ni conservan catálogos; Home
-Assistant no ofrece una API pública para desregistrarlos durante la misma
-ejecución. Sin la ConfigEntry cargada responden `entry_not_loaded`; un
-identificador inexistente responde `entry_not_found`. Un reinicio
-de Core elimina esos registros junto con el runtime completo.
+Desde C.2.1 el coordinador registra la revisión de las opciones con las que se
+construyó. El WebSocket de administrador `smart_led_manager/editor/status`
+informa la revisión guardada, la cargada y el estado de la ConfigEntry. Los
+eventos y la reconexión del cliente motivan lecturas de estado. El frontend
+confirma el guardado al leer el catálogo de la misma revisión que el runtime
+aplicó. Las lecturas durante una recarga tienen un número acotado de intentos.
+La entrada en transición rechaza escrituras y previsualizaciones con
+`entry_not_loaded`. Para estos comandos, un ID inexistente devuelve
+`entry_not_found`.
+
+Cada envío del editor puede llevar un identificador. El backend guarda en
+memoria los últimos 32 recibos por entrada. Eso permite comprobar una
+actualización cuya respuesta se perdió y deduplicar la repetición del mismo
+envío. Una revisión obsoleta sigue produciendo un conflicto. Los recibos se
+descartan al eliminar la entrada o reiniciar Core.
+
+El panel mantiene su ruta durante la recarga. Para las recargas nativas, se
+espera a que Core termine la transición de la entrada antes de decidir si se
+retira el panel. La descarga definitiva y la eliminación retiran el panel y los
+trabajos del runtime. Los comandos WebSocket y la ruta estática siguen
+registrados una sola vez a nivel de integración.
 
 El Device Registry contiene un dispositivo central identificado por
 `(smart_led_manager, entry_id)` y un dispositivo por zona identificado por

@@ -83,7 +83,10 @@ test("color picker conversion is reversible", () => {
   assert.throws(() => hexToRgb("invalid"), /invalid hex color/);
 });
 
-test("panel renders unified rules and uses preview/CRUD contracts", async () => {
+async function panelComponent() {
+  if (globalThis.customElements?.get("smart-led-manager-visual-editor")) {
+    return globalThis.customElements.get("smart-led-manager-visual-editor");
+  }
   const registry = new Map();
   globalThis.HTMLElement = class {
     constructor() {
@@ -111,9 +114,16 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   };
 
   await import("../../custom_components/smart_led_manager/frontend/visual-editor-panel.mjs");
-  const Panel = registry.get("smart-led-manager-visual-editor");
+  return registry.get("smart-led-manager-visual-editor");
+}
+
+test("panel renders unified rules and uses preview/CRUD contracts", async () => {
+  const Panel = await panelComponent();
   const editor = new Panel();
   const calls = [];
+  let revision = "revision";
+  let savedRule;
+  let rejectSave = false;
   editor._hass = {
     language: "es",
     callWS: async (message) => {
@@ -134,9 +144,15 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
         };
       }
       if (message.type === "smart_led_manager/smart_rules/mutate") {
-        return { revision: "new-revision", rule: message.rule, rules: [message.rule] };
+        if (rejectSave) throw { code: "conflict" };
+        revision = "new-revision";
+        savedRule = message.rule;
+        return { revision, rule: savedRule };
       }
-      return { revision: "new-revision", rules: [], selections: {} };
+      if (message.type === "smart_led_manager/editor/status") {
+        return { status: "ready", revision, applied_revision: revision };
+      }
+      return { revision, rules: savedRule ? [{ rule: savedRule }] : [], selections: {} };
     },
   };
   editor._panel = { config: { entry_id: "entry-1", version: "0.1.0-alpha.3" } };
@@ -171,6 +187,7 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   editor._original = { ...deepClone(editor._selected.rule), mode: "interpolate" };
   editor._simulateValue = "22";
   editor._revision = "revision";
+  editor._runtimeStatus = "ready";
 
   await editor._previewNumeric();
   assert.equal(calls[0].type, "smart_led_manager/rules/preview");
@@ -190,9 +207,12 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   await editor._save();
   assert.equal(calls[1].type, "smart_led_manager/smart_rules/mutate");
   assert.equal(calls[1].revision, "revision");
+  assert.ok(calls[1].mutation_id);
+  assert.equal(calls[2].type, "smart_led_manager/editor/status");
   assert.equal(editor._revision, "new-revision");
-  assert.equal(editor._selected.rule.mode, "ranges");
-  assert.equal(editor._draft.mode, "ranges");
+  assert.equal(editor._rules[0].rule.mode, "ranges");
+  assert.equal(editor._draft, undefined);
+  assert.equal(editor._view, "rules");
   assert.equal(editor._dirty(), false);
   assert.match(editor.shadowRoot.innerHTML, /Configuración guardada/);
 
@@ -205,6 +225,7 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   assert.equal(editor._numericPreview, undefined);
 
   const pending = [];
+  const callWS = editor._hass.callWS;
   editor._hass.callWS = (message) => new Promise((resolve) => pending.push({ message, resolve }));
   editor._simulateValue = "21";
   const firstPreview = editor._previewNumeric();
@@ -221,7 +242,8 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   assert.equal(editor._invalidNumeric(), true);
   assert.equal(editor._draft.points[0].value, 20);
   editor._pointInput.clear();
-  editor._hass.callWS = async () => { throw { code: "conflict" }; };
+  editor._hass.callWS = callWS;
+  rejectSave = true;
   await editor._save();
   assert.equal(editor._draft.name, "Conservar");
   assert.match(editor.shadowRoot.innerHTML, /sesión/);
@@ -246,11 +268,118 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
 
   editor._draft = { name: "Borrador" };
   editor._original = { name: "Original" };
-  window.confirm = () => false;
   editor._goHome();
-  assert.notEqual(editor._selected, undefined);
-  window.confirm = () => true;
-  editor._goHome();
+  assert.equal(editor._exitView, "home");
+  assert.match(editor.shadowRoot.innerHTML, /Continuar editando/);
+  editor._closeExit();
+  assert.equal(editor._draft.name, "Borrador");
+  editor._exitEditor("home");
   assert.equal(editor._selected, undefined);
   assert.equal(editor._view, "home");
+});
+
+test("an accepted save stays a draft until a status read confirms the applied revision", async () => {
+  const Panel = await panelComponent();
+  const editor = new Panel();
+  let status = "failed";
+  let appliedRevision = "before";
+  let writes = 0;
+  const rule = { id: "rule-1", type: "state", name: "Puerta" };
+  editor._panel = { config: { entry_id: "lab" } };
+  editor._view = "rules";
+  editor._revision = "before";
+  editor._runtimeStatus = "ready";
+  editor._creating = true;
+  editor._draft = { type: "state", name: "Puerta" };
+  editor._hass = {
+    language: "es",
+    callWS: async ({ type }) => {
+      if (type.endsWith("/mutate")) {
+        writes++;
+        return { revision: "accepted", rule };
+      }
+      if (type.endsWith("/status")) {
+        return { status, entry_state: "setup_error", applied_revision: appliedRevision };
+      }
+      return { revision: "accepted", rules: [{ rule }] };
+    },
+  };
+  await editor._save();
+  assert.equal(editor._draft.name, "Puerta");
+  assert.equal(editor._revision, "before");
+  assert.match(editor.shadowRoot.innerHTML, /todavía no las aplica/);
+  assert.doesNotMatch(editor.shadowRoot.innerHTML, /Configuración guardada/);
+  await editor._save();
+  assert.equal(writes, 1);
+
+  status = "ready";
+  appliedRevision = "accepted";
+  await editor._load();
+  assert.equal(editor._draft, undefined);
+  assert.equal(editor._rules[0].rule.id, rule.id);
+  assert.match(editor.shadowRoot.innerHTML, /Configuración guardada/);
+});
+
+test("an interrupted save is recovered by its receipt without resending a mutation", async () => {
+  const Panel = await panelComponent();
+  const editor = new Panel();
+  let mutationId;
+  let statusReads = 0;
+  const rule = { id: "created-once", type: "state", name: "Presencia" };
+  editor._panel = { config: { entry_id: "lab" } };
+  editor._view = "rules";
+  editor._revision = "before";
+  editor._runtimeStatus = "ready";
+  editor._creating = true;
+  editor._draft = { type: "state", name: rule.name };
+  editor._hass = {
+    callWS: async (message) => {
+      if (message.type.endsWith("/mutate")) {
+        assert.equal(mutationId, undefined);
+        mutationId = message.mutation_id;
+        throw 3; // Home Assistant WebSocket client connection-lost error.
+      }
+      if (message.type.endsWith("/status")) {
+        assert.equal(message.mutation_id, mutationId);
+        statusReads++;
+        return {
+          status: statusReads === 1 ? "reloading" : "ready",
+          mutation: { revision: "after", rule },
+          applied_revision: statusReads === 1 ? null : "after",
+        };
+      }
+      return { revision: "after", rules: [{ rule }] };
+    },
+  };
+  await editor._save();
+  assert.equal(statusReads, 2);
+  assert.equal(editor._draft, undefined);
+  assert.equal(editor._rules[0].rule.id, rule.id);
+  assert.match(editor.shadowRoot.innerHTML, /Configuration saved/);
+});
+
+test("a reload between the status read and catalog read keeps the draft revision", async () => {
+  const Panel = await panelComponent();
+  const editor = new Panel();
+  let reads = 0;
+  editor._panel = { config: { entry_id: "lab" } };
+  editor._view = "rules";
+  editor._revision = "older";
+  editor._draft = { type: "state", name: "Edit in progress" };
+  editor._hass = {
+    callWS: async ({ type }) => {
+      if (type.endsWith("/status")) {
+        reads++;
+        return { status: "ready", applied_revision: reads === 1 ? "before" : "after" };
+      }
+      if (reads === 1) throw { code: "entry_not_loaded" };
+      return { revision: "after", rules: [] };
+    },
+  };
+  await editor._load();
+  assert.equal(reads, 2);
+  assert.equal(editor._runtimeStatus, "ready");
+  assert.equal(editor._catalogRevision, "after");
+  assert.equal(editor._revision, "older");
+  assert.equal(editor._draft.name, "Edit in progress");
 });

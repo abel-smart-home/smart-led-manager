@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 from homeassistant.components import frontend
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 
 from custom_components.smart_led_manager import (
     _async_update_listener,
@@ -20,6 +22,7 @@ from custom_components.smart_led_manager.const import CONF_ZONES, DOMAIN
 from custom_components.smart_led_manager.diagnostics import (
     async_get_config_entry_diagnostics,
 )
+from custom_components.smart_led_manager.modules.configuration import options_revision
 from custom_components.smart_led_manager.sensor import (
     SmartLEDManagerStatusSensor,
 )
@@ -28,6 +31,7 @@ from custom_components.smart_led_manager.sensor import (
 )
 from custom_components.smart_led_manager.visual_editor import (
     PANEL_PATH,
+    async_finish_visual_editor_unload,
     async_register_visual_editor_panel,
 )
 
@@ -139,6 +143,46 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(setup_visual_editor.await_count, 2)
         self.assertEqual(hass.data[DOMAIN]["entries"], {})
 
+    async def test_native_panel_removal_waits_for_core_final_state(self) -> None:
+        hass = _Hass()
+        hass.bus = SimpleNamespace(async_fire=Mock())
+        panels = hass.data[frontend.DATA_PANELS] = {}
+        entry = Mock(spec=ConfigEntry)
+        entry.entry_id = "entry-1"
+        entry.disabled_by = None
+        entry.options = {}
+        entry.setup_lock = asyncio.Lock()
+        entry.state = ConfigEntryState.LOADED
+        tasks = []
+
+        def create_task(coroutine, name):
+            tasks.append(asyncio.create_task(coroutine, name=name))
+
+        hass.async_create_task = create_task
+        await async_register_visual_editor_panel(hass, entry)
+        panel = panels[PANEL_PATH]
+
+        async with entry.setup_lock:
+            entry.state = ConfigEntryState.UNLOAD_IN_PROGRESS
+            async_finish_visual_editor_unload(hass, entry)
+            await asyncio.sleep(0)
+            self.assertIs(panels[PANEL_PATH], panel)
+            entry.state = ConfigEntryState.LOADED
+            hass.data[DOMAIN]["entries"] = {
+                entry.entry_id: SimpleNamespace(
+                    options_revision=options_revision(entry.options)
+                )
+            }
+        await tasks.pop()
+        self.assertIs(panels[PANEL_PATH], panel)
+
+        async with entry.setup_lock:
+            entry.state = ConfigEntryState.UNLOAD_IN_PROGRESS
+            async_finish_visual_editor_unload(hass, entry)
+            entry.state = ConfigEntryState.NOT_LOADED
+        await tasks.pop()
+        self.assertNotIn(PANEL_PATH, panels)
+
     async def test_entry_setup_and_successful_unload(self) -> None:
         hass = _Hass()
         entry = _Entry()
@@ -171,11 +215,11 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
         register_panel.assert_awaited_once_with(hass, entry)
 
         with patch(
-            "custom_components.smart_led_manager.async_remove_visual_editor_panel"
+            "custom_components.smart_led_manager.async_finish_visual_editor_unload"
         ) as remove_panel:
             self.assertTrue(await async_unload_entry(hass, entry))
         coordinator.async_shutdown.assert_awaited_once_with()
-        remove_panel.assert_called_once_with(hass, unloading_entry=entry.entry_id)
+        remove_panel.assert_called_once_with(hass, entry)
         self.assertNotIn(entry.entry_id, hass.data[DOMAIN]["entries"])
 
     async def test_failed_platform_unload_keeps_runtime_loaded(self) -> None:

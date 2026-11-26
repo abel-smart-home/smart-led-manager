@@ -181,20 +181,22 @@ el punto o intervalo usado. El cálculo ocurre en el backend con el mismo códig
 que evalúa la regla activa. Simular o editar un borrador nunca ordena encender o
 apagar una luz.
 
-**Restaurar borrador** vuelve a los datos cargados; **Descartar y volver** sale
-sin modificar opciones; **Guardar cambios** valida otra vez en Python y provoca
-la recarga normal de la entrada. Si el Options Flow u otra pestaña cambió la
-configuración después de cargarla, el panel rechaza el guardado como conflicto:
-conserva el borrador para consultar tus cambios, vuelve al catálogo, pulsa
-**Recargar** y abre la versión vigente para volver a editar.
+**Restaurar borrador** vuelve a los datos cargados. Si pulsas **Cancelar** o
+vuelves al catálogo con cambios, puedes **Continuar editando**, **Descartar
+cambios y salir** o **Guardar y salir**. **Guardar** valida en Python, solicita
+la recarga normal y vuelve al catálogo cuando la revisión se aplica.
+Si el Options Flow u otra pestaña cambia la configuración, el guardado se
+rechaza con un conflicto. Conserva el borrador para consultar qué cambiaste,
+comprueba el estado y abre la versión vigente para volver a aplicar tus cambios.
 
 Las actualizaciones ordinarias de estados de Home Assistant no reconstruyen el
 formulario ni quitan el foco. Una respuesta antigua del simulador se descarta
 si ya existe una solicitud posterior o cambió el borrador. Los campos vacíos
 conservan su condición de vacíos. Durante la recarga se muestra el estado y
-se bloquean las escrituras. Una vez guardada la edición, el panel conserva el
-formulario. Después de crear o realizar una acción de catálogo, regresa a la
-lista en la misma ruta.
+se bloquean las escrituras. Si la recarga falla, el panel deja el formulario
+abierto. Puedes revisar el registro de HA, recargar la integración y usar
+**Comprobar estado** para volver a leer el resultado. Una reconexión también
+comprueba el resultado de un envío pendiente.
 
 La recarga no es edición completamente en caliente. Conserva solicitudes
 persistentes válidas y selecciones de modo, pero una notificación temporal no

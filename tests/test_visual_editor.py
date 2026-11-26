@@ -23,8 +23,10 @@ from custom_components.smart_led_manager.visual_editor import (
     PANEL_PATH,
     STATIC_URL,
     async_register_visual_editor_panel,
+    async_reload_visual_editor_entry,
     async_remove_visual_editor_panel,
     async_setup_visual_editor,
+    websocket_editor_status,
     websocket_get_numeric_rules,
     websocket_get_smart_rules,
     websocket_mutate_smart_rule,
@@ -71,26 +73,34 @@ class _Entry:
 
 
 class _ConfigEntries:
-    def __init__(self, entry: _Entry) -> None:
+    def __init__(self, entry: _Entry, runtime: SimpleNamespace) -> None:
         self.entry = entry
+        self.runtime = runtime
+        self.apply_updates = True
         self.updated: list[dict[str, object]] = []
 
     def async_get_entry(self, entry_id: str):
         return self.entry if entry_id == self.entry.entry_id else None
 
-    def async_update_entry(self, entry: _Entry, **changes) -> None:
+    def async_update_entry(self, entry: _Entry, **changes) -> bool:
         self.updated.append(changes)
         entry.options = changes["options"]
+        if self.apply_updates:
+            self.runtime.options_revision = options_revision(entry.options)
+        return True
 
 
 class _Hass:
     def __init__(self, entry: _Entry | None = None) -> None:
         self.entry = entry or _Entry()
-        self.config_entries = _ConfigEntries(self.entry)
+        self.runtime = SimpleNamespace(
+            options_revision=options_revision(self.entry.options)
+        )
+        self.config_entries = _ConfigEntries(self.entry, self.runtime)
         self.data = {
             DOMAIN: {
                 _DATA_LOCK: asyncio.Lock(),
-                "entries": {self.entry.entry_id: object()},
+                "entries": {self.entry.entry_id: self.runtime},
             }
         }
         self.states = SimpleNamespace(
@@ -133,6 +143,14 @@ async def _mutation_handler(hass, connection, message) -> None:
     """Call through the two wrappers around the async CRUD coroutine."""
 
     await websocket_mutate_smart_rule.__wrapped__.__wrapped__(hass, connection, message)
+
+
+def _status(hass, **kwargs):
+    connection = _Connection()
+    websocket_editor_status(
+        hass, connection, _message("smart_led_manager/editor/status", **kwargs)
+    )
+    return connection.results[0][1]
 
 
 class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
@@ -339,6 +357,56 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(connection.errors[0][1], "entry_not_loaded")
+        self.assertEqual(_status(hass)["status"], "unloaded")
+        self.assertEqual(_status(hass, entry_id="missing"), {"status": "missing"})
+
+    async def test_receipt_distinguishes_accepted_options_from_applied_revision(
+        self,
+    ) -> None:
+        hass = _Hass()
+        hass.config_entries.apply_updates = False
+        revision = hass.runtime.options_revision
+        message = _message(
+            "smart_led_manager/smart_rules/mutate",
+            operation="duplicate",
+            rule_id="temperature",
+            mutation_id="receipt-1",
+            revision=revision,
+        )
+        first, replay, conflict, blocked = (_Connection() for _ in range(4))
+        await _mutation_handler(hass, first, message)
+        receipt = _status(hass, mutation_id="receipt-1")
+        self.assertEqual(receipt["status"], "reloading")
+        self.assertEqual(receipt["applied_revision"], revision)
+        self.assertEqual(receipt["revision"], first.results[0][1]["revision"])
+        self.assertEqual(
+            receipt["mutation"]["rule"]["id"], first.results[0][1]["rule"]["id"]
+        )
+        self.assertNotEqual(receipt["revision"], revision)
+
+        await _mutation_handler(hass, replay, {**message, "id": 2})
+        self.assertEqual(replay.results[0][1], receipt["mutation"])
+        await _mutation_handler(hass, conflict, {**message, "operation": "delete"})
+        self.assertEqual(conflict.errors[0][1], "conflict")
+        await _mutation_handler(
+            hass,
+            blocked,
+            {**message, "revision": receipt["revision"], "mutation_id": "receipt-2"},
+        )
+        self.assertEqual(blocked.errors[0][1], "entry_not_loaded")
+        self.assertEqual(len(hass.config_entries.updated), 1)
+        hass.runtime.options_revision = receipt["revision"]
+        self.assertEqual(_status(hass, mutation_id="receipt-1")["status"], "ready")
+
+    async def test_failed_reload_preserves_saved_revision_for_inspection(self) -> None:
+        hass = _Hass()
+        hass.entry.options["unrelated"] = {"updated": True}
+        hass.config_entries.async_reload = AsyncMock(return_value=False)
+        await async_reload_visual_editor_entry(hass, hass.entry)
+        status = _status(hass)
+        self.assertEqual(status["status"], "failed")
+        self.assertNotEqual(status["applied_revision"], status["revision"])
+        hass.config_entries.async_reload.assert_awaited_once_with(hass.entry.entry_id)
 
     async def test_invalid_duplicate_and_stale_edits_do_not_change_options(
         self,
@@ -525,6 +593,7 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         hass = _Hass()
         connection = _Connection(admin=False)
         messages = [
+            (websocket_editor_status, _message("smart_led_manager/editor/status")),
             (
                 websocket_get_numeric_rules,
                 _message("smart_led_manager/rules/get"),
@@ -604,7 +673,7 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
             await async_register_visual_editor_panel(hass, entry)
             async_remove_visual_editor_panel(hass)
 
-        self.assertEqual(register_command.call_count, 6)
+        self.assertEqual(register_command.call_count, 7)
         hass.http.async_register_static_paths.assert_awaited_once()
         static_path = hass.http.async_register_static_paths.await_args.args[0][0]
         self.assertEqual(static_path.url_path, STATIC_URL)

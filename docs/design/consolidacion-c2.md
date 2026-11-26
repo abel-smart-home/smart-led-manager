@@ -24,6 +24,11 @@ abiertos en borrador. Se requiere autorización específica antes de cerrarlos
 o eliminar ramas. El inventario local y remoto de etiquetas estaba vacío y
 GitHub devolvió cero releases.
 
+El commit exclusivamente documental
+`87be81fd745c9a3c9230bde973466d04f54e869f` inició C.2 en GitHub. La rama
+contiene íntegramente C.1 y los 46 commits de desarrollo que la separaban de
+`main`. [PR consolidado #3, en borrador](https://github.com/abel-smart-home/smart-led-manager/pull/3).
+
 ## Hitos funcionales
 
 | Hito | SHA completo |

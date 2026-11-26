@@ -49,6 +49,7 @@ from .models import (
     TieBreaker,
     utc_now,
 )
+from .modules.configuration import options_revision
 from .modules.modes import ModeManager, ModeValidationError
 from .modules.rules import RuleManager
 from .storage import SmartLEDStorage
@@ -67,6 +68,7 @@ class SmartLEDCoordinator:
         self.hass = hass
         self.entry = entry
         options = dict(entry.options)
+        self.options_revision = options_revision(options)
         lights = options.get(CONF_LIGHTS, entry.data.get(CONF_LIGHTS, []))
         self.targets = TargetResolver(lights)
         self.engine = PriorityEngine(

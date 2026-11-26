@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from unittest.mock import patch
 
 import probatio
 import pytest
@@ -42,6 +43,8 @@ from custom_components.smart_led_manager.const import (
     SERVICE_CANCEL,
     SERVICE_NOTIFY,
 )
+from custom_components.smart_led_manager.coordinator import SmartLEDCoordinator
+from custom_components.smart_led_manager.modules.configuration import options_revision
 from custom_components.smart_led_manager.modules.rules import RuleManager
 from custom_components.smart_led_manager.registry import (
     central_device_identifier,
@@ -133,12 +136,103 @@ async def test_saving_options_keeps_registered_panel_across_real_entry_reload(
         )
         await hass.async_block_till_done()
         assert entry.runtime_data is not first_runtime
+        applied_runtime = entry.runtime_data
+        assert await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+        assert entry.runtime_data is not applied_runtime
         assert panels[PANEL_PATH] is first_panel
         assert False not in updates
         assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
         assert PANEL_PATH not in panels
     finally:
         remove_listener()
+
+
+@pytest.mark.parametrize("setup_succeeds", [True, False])
+async def test_editor_confirms_runtime_revision_after_real_reload(
+    hass, hass_ws_client, setup_succeeds
+) -> None:
+    """Read acknowledgements over the actual HA transport during a reload."""
+    panels = hass.data.setdefault(frontend.DATA_PANELS, {})
+    hass.states.async_set("light.strip", STATE_OFF)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_LIGHTS: ["light.strip"]}, minor_version=2
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_ws_client()
+    panel = panels[PANEL_PATH]
+    accepted = asyncio.Event()
+    resume = asyncio.Event()
+    initialize = SmartLEDCoordinator.async_initialize
+
+    async def initialize_later(coordinator) -> None:
+        accepted.set()
+        await resume.wait()
+        if not setup_succeeds:
+            raise RuntimeError("Test setup failure after options were accepted")
+        await initialize(coordinator)
+
+    async def command(msg_id, command_type, **data):
+        await client.send_json(
+            {
+                "id": msg_id,
+                "type": f"{DOMAIN}/{command_type}",
+                "entry_id": entry.entry_id,
+                **data,
+            }
+        )
+        return await client.receive_json()
+
+    old_revision = options_revision(entry.options)
+    with patch.object(SmartLEDCoordinator, "async_initialize", initialize_later):
+        try:
+            response = await command(
+                1,
+                "smart_rules/mutate",
+                operation="create",
+                mutation_id="stable-request",
+                revision=old_revision,
+                rule={
+                    "type": "state",
+                    "name": "Test",
+                    "source": "input_boolean.test",
+                    "state": "on",
+                    "targets": ["light.strip"],
+                    "enabled": False,
+                },
+            )
+            assert response["success"]
+            new_revision = response["result"]["revision"]
+            assert new_revision != old_revision
+            await asyncio.wait_for(accepted.wait(), timeout=5)
+            assert panels[PANEL_PATH] is panel
+            pending = await command(2, "editor/status", mutation_id="stable-request")
+            assert pending["result"]["status"] == "reloading"
+            assert pending["result"]["revision"] == new_revision
+            assert pending["result"]["applied_revision"] != new_revision
+            assert (
+                pending["result"]["mutation"]["rule"]["id"]
+                == response["result"]["rule"]["id"]
+            )
+            denied = await command(
+                3, "smart_rules/mutate", operation="delete", revision=new_revision
+            )
+            assert denied["error"]["code"] == "entry_not_loaded"
+        finally:
+            resume.set()
+            await hass.async_block_till_done()
+
+    settled = await command(4, "editor/status", mutation_id="stable-request")
+    assert settled["result"]["revision"] == new_revision
+    assert settled["result"]["status"] == ("ready" if setup_succeeds else "failed")
+    assert settled["result"]["applied_revision"] == (
+        new_revision if setup_succeeds else None
+    )
+    assert len(entry.options[CONF_RULES]) == 1
+    assert panels[PANEL_PATH] is panel
+    await client.close()
 
 
 async def test_official_bus_button_and_event_entity_triggers_do_not_replay(

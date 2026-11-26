@@ -24,29 +24,48 @@ const change = (selector, value, event = "change") => {
   field.dispatchEvent(new Event(event, { bubbles: true }));
 };
 const check = (condition, message) => { if (!condition) throw new Error(message); };
-let status, rule, revision = "start", conflict = false, mutations = 0;
-const notify = (state) => status({ data: { entry_id: "lab", status: state } });
+const waitFor = async (condition, message) => {
+  for (let attempts = 0; attempts < 120; attempts++) {
+    if (condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error(message);
+};
+let rule, revision = "start", applied = "start", runtime = "ready", receipt;
+let conflict = false, failReload = false, loseResponse = false, mutations = 0;
 const selections = { managed_lights: [{ entity_id: "light.a", name: "Demo A" }] };
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+const connection = new EventTarget();
+connection.subscribeEvents = async () => () => {}; // Deliberately drop lifecycle events.
 editor.panel = { config: { entry_id: "lab" } };
 editor.hass = {
   language: "es",
   states: { "input_boolean.door": { state: "on", attributes: { friendly_name: "Puerta" } } },
-  connection: { subscribeEvents: async (callback) => { status = callback; return () => {}; } },
+  connection,
   callWS: async (message) => {
+    if (message.type.endsWith("/status")) return {
+      status: runtime, revision, applied_revision: applied,
+      entry_state: runtime === "failed" ? "setup_error" : "loaded",
+      mutation: receipt?.id === message.mutation_id ? receipt : null,
+    };
     if (message.type.endsWith("/get")) return { revision, selections, rules: rule ? [{ rule, targets: [] }] : [] };
     if (!message.type.endsWith("/mutate")) throw new Error(message.type);
     mutations++;
     if (conflict) throw { code: "conflict" };
     rule = { ...message.rule, id: "one" };
     revision = "r" + mutations;
-    notify("reloading");
-    return { revision, reloading: true, rule };
+    runtime = failReload ? "failed" : "reloading";
+    receipt = { id: message.mutation_id, revision, rule };
+    if (loseResponse) {
+      connection.dispatchEvent(new Event("disconnected"));
+      throw { error: { code: 3 } };
+    }
+    return receipt;
   },
 };
 try {
   pick("[data-rules]").click();
-  await tick();
+  await waitFor(() => pick("[data-create]") && !pick("[data-create]").disabled, "Catalog did not become ready");
   pick("[data-create]").click();
   const input = pick('[data-path="name"]');
   input.focus();
@@ -65,25 +84,54 @@ try {
   save.click();
   await tick();
   check(mutations === 1, "A double click produced two writes");
-  check(!pick("[data-save]") && pick("[data-create]").disabled, "Create did not return to a locked catalog");
+  check(pick("[data-save]")?.disabled && !pick(".notice"), "An accepted revision was presented as applied");
   check(rule.conditions.condition.entity_id === "input_boolean.door", "Condition selector did not serialize");
   check(rule.schedule.after === "22:00", "Time selector did not serialize");
-  notify("ready");
-  await tick();
+  runtime = "ready";
+  applied = revision;
+  await waitFor(() => pick('[data-edit="one"]') && pick(".notice"), "Lost ready event blocked the editor");
   pick('[data-edit="one"]').click();
   change('[data-path="priority"]', "", "input");
   change('[data-path="priority"]', "64", "input");
-  pick("[data-save]").click();
-  await tick();
-  check(pick("[data-save]").disabled && rule.priority === 64, "Update did not stay in a locked editor");
-  notify("ready");
-  await tick();
-  check(!pick("[data-save]").disabled && pick('[data-path="priority"]').value === "64", "Editor did not recover after reload");
+  pick("[data-back]").click();
+  check(pick("[data-exit-dialog]").open && root.activeElement === pick("[data-exit-continue]"), "Exit dialog did not open with safe focus");
+  pick("[data-exit-continue]").click();
+  check(pick('[data-path="priority"]').value === "64", "Continue editing dropped the draft");
+  pick("[data-back]").click();
+  pick("[data-exit-discard]").click();
+  check(pick('[data-edit="one"]') && rule.priority === 40 && mutations === 1, "Discard mutated the rule");
+  pick('[data-edit="one"]').click();
+  change('[data-path="priority"]', "64", "input");
+  failReload = true;
+  pick("[data-discard]").click();
+  pick("[data-exit-save]").click();
+  await waitFor(() => root.textContent.includes("todavía no las aplica"), "Failed reload was not reported");
+  check(pick('[data-path="priority"]').value === "64" && !pick(".notice"), "Save and exit lost the draft on failed reload");
+  check(rule.priority === 64 && mutations === 2, "Update was not accepted once");
+  change('[data-path="priority"]', "65", "input");
+  runtime = "ready";
+  applied = revision;
+  pick("[data-reload]").click();
+  await waitFor(() => pick("[data-save]") && !pick("[data-save]").disabled && pick(".notice"), "Editor did not recover after checking status");
+  check(pick('[data-path="priority"]').value === "65", "Late confirmation overwrote a newer draft");
+  failReload = false;
   conflict = true;
   change('[data-path="priority"]', "66", "input");
   pick("[data-save]").click();
   await tick();
   check(pick('[data-path="priority"]').value === "66" && pick('[role="alert"]'), "Conflict dropped the draft");
+  conflict = false;
+  loseResponse = true;
+  pick("[data-back]").click();
+  pick("[data-exit-save]").click();
+  await waitFor(() => root.textContent.includes("Se perdió la conexión"), "Lost connection was not shown");
+  check(pick('[data-path="priority"]').value === "66", "Disconnect lost the draft");
+  runtime = "ready";
+  applied = revision;
+  const sent = mutations;
+  connection.dispatchEvent(new Event("ready"));
+  await waitFor(() => pick('[data-edit="one"]') && pick(".notice"), "Reconnect did not recover the receipt");
+  check(mutations === sent && rule.priority === 66, "Reconnect resent or lost the mutation");
   check(location.pathname === "/smart-led-manager-editor", "The panel left its route");
   result.textContent = "BROWSER_SMOKE_PASSED";
 } catch (error) {
@@ -165,8 +213,17 @@ try {
     return state === "PENDING" ? null : state;
   });
   assert.equal(result, "BROWSER_SMOKE_PASSED");
-  process.stdout.write("Browser smoke test passed.\n");
 } finally {
+  if (socket?.readyState === WebSocket.OPEN) {
+    const disconnected = once(socket, "close");
+    socket.send(JSON.stringify({ id: 1_000_000, method: "Browser.close" }));
+    let timer;
+    await Promise.race([
+      disconnected,
+      new Promise((resolve) => { timer = setTimeout(resolve, 3000); }),
+    ]);
+    clearTimeout(timer);
+  }
   socket?.close();
   if (child.exitCode === null) child.kill();
   await exited;
@@ -176,3 +233,4 @@ try {
     await rm(resolved, { recursive: true, force: true, maxRetries: 4 });
   }
 }
+process.stdout.write("Browser smoke test passed.\n");

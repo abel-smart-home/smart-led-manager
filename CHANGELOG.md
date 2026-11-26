@@ -13,6 +13,18 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   a C.2 los módulos gráficos previstos en beta.1 que requiere ese diseño. La
   [hoja de ruta](docs/roadmap.md) registra el alcance y las etapas internas.
 
+### Corregido — C.2.1
+
+- El editor confirma **Configuración guardada** cuando el coordinador ya
+  ejecuta la revisión guardada. Puede comprobar el resultado tras perder un
+  evento o reconectar. Un fallo de recarga deja el borrador y muestra el
+  estado de la entrada.
+- El guardado concurrente conserva la revisión del borrador. Al cancelar o
+  volver con cambios, el diálogo ofrece continuar editando, descartar y
+  salir, o guardar y salir.
+- Las recargas de opciones y las solicitadas desde Home Assistant mantienen
+  la ruta del panel. [Recorrido de verificación C.2.1](docs/haos-c21-checks.md).
+
 ### Añadido — Bloque A
 
 - Un dispositivo virtual estable por zona, identificado por `entry_id` y

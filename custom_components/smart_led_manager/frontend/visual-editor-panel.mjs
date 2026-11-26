@@ -48,7 +48,6 @@ const TEXT = {
     confirmDelete: "¿Eliminar esta regla?",
     noRules: "Todavía no hay reglas.",
     loading: "Cargando…",
-    reload: "Recargar",
     enabled: "Habilitada",
     disabled: "Deshabilitada",
     priority: "Prioridad",
@@ -117,11 +116,25 @@ const TEXT = {
     simulator: "Simulador exacto",
     simulate: "Valor hipotético",
     restore: "Restaurar borrador",
-    discard: "Descartar",
     save: "Guardar",
     saving: "Guardando…",
     saved: "Configuración guardada.",
-    unsaved: "Hay cambios sin guardar. ¿Deseas descartarlos?",
+    unsaved: "Cambios sin guardar",
+    unsavedPrompt: "Has modificado la configuración. ¿Qué deseas hacer?",
+    keepEditing: "Continuar editando",
+    discardExit: "Descartar cambios y salir",
+    saveExit: "Guardar y salir",
+    cancel: "Cancelar",
+    checkStatus: "Comprobar estado",
+    checking: "Comprobando el estado de la integración…",
+    applying: "Opciones recibidas. Esperando a que la integración las aplique…",
+    applyFailed: "Las opciones se recibieron, pero la integración todavía no las aplica. Revisa la entrada y el registro de Home Assistant.",
+    changedAfterSave: "Se aplicó el envío anterior. Los cambios nuevos siguen en el borrador.",
+    uncertainSave: "Se perdió la confirmación. Comprueba la configuración antes de volver a enviar cambios.",
+    offline: "Se perdió la conexión con Home Assistant.",
+    unloaded: "La entrada de Smart LED Manager está descargada.",
+    disabledEntry: "La entrada de Smart LED Manager está deshabilitada.",
+    missingEntry: "La entrada de Smart LED Manager ya no está disponible.",
     invalidJson: "El JSON no es válido.",
     invalid: "Corrige los campos antes de guardar.",
     conflict: "La configuración cambió en otra sesión. Recarga antes de guardar.",
@@ -146,7 +159,6 @@ const TEXT = {
     confirmDelete: "Delete this rule?",
     noRules: "There are no rules yet.",
     loading: "Loading…",
-    reload: "Reload",
     enabled: "Enabled",
     disabled: "Disabled",
     priority: "Priority",
@@ -215,11 +227,25 @@ const TEXT = {
     simulator: "Exact simulator",
     simulate: "Hypothetical value",
     restore: "Restore draft",
-    discard: "Discard",
     save: "Save",
     saving: "Saving…",
     saved: "Configuration saved.",
-    unsaved: "There are unsaved changes. Discard them?",
+    unsaved: "Unsaved changes",
+    unsavedPrompt: "You changed the configuration. What would you like to do?",
+    keepEditing: "Continue editing",
+    discardExit: "Discard changes and exit",
+    saveExit: "Save and exit",
+    cancel: "Cancel",
+    checkStatus: "Check status",
+    checking: "Checking integration status…",
+    applying: "Options accepted. Waiting for the integration to apply them…",
+    applyFailed: "The options were accepted, but the integration has not applied them yet. Check the entry and the Home Assistant logs.",
+    changedAfterSave: "The previous submission was applied. Your newer changes are still in the draft.",
+    uncertainSave: "The confirmation was lost. Check the configuration before submitting changes again.",
+    offline: "The connection to Home Assistant was lost.",
+    unloaded: "The Smart LED Manager entry is unloaded.",
+    disabledEntry: "The Smart LED Manager entry is disabled.",
+    missingEntry: "The Smart LED Manager entry is no longer available.",
     invalidJson: "The JSON is invalid.",
     invalid: "Correct the fields before saving.",
     conflict: "Configuration changed in another session. Reload before saving.",
@@ -240,6 +266,8 @@ const selectionFor = (rule) => rule.target_selection
   : { ...blankTargets(), entities: [...(rule.targets ?? [])] };
 
 const draftValue = (rule, key, fallback) => Object.hasOwn(rule, key) ? rule[key] : fallback;
+
+const RUNTIME_READ_DELAYS = [0, 150, 450, 1000, 2000];
 
 class SmartLEDManagerVisualEditor extends HTMLElement {
   constructor() {
@@ -262,8 +290,12 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._simulateValue = "";
     this._previewRequest = 0;
     this._targetRequest = 0;
-    this._runtimeStatus = "ready";
-    this._statusGeneration = 0;
+    this._runtimeStatus = "checking";
+    this._loadGeneration = 0;
+    this._loadAgain = false;
+    this._sending = false;
+    this._pendingMutation = undefined;
+    this._exitView = undefined;
     this._searches = new Map();
     this._pointInput = new Map();
     this._eventPairs = [];
@@ -283,7 +315,19 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
   set panel(value) {
     if (this._panel === value) return;
+    const previousEntry = this._entryId;
     this._panel = value;
+    if (previousEntry && previousEntry !== this._entryId) {
+      this._detachStatus();
+      this._revision = undefined;
+      this._catalogRevision = undefined;
+      this._pendingMutation = undefined;
+      this._rules = [];
+      this._selections = {};
+      this._runtimeStatus = "checking";
+      this._error = this._draft ? this._t.missingEntry : undefined;
+      this._notice = undefined;
+    }
     if (this.isConnected) { this._subscribeStatus(); this._render(); }
   }
   set route(value) { this._route = value; }
@@ -295,28 +339,44 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
   disconnectedCallback() {
     window.removeEventListener("beforeunload", this._beforeUnload);
+    this._detachStatus();
+    this._invalidatePreviews();
+  }
+  _detachStatus() {
     this._statusSubscription?.then((unsubscribe) => unsubscribe()).catch(() => {});
     this._statusSubscription = undefined;
-    this._invalidatePreviews();
+    this._statusConnection?.removeEventListener?.("ready", this._onReconnect);
+    this._statusConnection?.removeEventListener?.("disconnected", this._onDisconnect);
+    this._statusConnection = undefined;
+    this._loadGeneration++;
+    this._loadAgain = false;
   }
   _subscribeStatus() {
     const connection = this._hass?.connection;
-    if (!this._entryId || !connection?.subscribeEvents || this._statusSubscription) return;
-    const subscription = connection.subscribeEvents(({ data }) => {
-      if (this._statusSubscription !== subscription || data.entry_id !== this._entryId) return;
-      this._statusGeneration++;
-      this._runtimeStatus = data.status;
+    if (!this._entryId || !connection || connection === this._statusConnection) return;
+    this._detachStatus();
+    this._statusConnection = connection;
+    this._onReconnect = () => {
+      this._runtimeStatus = "checking";
+      this._loadGeneration++;
+      if (this._view === "rules" || this._pendingMutation) this._load();
+    };
+    this._onDisconnect = () => {
+      this._loadGeneration++;
+      this._runtimeStatus = "offline";
       this._invalidatePreviews();
-      if (data.status === "ready" && !this._saving && this._view === "rules") {
-        this._load();
-      } else {
-        this._render();
-      }
+      this._render();
+    };
+    connection.addEventListener?.("ready", this._onReconnect);
+    connection.addEventListener?.("disconnected", this._onDisconnect);
+    this._statusSubscription = connection.subscribeEvents?.(({ data }) => {
+      if (this._statusConnection === connection && data.entry_id === this._entryId &&
+          (this._view === "rules" || this._pendingMutation)) this._load();
     }, "smart_led_manager_editor_entry_status");
-    this._statusSubscription = subscription;
-    subscription.catch(() => {
-      if (this._statusSubscription === subscription) this._statusSubscription = undefined;
+    this._statusSubscription?.catch(() => {
+      if (this._statusConnection === connection && this._view === "rules") this._load();
     });
+    if (this._view === "rules" || this._pendingMutation) this._load();
   }
   get _entryId() { return this._panel?.config?.entry_id; }
   get _version() { return this._panel?.config?.version ?? "0.1.0-alpha.3"; }
@@ -334,33 +394,140 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   async _load() {
-    if (!this._hass || !this._entryId || this._loading) return;
-    const generation = this._statusGeneration;
-    this._loading = true; this._error = undefined; this._render();
+    if (!this._hass || !this._entryId || this._runtimeStatus === "offline") return;
+    if (this._loading || this._sending) {
+      this._loadAgain = true;
+      return;
+    }
+    const generation = this._loadGeneration;
+    this._loadAgain = false;
+    this._loading = true;
+    this._render();
     try {
-      const response = await this._hass.callWS({
-        type: "smart_led_manager/smart_rules/get", entry_id: this._entryId,
-      });
-      if (generation !== this._statusGeneration) return;
-      this._rules = response.rules;
-      this._catalogRevision = response.revision;
-      if (!this._draft) this._revision = response.revision;
-      this._selections = response.selections ?? {};
-      this._runtimeStatus = "ready";
+      for (const delay of RUNTIME_READ_DELAYS) {
+        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+        if (generation !== this._loadGeneration) return;
+        const pending = this._pendingMutation;
+        const status = await this._hass.callWS({
+          type: "smart_led_manager/editor/status", entry_id: this._entryId,
+          ...(pending && { mutation_id: pending.id }),
+        });
+        if (generation !== this._loadGeneration) return;
+        this._runtimeStatus = status.status;
+        this._entryState = status.entry_state;
+        if (pending && status.mutation) pending.receipt = status.mutation;
+        if (status.status === "reloading") {
+          this._render();
+          continue;
+        }
+        if (status.status !== "ready") return;
+        try {
+          const response = await this._hass.callWS({
+            type: "smart_led_manager/smart_rules/get", entry_id: this._entryId,
+          });
+          if (generation !== this._loadGeneration) return;
+          if (response.revision === status.applied_revision) {
+            this._applyCatalog(response);
+            this._confirmMutation(pending, response.revision);
+            return;
+          }
+        } catch (error) {
+          if (error?.code !== "entry_not_loaded") throw error;
+          if (generation !== this._loadGeneration) return;
+        }
+        this._runtimeStatus = "reloading";
+      }
     } catch (error) {
-      if (generation !== this._statusGeneration) return;
-      if (error?.code === "entry_not_loaded") this._runtimeStatus = "reloading";
-      else this._error = error?.message ?? String(error);
+      if (generation === this._loadGeneration) {
+        this._runtimeStatus = "checking";
+        this._error = error?.message ?? error?.error?.message ?? String(error);
+      }
     } finally {
       this._loading = false;
-      if (generation !== this._statusGeneration && this._runtimeStatus === "ready") this._load();
-      else this._render();
+      const again = this._loadAgain;
+      this._loadAgain = false;
+      this._render();
+      if (again) this._load();
     }
   }
 
-  _openRules() { this._view = "rules"; this._render(); if (!this._revision) this._load(); }
-  _goHome() { if (this._dirty() && !window.confirm(this._t.unsaved)) return; this._closeEditor(); this._view = "home"; this._render(); }
-  _closeEditor() { this._selected = undefined; this._draft = undefined; this._original = undefined; this._creating = false; this._resetControls(); this._invalidatePreviews(); this._error = undefined; }
+  _applyCatalog(response) {
+    this._rules = response.rules;
+    this._catalogRevision = response.revision;
+    this._selections = response.selections ?? {};
+    if (!this._draft) this._revision = response.revision;
+  }
+
+  _confirmMutation(pending, revision) {
+    if (!pending) return;
+    this._pendingMutation = undefined;
+    if (!pending.receipt) {
+      this._error = pending.revision === revision ? this._t.uncertainSave : this._t.conflict;
+      return;
+    }
+    if (pending.receipt.revision !== revision) {
+      this._error = this._t.conflict;
+      return;
+    }
+    this._error = undefined;
+    this._notice = this._t.saved;
+    if (pending.draft && this._draft === pending.draft) {
+      if (pending.stamp === this._draftStamp()) {
+        this._exitEditor(pending.destination);
+      } else {
+        this._selected = this._rules.find(({ rule }) => rule.id === pending.receipt.rule.id);
+        this._original = this._draftFromRule(pending.receipt.rule);
+        this._draft.id = this._original.id;
+        this._creating = false;
+        this._revision = revision;
+        this._notice = this._t.changedAfterSave;
+      }
+    }
+  }
+
+  _draftStamp() {
+    return JSON.stringify([this._draft, [...this._pointInput], this._eventPairs]);
+  }
+
+  _canWrite() {
+    return Boolean(this._revision) && this._runtimeStatus === "ready" &&
+      !this._loading && !this._saving && !this._pendingMutation;
+  }
+
+  _openRules() { this._view = "rules"; this._render(); this._load(); }
+  _goHome() { this._requestExit("home"); }
+
+  _requestExit(destination) {
+    if (this._saving) return;
+    if (this._dirty()) {
+      this._exitView = destination;
+      this._exitFocus = this.shadowRoot.activeElement?.hasAttribute("data-discard")
+        ? "[data-discard]" : "[data-back]";
+      this._render();
+    } else {
+      this._exitEditor(destination);
+      this._render();
+    }
+  }
+
+  _exitEditor(destination) {
+    this._exitView = undefined;
+    this._selected = undefined;
+    this._draft = undefined;
+    this._original = undefined;
+    this._creating = false;
+    this._revision = this._catalogRevision;
+    this._view = destination;
+    this._resetControls();
+    this._invalidatePreviews();
+    if (!this._pendingMutation) this._error = undefined;
+  }
+
+  _closeExit() {
+    this._exitView = undefined;
+    this._render();
+    this.shadowRoot.querySelector(this._exitFocus ?? "[data-back]")?.focus();
+  }
 
   _resetControls() {
     this._searches.clear();
@@ -399,14 +566,19 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._invalidatePreviews();
     this._selected = selected;
     this._revision = this._catalogRevision ?? this._revision;
-    this._draft = deepClone(selected.rule);
-    this._draft.target_selection = selectionFor(this._draft);
-    delete this._draft.targets;
-    if (this._draft.type === "numeric") this._draft.points = sortPoints(this._draft.points ?? []);
+    this._draft = this._draftFromRule(selected.rule);
     this._original = deepClone(this._draft);
     this._resetControls();
     this._simulateValue = this._draft.points?.length ? String(this._draft.points[0].value) : "";
     this._creating = false; this._error = undefined; this._notice = undefined; this._render();
+  }
+
+  _draftFromRule(rule) {
+    const draft = deepClone(rule);
+    draft.target_selection = selectionFor(draft);
+    delete draft.targets;
+    if (draft.type === "numeric" && draft.points) draft.points = sortPoints(draft.points);
+    return draft;
   }
 
   _create() {
@@ -424,39 +596,43 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._original = undefined; this._creating = true; this._error = undefined; this._render();
   }
 
-  async _mutate(operation, extra = {}) {
-    if (this._saving || this._runtimeStatus !== "ready") return;
-    const statusGeneration = this._statusGeneration;
+  async _mutate(operation, extra = {}, destination = "rules") {
+    if (!this._canWrite()) return;
+    const bytes = crypto.getRandomValues(new Uint8Array(16));
+    const id = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const pending = {
+      id, revision: this._revision, destination,
+      draft: this._draft, stamp: this._draftStamp(),
+    };
+    this._pendingMutation = pending;
     this._invalidatePreviews();
-    this._saving = true; this._error = undefined; this._render();
+    this._saving = true;
+    this._sending = true;
+    this._error = undefined;
+    this._notice = undefined;
+    this._render();
     try {
-      const response = await this._hass.callWS({
+      pending.receipt = await this._hass.callWS({
         type: "smart_led_manager/smart_rules/mutate", entry_id: this._entryId,
-        revision: this._revision, operation, ...extra,
+        revision: pending.revision, operation, mutation_id: id, ...extra,
       });
-      this._revision = response.revision; this._notice = this._t.saved;
-      if (operation === "update") {
-        this._draft = deepClone(response.rule);
-        this._draft.target_selection = selectionFor(this._draft);
-        delete this._draft.targets;
-        this._original = deepClone(this._draft);
-        this._selected = { ...this._selected, rule: response.rule };
-        this._resetControls();
-      } else {
-        this._closeEditor();
-        this._view = "rules";
-      }
-      if (response.reloading && this._statusSubscription && statusGeneration === this._statusGeneration) {
-        this._runtimeStatus = "reloading";
-      }
-      if (this._runtimeStatus === "ready") await this._load();
     } catch (error) {
-      if (error?.code === "entry_not_loaded") this._runtimeStatus = "reloading";
-      this._error = error?.code === "conflict" ? this._t.conflict : (error?.message ?? String(error));
-    } finally { this._saving = false; this._render(); }
+      if (typeof error?.code === "string" && error.code !== "internal_error") {
+        this._pendingMutation = undefined;
+        this._error = error.code === "conflict" ? this._t.conflict : (error.message ?? error.code);
+      } else {
+        this._error = this._t.uncertainSave;
+      }
+    } finally {
+      this._sending = false;
+      try { await this._load(); } finally {
+        this._saving = false;
+        this._render();
+      }
+    }
   }
 
-  async _save() {
+  async _save(destination = "rules") {
     if (!this._draft?.name?.trim() || this._invalidNumeric()) {
       this._error = this._t.invalid; this._render(); return;
     }
@@ -472,7 +648,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     }
     await this._mutate(this._creating ? "create" : "update", {
       rule_id: this._selected?.rule?.id, rule,
-    });
+    }, destination);
   }
 
   _invalidNumeric() {
@@ -511,7 +687,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _refreshSave() {
     const button = this.shadowRoot.querySelector("[data-save]");
-    if (button) button.disabled = this._saving || this._runtimeStatus !== "ready" ||
+    if (button) button.disabled = !this._canWrite() ||
       !this._draft.name?.trim() || this._invalidNumeric();
   }
 
@@ -694,17 +870,44 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     .axis{width:100%;min-height:120px;overflow:visible}.axis text{fill:var(--primary-text-color);font-size:12px}.axis .baseline{stroke:var(--secondary-text-color);stroke-width:2}.axis .curve{stroke-width:14;stroke-linecap:round}.axis .graph-point{cursor:pointer}.axis .graph-point:focus{outline:none}.axis .graph-point:focus circle{stroke:var(--primary-color);stroke-width:5}.axis circle{stroke:var(--card-background-color);stroke-width:3}
     .point{display:grid;grid-template-columns:64px 1fr 1fr auto;gap:10px;align-items:end;margin:10px 0}.swatch{height:38px;border-radius:8px;border:1px solid var(--divider-color)}.preview{display:flex;gap:12px;align-items:center;margin-top:12px}.preview .swatch{width:52px}
     .actions{justify-content:flex-end;position:sticky;bottom:0;padding:16px 0 max(16px,env(safe-area-inset-bottom));background:linear-gradient(transparent,var(--primary-background-color) 24%)}details{margin-top:12px}
+    dialog{box-sizing:border-box;width:min(520px,calc(100% - 32px));border:1px solid var(--divider-color);border-radius:16px;padding:22px;color:var(--primary-text-color);background:var(--card-background-color)}
+    dialog::backdrop{background:rgba(0,0,0,.50)}dialog .actions{position:static;background:none;padding-bottom:0}button:focus-visible{outline:3px solid var(--primary-color);outline-offset:2px}
     @media(max-width:700px){main{padding-top:16px}.rule{grid-template-columns:1fr}.rule-actions button{flex:1}.point{grid-template-columns:44px 1fr}.point label,.point button{grid-column:2}.actions button{flex:1}.form-grid{grid-template-columns:1fr}}
   `; }
 
   _renderHome() { const t = this._t; return `<main><div class="identity"><div class="icon">✦</div><div><h1>Smart LED Manager</h1><strong>${t.admin}</strong><p class="muted">${t.subtitle}</p><span class="version">${t.version}: ${esc(this._version)}</span></div></div><div class="grid"><article class="card home-card"><h2>${t.smartRules}</h2><p>${t.smartDescription}</p><span class="spacer"></span><button class="primary" data-rules>${t.open}</button></article><article class="card home-card"><h2>${t.native}</h2><p>${t.nativeDescription}</p><span class="spacer"></span><a class="button" href="/config/integrations/integration/smart_led_manager">${t.open}</a></article></div></main>`; }
 
+  _runtimeMessage() {
+    const t = this._t;
+    const accepted = Boolean(this._pendingMutation?.receipt);
+    switch (this._runtimeStatus) {
+      case "checking": return t.checking;
+      case "reloading": return accepted ? t.applying : t.reloadingEntry;
+      case "failed": return `${accepted ? t.applyFailed : t.failedReload}${this._entryState ? ` (${this._entryState})` : ""}`;
+      case "offline": return t.offline;
+      case "unloaded": return t.unloaded;
+      case "disabled": return t.disabledEntry;
+      case "missing": return t.missingEntry;
+      default: return "";
+    }
+  }
+
+  _renderExitDialog() {
+    if (!this._exitView) return "";
+    const t = this._t;
+    const canSave = this._canWrite() && this._draft?.name?.trim() && !this._invalidNumeric();
+    return `<dialog data-exit-dialog aria-labelledby="exit-title"><h2 id="exit-title">${t.unsaved}</h2>
+      <p>${t.unsavedPrompt}</p><div class="actions">
+      <button data-exit-continue autofocus>${t.keepEditing}</button>
+      <button data-exit-discard>${t.discardExit}</button>
+      <button class="primary" data-exit-save ${canSave ? "" : "disabled"}>${t.saveExit}</button>
+      </div></dialog>`;
+  }
+
   _renderList() {
     const t = this._t;
-    const busy = this._saving || this._runtimeStatus !== "ready";
-    const status = this._runtimeStatus === "reloading" ? t.reloadingEntry
-      : this._runtimeStatus === "failed" ? t.failedReload : "";
-    const disabled = busy ? "disabled" : "";
+    const status = this._runtimeMessage();
+    const disabled = this._canWrite() ? "" : "disabled";
     const rows = this._rules.map(({ rule, source, targets, target_error, condition_summary, schedule_summary }) => {
       const targetNames = (targets ?? []).map((item) => item.name).join(", ");
       const color = rule.points ? cssGradient(rule.points, rule.mode) : rgbToHex(rule.rgb_color ?? [255,255,255]);
@@ -724,9 +927,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         <button class="danger" data-delete="${esc(rule.id)}" ${disabled}>${t.remove}</button></div></article>`;
     }).join("");
     const list = this._loading ? `<p>${t.loading}</p>` : rows || (this._error || status ? "" : `<p class="muted">${t.noRules}</p>`);
-    return `<main><div class="toolbar"><button data-home>← ${t.home}</button><button data-reload>${t.reload}</button>
+    return `<main><div class="toolbar"><button data-home>← ${t.home}</button>
+      <button data-reload ${this._loading || this._saving || this._runtimeStatus === "offline" ? "disabled" : ""}>${t.checkStatus}</button>
       <span class="spacer"></span><button class="primary" data-create ${disabled}>${t.create}</button></div><h1>${t.smartRules}</h1>
-      ${status ? `<div class="message" role="status">${status}</div>` : ""}
+      ${status ? `<div class="message" role="status">${esc(status)}</div>` : ""}
       ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
       ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
       <section class="card">${list}</section></main>`;
@@ -862,12 +1066,12 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const names = (key) => this._targetPreview?.[key]?.map((item) => item.name).join(", ");
     const preview = [["targets", t.targets], ["excluded", t.excluded], ["duplicates", t.duplicateTargets]]
       .map(([key, title]) => names(key) ? `<p data-preview-result>${title}: ${esc(names(key))}</p>` : "").join("");
-    const status = this._runtimeStatus === "reloading" ? t.reloadingEntry
-      : this._runtimeStatus === "failed" ? t.failedReload : "";
+    const status = this._runtimeMessage();
     const ruleError = this._selected?.target_error;
-    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button></div>
+    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button>
+      <button data-reload ${this._loading || this._saving || this._runtimeStatus === "offline" ? "disabled" : ""}>${t.checkStatus}</button></div>
       <h1>${esc(r.name || t.create)}</h1>
-      ${status ? `<div class="message" role="status">${status}</div>` : ""}
+      ${status ? `<div class="message" role="status">${esc(status)}</div>` : ""}
       ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
       ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
       <fieldset class="editor-fields" ${this._saving ? "disabled" : ""}>
@@ -907,8 +1111,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         <details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section>
       </fieldset>
       <div class="actions">${this._original ? `<button data-restore>${t.restore}</button>` : ""}
-        <button data-discard>${t.discard}</button><button class="primary" data-save
-        ${this._saving || status || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>
+        <button data-discard>${t.cancel}</button><button class="primary" data-save
+        ${!this._canWrite() || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>
       </div></main>`;
   }
 
@@ -917,7 +1121,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const active = this.shadowRoot.activeElement;
     const focus = active && [...active.attributes].find((attr) => attr.name.startsWith("data-"));
     const content = this._draft ? this._renderEditor() : this._view === "rules" ? this._renderList() : this._renderHome();
-    this.shadowRoot.innerHTML = `<style>${this._styles()}</style>${content}`; this._bind();
+    this.shadowRoot.innerHTML = `<style>${this._styles()}</style>${content}${this._renderExitDialog()}`; this._bind();
+    const dialog = this.shadowRoot.querySelector("[data-exit-dialog]");
+    if (dialog?.isConnected) dialog.showModal();
     if (focus) {
       const element = [...this.shadowRoot.querySelectorAll(`[${focus.name}]`)]
         .find((candidate) => candidate.getAttribute(focus.name) === focus.value);
@@ -936,7 +1142,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const click = (selector, handler) => on(selector, "click", handler);
     click("[data-rules]", () => this._openRules());
     click("[data-home]", () => this._goHome());
-    click("[data-reload]", () => this._load());
+    click("[data-reload]", () => {
+      this._error = this._draft && this._revision !== this._catalogRevision ? this._t.conflict : undefined;
+      this._load();
+    });
     click("[data-create]", () => this._create());
     click("[data-edit]", (el) => this._edit(el.dataset.edit));
     click("[data-duplicate]", (el) => this._mutate("duplicate", { rule_id: el.dataset.duplicate }));
@@ -946,16 +1155,24 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     click("[data-delete]", (el) => {
       if (window.confirm(this._t.confirmDelete)) this._mutate("delete", { rule_id: el.dataset.delete });
     });
-    click("[data-back]", () => {
-      if (!this._saving && (!this._dirty() || window.confirm(this._t.unsaved))) {
-        this._closeEditor(); this._render();
-      }
-    });
+    click("[data-back]", () => this._requestExit("rules"));
     click("[data-restore]", () => { if (!this._saving) this._restore(); });
-    click("[data-discard]", () => {
-      if (!this._saving) { this._closeEditor(); this._render(); }
-    });
+    click("[data-discard]", () => this._requestExit("rules"));
     click("[data-save]", () => this._save());
+    click("[data-exit-continue]", () => this._closeExit());
+    on("[data-exit-dialog]", "cancel", (_dialog, event) => {
+      event.preventDefault();
+      this._closeExit();
+    });
+    click("[data-exit-discard]", () => {
+      this._exitEditor(this._exitView);
+      this._render();
+    });
+    click("[data-exit-save]", () => {
+      const destination = this._exitView;
+      this._closeExit();
+      this._save(destination);
+    });
     on("[data-search]", "input", (el) => {
       this._searches.set(el.dataset.search, el.value);
       this._filterPicker(el);

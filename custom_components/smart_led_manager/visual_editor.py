@@ -58,8 +58,17 @@ _DATA_PANEL = "visual_editor_panel_registered"
 _DATA_PANEL_ENTRY = "visual_editor_panel_entry"
 _DATA_STATIC = "visual_editor_static_registered"
 _DATA_RELOADING = "visual_editor_reloading"
+_DATA_RELOAD_FAILURES = "visual_editor_reload_failures"
+_DATA_RECEIPTS = "visual_editor_mutation_receipts"
 _DATA_SIDEBAR = "visual_editor_sidebar"
 _EVENT_ENTRY_STATUS = f"{DOMAIN}_editor_entry_status"
+_MAX_MUTATION_RECEIPTS = 32
+_PANEL_ASSETS_REVISION = "c2.1"
+
+_TRANSITION_STATES = {
+    ConfigEntryState.SETUP_IN_PROGRESS,
+    ConfigEntryState.UNLOAD_IN_PROGRESS,
+}
 
 
 class VisualEditorError(ValueError):
@@ -82,6 +91,7 @@ async def async_setup_visual_editor(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, websocket_get_smart_rules)
         websocket_api.async_register_command(hass, websocket_mutate_smart_rule)
         websocket_api.async_register_command(hass, websocket_preview_targets)
+        websocket_api.async_register_command(hass, websocket_editor_status)
         domain_data[_DATA_COMMANDS] = True
     if not domain_data.get(_DATA_STATIC):
         await hass.http.async_register_static_paths(
@@ -132,7 +142,9 @@ async def async_register_visual_editor_panel(
         webcomponent_name="smart-led-manager-visual-editor",
         sidebar_title=(NAME if show_sidebar else None),
         sidebar_icon="mdi:led-strip-variant",
-        module_url=f"{STATIC_URL}/visual-editor-panel.mjs?v={VERSION}",
+        module_url=(
+            f"{STATIC_URL}/visual-editor-panel.mjs?v={VERSION}-{_PANEL_ASSETS_REVISION}"
+        ),
         config={"entry_id": entry.entry_id, "version": VERSION},
         require_admin=True,
         handle_safe_area=True,
@@ -151,12 +163,48 @@ def async_remove_visual_editor_panel(
     domain_data = getattr(hass, "data", {}).get(DOMAIN, {})
     if not domain_data.get(_DATA_PANEL):
         return
+    if unloading_entry and domain_data.get(_DATA_PANEL_ENTRY) != unloading_entry:
+        return
     if unloading_entry and unloading_entry in domain_data.get(_DATA_RELOADING, set()):
         return
     frontend.async_remove_panel(hass, PANEL_PATH, warn_if_unknown=False)
     domain_data[_DATA_PANEL] = False
     domain_data.pop(_DATA_PANEL_ENTRY, None)
     domain_data.pop(_DATA_SIDEBAR, None)
+
+
+@callback
+def async_finish_visual_editor_unload(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Let a native reload retain its route while a true unload removes it."""
+    domain_data = hass.data.get(DOMAIN, {})
+    if entry.entry_id in domain_data.get(_DATA_RELOADING, set()):
+        return
+    if not isinstance(entry, ConfigEntry) or entry.disabled_by:
+        async_remove_visual_editor_panel(hass, unloading_entry=entry.entry_id)
+        return
+    if domain_data.get(_DATA_PANEL_ENTRY) != entry.entry_id:
+        return
+
+    _async_editor_status(hass, entry.entry_id, "reloading")
+
+    async def finish() -> None:
+        # Core holds this lock through both halves of a native reload.
+        async with entry.setup_lock:
+            if entry.state is ConfigEntryState.NOT_LOADED or entry.disabled_by:
+                async_remove_visual_editor_panel(hass, unloading_entry=entry.entry_id)
+            else:
+                status = _editor_runtime_status(hass, entry)["status"]
+                _async_editor_status(hass, entry.entry_id, status)
+
+    hass.async_create_task(finish(), "Smart LED Manager editor unload completion")
+
+
+@callback
+def async_clear_visual_editor_state(hass: HomeAssistant, entry_id: str) -> None:
+    """Forget in-memory editor acknowledgements for a removed entry."""
+    domain_data = getattr(hass, "data", {}).get(DOMAIN, {})
+    for key in (_DATA_RECEIPTS, _DATA_RELOAD_FAILURES):
+        domain_data.get(key, {}).pop(entry_id, None)
 
 
 @callback
@@ -174,45 +222,133 @@ async def async_reload_visual_editor_entry(
     domain_data = hass.data.setdefault(DOMAIN, {})
     reloading: set[str] = domain_data.setdefault(_DATA_RELOADING, set())
     if entry.entry_id in reloading:
-        # The active reload checks for options changed while setup was in progress.
         return
+    failures: dict[str, str] = domain_data.setdefault(_DATA_RELOAD_FAILURES, {})
+    failures.pop(entry.entry_id, None)
     reloading.add(entry.entry_id)
     _async_editor_status(hass, entry.entry_id, "reloading")
     loaded = False
+    revision = options_revision(entry.options)
     try:
-        while True:
-            revision = options_revision(entry.options)
+        # Options Flow can save a newer revision while a runtime is starting.
+        for _ in range(3):
             loaded = await hass.config_entries.async_reload(entry.entry_id)
-            if not loaded or options_revision(entry.options) == revision:
+            if not loaded or getattr(entry, "disabled_by", None):
                 break
+            desired_revision = options_revision(entry.options)
+            runtime = domain_data.get("entries", {}).get(entry.entry_id)
+            applied_revision = (
+                getattr(runtime, "options_revision", None)
+                if isinstance(entry, ConfigEntry)
+                else revision
+            )
+            if applied_revision == desired_revision:
+                break
+            revision = desired_revision
+        else:
+            loaded = False
+            _LOGGER.error("Smart LED Manager options kept changing during reload")
+    except Exception:
+        loaded = False
+        _LOGGER.exception("Failed to reload Smart LED Manager after updating options")
     finally:
+        if not loaded:
+            failures[entry.entry_id] = options_revision(entry.options)
         reloading.remove(entry.entry_id)
-        _async_editor_status(hass, entry.entry_id, "ready" if loaded else "failed")
+        if isinstance(entry, ConfigEntry):
+            status = _editor_runtime_status(hass, entry)["status"]
+        else:
+            status = "ready" if loaded else "failed"
+        _async_editor_status(hass, entry.entry_id, status)
 
 
 _mutable_json = mutable_json
 _options_revision = options_revision
 
 
-def _entry(hass: HomeAssistant, entry_id: str) -> ConfigEntry:
+def _editor_runtime_status(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+    """Read the saved and runtime revisions even when normal commands are blocked."""
+    data = hass.data.get(DOMAIN, {})
+    runtime = data.get("entries", {}).get(entry.entry_id)
+    revision = options_revision(entry.options)
+    state = getattr(entry, "state", ConfigEntryState.LOADED)
+    applied = (
+        getattr(runtime, "options_revision", None)
+        if state is ConfigEntryState.LOADED
+        else None
+    )
+    if getattr(entry, "disabled_by", None):
+        status = "disabled"
+    elif entry.entry_id in data.get(_DATA_RELOADING, ()) or state in _TRANSITION_STATES:
+        status = "reloading"
+    elif (
+        state is ConfigEntryState.LOADED and runtime is not None and applied == revision
+    ):
+        status = "ready"
+    elif state is ConfigEntryState.NOT_LOADED:
+        status = "reloading" if entry.setup_lock.locked() else "unloaded"
+    elif (
+        state is not ConfigEntryState.LOADED
+        or data.get(_DATA_RELOAD_FAILURES, {}).get(entry.entry_id) == revision
+    ):
+        status = "failed"
+    elif runtime is None:
+        status = "unloaded"
+    else:
+        # async_update_entry has accepted options before the reload listener runs.
+        status = "reloading"
+    return {
+        "status": status,
+        "revision": revision,
+        "applied_revision": applied,
+        "entry_state": state.value,
+    }
+
+
+def _entry(
+    hass: HomeAssistant, entry_id: str, *, revision: str | None = None
+) -> ConfigEntry:
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None or entry.domain != DOMAIN:
         raise VisualEditorError(
             "entry_not_found", "Smart LED Manager config entry was not found"
         )
-    loaded_entries = hass.data.get(DOMAIN, {}).get("entries", {})
-    if (
-        entry_id not in loaded_entries
-        or entry_id in hass.data.get(DOMAIN, {}).get(_DATA_RELOADING, set())
-        or (
-            isinstance(entry, ConfigEntry)
-            and entry.state is not ConfigEntryState.LOADED
+    runtime = _editor_runtime_status(hass, entry)
+    if revision is not None and runtime["revision"] != revision:
+        raise VisualEditorError(
+            "conflict", "Configuration changed in another session; reload before saving"
         )
-    ):
+    if runtime["status"] != "ready":
         raise VisualEditorError(
             "entry_not_loaded", "Smart LED Manager config entry is not loaded"
         )
     return entry
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/editor/status",
+        probatio.Required("entry_id"): str,
+        probatio.Optional("mutation_id"): str,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_editor_status(
+    hass: HomeAssistant, connection: websocket_api.ActiveConnection, msg: dict[str, Any]
+) -> None:
+    """Read the authoritative editor status without changing options or lights."""
+    entry_id = msg["entry_id"]
+    entry = hass.config_entries.async_get_entry(entry_id)
+    if entry is None or entry.domain != DOMAIN:
+        connection.send_result(msg["id"], {"status": "missing"})
+        return
+    result = _editor_runtime_status(hass, entry)
+    if mutation_id := msg.get("mutation_id"):
+        receipts = hass.data.get(DOMAIN, {}).get(_DATA_RECEIPTS, {}).get(entry_id, {})
+        receipt = receipts.get(mutation_id)
+        result["mutation"] = receipt[1] if receipt is not None else None
+    connection.send_result(msg["id"], result)
 
 
 def _authorized_targets(entry: ConfigEntry) -> frozenset[str]:
@@ -423,13 +559,7 @@ async def websocket_save_numeric_rule(
     try:
         lock: asyncio.Lock = hass.data[DOMAIN][_DATA_LOCK]
         async with lock:
-            entry = _entry(hass, msg["entry_id"])
-            current_revision = _options_revision(entry.options)
-            if msg["revision"] != current_revision:
-                raise VisualEditorError(
-                    "conflict",
-                    "Configuration changed in another session; reload before saving",
-                )
+            entry = _entry(hass, msg["entry_id"], revision=msg["revision"])
             mode = _validated_mode(msg["mode"])
             points = _validated_points(msg["points"])
             current, _resolved_targets = _numeric_rule(hass, entry, msg["rule_id"])
@@ -444,7 +574,7 @@ async def websocket_save_numeric_rule(
             else:
                 raise VisualEditorError("rule_not_found", "Numeric rule was not found")
             options[CONF_RULES] = rules
-            hass.config_entries.async_update_entry(entry, options=options)
+            changed = hass.config_entries.async_update_entry(entry, options=options)
             revision = _options_revision(options)
     except VisualEditorError as err:
         _send_editor_error(connection, msg["id"], err)
@@ -455,7 +585,10 @@ async def websocket_save_numeric_rule(
             msg["id"], "internal_error", "Unexpected error while saving the rule"
         )
         return
-    connection.send_result(msg["id"], {"revision": revision, "rule": saved_rule})
+    connection.send_result(
+        msg["id"],
+        {"revision": revision, "rule": saved_rule, "reloading": changed is True},
+    )
 
 
 def _configured_rules(entry: ConfigEntry) -> list[Mapping[str, Any]]:
@@ -683,6 +816,7 @@ def websocket_get_smart_rules(
         probatio.Required("entry_id"): str,
         probatio.Required("revision"): str,
         probatio.Required("operation"): str,
+        probatio.Optional("mutation_id"): str,
         probatio.Optional("rule_id"): str,
         probatio.Optional("rule"): dict,
         probatio.Optional("enabled"): bool,
@@ -698,14 +832,30 @@ async def websocket_mutate_smart_rule(
     """Apply one validated CRUD mutation with optimistic concurrency."""
 
     try:
+        entry_id = msg["entry_id"]
+        mutation_id = msg.get("mutation_id")
+        if mutation_id is not None and not 1 <= len(mutation_id) <= 64:
+            raise VisualEditorError(
+                "invalid_mutation_id", "Invalid mutation identifier"
+            )
         lock: asyncio.Lock = hass.data[DOMAIN][_DATA_LOCK]
         async with lock:
-            entry = _entry(hass, msg["entry_id"])
-            if msg["revision"] != _options_revision(entry.options):
-                raise VisualEditorError(
-                    "conflict",
-                    "Configuration changed in another session; reload before saving",
+            receipts = None
+            fingerprint = None
+            if mutation_id:
+                receipts = hass.data[DOMAIN].get(_DATA_RECEIPTS, {}).get(entry_id)
+                fingerprint = options_revision(
+                    {key: value for key, value in msg.items() if key != "id"}
                 )
+                if receipts is not None and (previous := receipts.get(mutation_id)):
+                    if previous[0] != fingerprint:
+                        raise VisualEditorError(
+                            "conflict",
+                            "Mutation identifier already used for another edit",
+                        )
+                    connection.send_result(msg["id"], previous[1])
+                    return
+            entry = _entry(hass, entry_id, revision=msg["revision"])
             try:
                 catalog = RuleCatalog(_configured_rules(entry))
                 operation = msg["operation"]
@@ -737,16 +887,25 @@ async def websocket_mutate_smart_rule(
                 result is not None and operation in {"create", "update", "duplicate"}
             ) or (result is not None and operation == "toggle" and result["enabled"]):
                 await _async_validate_rule_catalog(hass, entry, [result])
-            entry = _entry(hass, msg["entry_id"])
-            if msg["revision"] != _options_revision(entry.options):
-                raise VisualEditorError(
-                    "conflict",
-                    "Configuration changed in another session; reload before saving",
-                )
+            entry = _entry(hass, entry_id, revision=msg["revision"])
             options = _mutable_json(entry.options)
             options[CONF_RULES] = rules
             changed = hass.config_entries.async_update_entry(entry, options=options)
             revision = _options_revision(options)
+            receipt = {
+                "revision": revision,
+                "rule": result,
+                "reloading": changed is True,
+            }
+            if mutation_id is not None:
+                receipts = (
+                    hass.data[DOMAIN]
+                    .setdefault(_DATA_RECEIPTS, {})
+                    .setdefault(entry_id, {})
+                )
+                receipts[mutation_id] = (fingerprint, receipt)
+                if len(receipts) > _MAX_MUTATION_RECEIPTS:
+                    del receipts[next(iter(receipts))]
     except VisualEditorError as err:
         _send_editor_error(connection, msg["id"], err)
         return
@@ -756,15 +915,7 @@ async def websocket_mutate_smart_rule(
             msg["id"], "internal_error", "Unexpected error while saving the rule"
         )
         return
-    connection.send_result(
-        msg["id"],
-        {
-            "revision": revision,
-            "rule": result,
-            "rules": rules,
-            "reloading": changed is True,
-        },
-    )
+    connection.send_result(msg["id"], {**receipt, "rules": rules})
 
 
 @websocket_api.websocket_command(

@@ -17,6 +17,8 @@ from .registry import async_reconcile_registries
 from .services import async_setup_services
 from .storage import SmartLEDStorage
 from .visual_editor import (
+    async_clear_visual_editor_state,
+    async_finish_visual_editor_unload,
     async_register_visual_editor_panel,
     async_reload_visual_editor_entry,
     async_remove_visual_editor_panel,
@@ -69,12 +71,7 @@ async def async_unload_entry(
         return False
     await entry.runtime_data.async_shutdown()
     hass.data.get(DOMAIN, {}).get("entries", {}).pop(entry.entry_id, None)
-    async_remove_visual_editor_panel(
-        hass,
-        unloading_entry=entry.entry_id
-        if not getattr(entry, "disabled_by", None)
-        else None,
-    )
+    async_finish_visual_editor_unload(hass, entry)
     return True
 
 
@@ -84,6 +81,7 @@ async def async_remove_entry(
     """Remove retained storage after the entry has unloaded."""
     storage = SmartLEDStorage(hass, entry.entry_id)
     await storage.async_remove()
+    async_clear_visual_editor_state(hass, entry.entry_id)
     async_remove_visual_editor_panel(hass)
 
 
