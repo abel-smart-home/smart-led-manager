@@ -253,7 +253,7 @@ class OptionsFlowTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with patch(
-            "custom_components.smart_led_manager.config_flow.ar.async_get",
+            "custom_components.smart_led_manager.modules.admin_configuration.ar.async_get",
             return_value=areas,
         ):
             missing = await flow.async_step_add_zone(

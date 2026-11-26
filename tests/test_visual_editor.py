@@ -15,6 +15,7 @@ from custom_components.smart_led_manager.const import (
     CONF_LIGHTS,
     CONF_RULES,
     CONF_SHOW_SIDEBAR,
+    CONF_ZONES,
     DOMAIN,
 )
 from custom_components.smart_led_manager.modules.configuration import options_revision
@@ -26,6 +27,9 @@ from custom_components.smart_led_manager.visual_editor import (
     async_reload_visual_editor_entry,
     async_remove_visual_editor_panel,
     async_setup_visual_editor,
+    websocket_admin_get,
+    websocket_admin_mode,
+    websocket_admin_mutate,
     websocket_editor_status,
     websocket_get_numeric_rules,
     websocket_get_smart_rules,
@@ -145,6 +149,13 @@ async def _mutation_handler(hass, connection, message) -> None:
     await websocket_mutate_smart_rule.__wrapped__.__wrapped__(hass, connection, message)
 
 
+async def _admin_mutation(hass, **values):
+    connection = _Connection()
+    message = _message("smart_led_manager/admin/mutate", **values)
+    await websocket_admin_mutate.__wrapped__.__wrapped__(hass, connection, message)
+    return connection
+
+
 def _status(hass, **kwargs):
     connection = _Connection()
     websocket_editor_status(
@@ -155,6 +166,68 @@ def _status(hass, **kwargs):
 
 class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
     """Exercise read, exact preview, safe save and security boundaries."""
+
+    async def test_admin_dependencies_and_revision_preserve_ids(self) -> None:
+        entry = _Entry()
+        entry.options[CONF_LIGHTS] = ["light.strip", "light.secondary"]
+        entry.options[CONF_ZONES] = [
+            {"zone_id": "office", "name": "Oficina", "targets": ["light.strip"]}
+        ]
+        entry.options[CONF_RULES][0]["target_selection"] = {"zones": ["office"]}
+        entry.options[CONF_RULES][0]["enabled"] = False
+        hass = _Hass(entry)
+        revision = hass.runtime.options_revision
+        blocked = await _admin_mutation(
+            hass,
+            revision=revision,
+            kind="lights",
+            operation="save",
+            item={"targets": ["light.secondary"]},
+        )
+        self.assertEqual(blocked.errors[0][1], "zones_use_removed_lights")
+        blocked = await _admin_mutation(
+            hass, revision=revision, kind="zone", operation="delete", item_id="office"
+        )
+        self.assertEqual(blocked.errors[0][1], "zone_has_rules")
+        self.assertFalse(hass.config_entries.updated)
+
+        edited = await _admin_mutation(
+            hass,
+            revision=revision,
+            kind="zone",
+            operation="update",
+            item_id="office",
+            item={"zone_id": "foreign-id", "name": "Estudio"},
+        )
+        self.assertFalse(edited.errors)
+        self.assertEqual(edited.results[0][1]["item"]["zone_id"], "office")
+        self.assertEqual(
+            entry.options[CONF_RULES][0]["target_selection"]["zones"], ["office"]
+        )
+        stale = await _admin_mutation(
+            hass,
+            revision=revision,
+            kind="zone",
+            operation="update",
+            item_id="office",
+            item={"name": "Nombre obsoleto"},
+        )
+        self.assertEqual(stale.errors[0][1], "conflict")
+        self.assertEqual(entry.options[CONF_ZONES][0]["name"], "Estudio")
+
+    async def test_admin_cannot_remove_a_light_used_directly_by_a_rule(self) -> None:
+        entry = _Entry()
+        entry.options[CONF_LIGHTS] = ["light.strip", "light.secondary"]
+        hass = _Hass(entry)
+        connection = await _admin_mutation(
+            hass,
+            revision=hass.runtime.options_revision,
+            kind="lights",
+            operation="save",
+            item={"targets": ["light.secondary"]},
+        )
+        self.assertEqual(connection.errors[0][1], "rules_use_removed_lights")
+        self.assertFalse(hass.config_entries.updated)
 
     async def test_reads_existing_rule_with_unit_and_full_metadata(self) -> None:
         hass = _Hass()
@@ -593,6 +666,9 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         hass = _Hass()
         connection = _Connection(admin=False)
         messages = [
+            (websocket_admin_get, _message("smart_led_manager/admin/get")),
+            (websocket_admin_mode, _message("smart_led_manager/admin/mode")),
+            (websocket_admin_mutate, _message("smart_led_manager/admin/mutate")),
             (websocket_editor_status, _message("smart_led_manager/editor/status")),
             (
                 websocket_get_numeric_rules,
@@ -673,7 +749,7 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
             await async_register_visual_editor_panel(hass, entry)
             async_remove_visual_editor_panel(hass)
 
-        self.assertEqual(register_command.call_count, 7)
+        self.assertEqual(register_command.call_count, 10)
         hass.http.async_register_static_paths.assert_awaited_once()
         static_path = hass.http.async_register_static_paths.await_args.args[0][0]
         self.assertEqual(static_path.url_path, STATIC_URL)

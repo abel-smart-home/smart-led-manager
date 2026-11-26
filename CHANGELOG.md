@@ -27,6 +27,17 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - El propietario reportó P-01–P-06 aprobadas en HAOS VirtualBox con
   `cf2f371353dc6321baaef67c0ca8858e6d564110`. [Registro de pruebas](docs/haos-test-plan.md#resultado-de-c21-en-virtualbox).
 
+### Añadido — C.2.2
+
+- Centro de administración de cinco secciones. Iluminación inteligente conserva
+  el editor de reglas y Configuración abre los ajustes nativos de Home Assistant.
+- Selección buscable de luces administradas, zonas con área opcional y modos
+  agrupados por zona. Las retiradas comprueban dependencias de zonas, modos y
+  reglas, incluidas las deshabilitadas.
+- Editor de modos con color, brillo, efectos compatibles, vista previa local
+  e interruptor opcional. La selección activa y el guardado usan el coordinador
+  y la revisión aplicada de la única entrada.
+
 ### Añadido — Bloque A
 
 - Un dispositivo virtual estable por zona, identificado por `entry_id` y

@@ -235,6 +235,155 @@ async def test_editor_confirms_runtime_revision_after_real_reload(
     await client.close()
 
 
+async def test_admin_center_reuses_config_entry_and_exclusive_mode_engine(
+    hass, hass_ws_client
+) -> None:
+    """Drive the new panel's WebSocket contracts against a real HA runtime."""
+    for entity in ("light.strip", "light.desk"):
+        hass.states.async_set(entity, STATE_OFF, {ATTR_SUPPORTED_COLOR_MODES: ["rgb"]})
+    hass.states.async_set("light.group", STATE_OFF, {"entity_id": ["light.strip"]})
+    sent = []
+
+    async def record(call):
+        entities = call.data["entity_id"]
+        sent.extend([entities] if isinstance(entities, str) else entities)
+
+    hass.services.async_register("light", SERVICE_TURN_ON, record)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_LIGHTS: ["light.strip"]}, minor_version=2
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_ws_client()
+    area = ar.async_get(hass).async_create("Office")
+    msg_id = 0
+
+    async def cmd(command, **data):
+        nonlocal msg_id
+        msg_id += 1
+        await client.send_json(
+            {
+                "id": msg_id,
+                "type": f"{DOMAIN}/admin/{command}",
+                "entry_id": entry.entry_id,
+                **data,
+            }
+        )
+        return await client.receive_json()
+
+    async def mutate(kind, operation, **data):
+        result = await cmd(
+            "mutate",
+            kind=kind,
+            operation=operation,
+            revision=options_revision(entry.options),
+            **data,
+        )
+        assert result["success"], result
+        await hass.async_block_till_done()
+        assert entry.runtime_data.options_revision == result["result"]["revision"]
+        return result["result"]["item"]
+
+    original = (await cmd("get"))["result"]["admin"]
+    assert original["managed"] == ["light.strip"]
+    assert {light["entity_id"] for light in original["lights"]} == {
+        "light.strip",
+        "light.desk",
+    }
+    group = await cmd(
+        "mutate",
+        kind="lights",
+        operation="save",
+        revision=options_revision(entry.options),
+        item={"targets": ["light.group"]},
+    )
+    assert group["error"]["code"] == "group_not_authorized"
+    await mutate("lights", "save", item={"targets": ["light.strip", "light.desk"]})
+
+    zone = await mutate(
+        "zone",
+        "create",
+        item={"name": "Office", "targets": ["light.strip"], "area_id": area.id},
+    )
+    zone_id = zone["zone_id"]
+    first = await mutate(
+        "mode",
+        "create",
+        item={
+            "name": "Cinema",
+            "zone_id": zone_id,
+            "targets": ["light.strip"],
+            "rgb_color": [40, 20, 255],
+            "expose_switch": True,
+        },
+    )
+    second = await mutate(
+        "mode",
+        "create",
+        item={
+            "name": "Reading",
+            "zone_id": zone_id,
+            "targets": ["light.strip"],
+            "rgb_color": [255, 204, 128],
+        },
+    )
+    registry = er.async_get(hass)
+    unique_id = mode_switch_unique_id(entry.entry_id, first["mode_id"])
+    switch_id = registry.async_get_entity_id("switch", DOMAIN, unique_id)
+    assert switch_id
+    changed = await mutate("zone", "update", item_id=zone_id, item={"name": "Studio"})
+    assert changed["zone_id"] == zone_id and changed["area_id"] == area.id
+    assert registry.async_get_entity_id("switch", DOMAIN, unique_id) == switch_id
+
+    denied = await cmd(
+        "mutate",
+        kind="zone",
+        operation="delete",
+        revision=options_revision(entry.options),
+        item_id=zone_id,
+    )
+    assert denied["error"]["code"] == "zone_has_modes"
+    stale = await cmd(
+        "mutate",
+        kind="zone",
+        operation="update",
+        revision=options_revision({}),
+        item_id=zone_id,
+        item={"name": "Old"},
+    )
+    assert stale["error"]["code"] == "conflict"
+
+    for mode in (first, second):
+        result = await cmd(
+            "mode",
+            revision=options_revision(entry.options),
+            mode_id=mode["mode_id"],
+            active=True,
+        )
+        assert (
+            result["result"]["status"][zone_id]["selected_mode_id"] == mode["mode_id"]
+        )
+    assert set(sent) == {"light.strip"}
+    assert await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    persisted = (await cmd("get"))["result"]["admin"]
+    assert persisted["status"][zone_id]["selected_mode_id"] == second["mode_id"]
+    assert registry.async_get_entity_id("switch", DOMAIN, unique_id) == switch_id
+
+    cleared = await cmd(
+        "mode",
+        revision=options_revision(entry.options),
+        mode_id=second["mode_id"],
+        active=False,
+    )
+    assert cleared["result"]["status"][zone_id]["selected_mode_id"] is None
+    for mode in (first, second):
+        await mutate("mode", "delete", item_id=mode["mode_id"])
+    await mutate("zone", "delete", item_id=zone_id)
+    assert (await cmd("get"))["result"]["admin"]["zones"] == []
+    await client.close()
+
+
 async def test_official_bus_button_and_event_entity_triggers_do_not_replay(
     hass,
 ) -> None:

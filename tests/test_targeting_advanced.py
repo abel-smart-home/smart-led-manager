@@ -9,6 +9,10 @@ import pytest
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import State
 
+from custom_components.smart_led_manager.modules.admin_configuration import (
+    validate_managed_lights,
+)
+from custom_components.smart_led_manager.modules.modes import ModeValidationError
 from custom_components.smart_led_manager.modules.targeting import (
     AdvancedTargetError,
     AdvancedTargetResolver,
@@ -153,3 +157,26 @@ def test_area_and_label_filter_to_managed_and_report_exclusions() -> None:
 
     assert resolved.targets == frozenset({"light.one", "light.two"})
     assert resolved.excluded == frozenset({"light.outside", "light.outside_two"})
+
+
+def test_removal_protects_partial_area_dependencies_but_all_managed_can_shrink() -> (
+    None
+):
+    hass = _hass()
+    current = ["light.one", "light.two"]
+    remaining = ["light.two"]
+    rule = {"target_selection": {"areas": ["living"], "all_managed": True}}
+    with (
+        patch(
+            "custom_components.smart_led_manager.modules.targeting.ar.async_get",
+            return_value=SimpleNamespace(areas={"living": object()}),
+        ),
+        patch.object(
+            AdvancedTargetResolver, "_registry_entities", return_value=set(current)
+        ),
+        pytest.raises(ModeValidationError, match="rules_use_removed_lights"),
+    ):
+        validate_managed_lights(hass, current, remaining, [], [rule])
+
+    rule["target_selection"].pop("areas")
+    assert validate_managed_lights(hass, current, remaining, [], [rule]) == remaining

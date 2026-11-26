@@ -32,6 +32,7 @@ from .const import (
     DEFAULT_MANUAL_POLICY,
     DEFAULT_MIN_COMMAND_INTERVAL,
     DEFAULT_TIE_BREAKER,
+    EVENT_MODE_CHANGED,
     EVENT_REQUEST_CHANGED,
     MAX_ACTIVITY_ITEMS,
     MODULE_MANUAL,
@@ -231,6 +232,7 @@ class SmartLEDCoordinator:
                 return
             await self._async_apply_changes(mutation.changes)
             await self._async_after_mutation(save=True)
+            self.hass.bus.async_fire(EVENT_MODE_CHANGED, {})
 
     async def async_set_zone_mode(self, zone_id: str, mode_id: str | None) -> None:
         """Atomically replace a zone's selected mode, or select no mode."""
@@ -240,6 +242,7 @@ class SmartLEDCoordinator:
                 return
             await self._async_apply_changes(mutation.changes)
             await self._async_after_mutation(save=True)
+            self.hass.bus.async_fire(EVENT_MODE_CHANGED, {})
 
     async def async_clear_notifications(
         self, targets: frozenset[str] | None = None
@@ -318,13 +321,17 @@ class SmartLEDCoordinator:
             "manual_policy": self.manual_policy,
             "request_count": len(requests),
             "requests": [request.to_dict() for request in requests],
-            "mode_catalog": self.modes.snapshot(self._winners),
+            "mode_catalog": self.mode_snapshot(),
             "winners": dict(sorted(self._winners.items())),
             "animation_targets": sorted(self.animations.active_targets),
             "pending_controller_targets": sorted(self.controller.pending_targets),
             "last_error": self.last_error,
             "history": list(self.history),
         }
+
+    def mode_snapshot(self) -> dict[str, Any]:
+        """Read the selected modes and their effective targets."""
+        return self.modes.snapshot(self._winners)
 
     async def async_shutdown(self) -> None:
         """Release every listener and task without blind physical restoration."""

@@ -159,7 +159,10 @@ test("panel renders unified rules and uses preview/CRUD contracts", async () => 
   editor._render();
   assert.match(editor.shadowRoot.innerHTML, /Centro de administración/);
   assert.match(editor.shadowRoot.innerHTML, /0\.1\.0-alpha\.3/);
+  assert.match(editor.shadowRoot.innerHTML, /Luces administradas[\s\S]*Zonas[\s\S]*Modos de iluminación[\s\S]*Iluminación inteligente[\s\S]*Configuración/);
+  editor._openView("settings");
   assert.match(editor.shadowRoot.innerHTML, /\/config\/integrations\/integration\/smart_led_manager/);
+  editor._view = "rules";
   editor._selections = {
     managed_lights: [{ entity_id: "light.strip", name: "Tira del salón" }],
     zones: [], areas: [], labels: [], groups: [],

@@ -555,6 +555,8 @@
       "mode_target_outside_zone": "Todas las luces del modo deben pertenecer a su zona",
       "duplicate_mode_name": "El nombre del modo debe ser único dentro de la zona",
       "zone_has_modes": "Elimina primero los modos de esta zona",
+      "zone_has_rules": "Modifica primero las reglas que usan esta zona",
+      "rules_use_removed_lights": "Modifica primero las reglas que usan las luces retiradas",
       "invalid_mode": "La definición del modo no es válida",
       "invalid_zone": "La definición de la zona no es válida",
       "area_not_found": "El área seleccionada de Home Assistant ya no existe",

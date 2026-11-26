@@ -1,7 +1,7 @@
 // Optional DOM regression. Run with a Chromium or Edge executable as argument.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { tmpdir } from "node:os";
@@ -9,8 +9,14 @@ import { basename, dirname, join } from "node:path";
 
 const browser = process.argv[2];
 if (!browser) throw new Error("Pass the path to a Chromium or Edge executable.");
+const captures = process.argv[3];
 
-const fixture = `<!doctype html><meta charset="utf-8"><output id="result">PENDING</output>
+const fixture = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{font-family:system-ui,sans-serif;--primary-background-color:#f8f8f8;--card-background-color:#fff;--primary-text-color:#111;--secondary-text-color:#626262;--divider-color:#ddd;--secondary-background-color:#ececec;--input-fill-color:#fff;--primary-color:#008eaa;--text-primary-color:#fff;--success-color:#246c47;--error-color:#a92836}
+:root[data-theme=dark]{color-scheme:dark;--primary-background-color:#161616;--card-background-color:#202020;--primary-text-color:#f2f2f2;--secondary-text-color:#b8b8b8;--divider-color:#444;--secondary-background-color:#252525;--input-fill-color:#343434;--primary-color:#009fc1;--text-primary-color:#080808;--success-color:#68c895;--error-color:#f48188}
+body{margin:0;background:var(--primary-background-color);color:var(--primary-text-color)}output{position:absolute;clip-path:inset(50%)}
+</style><output id="result">PENDING</output>
 <smart-led-manager-visual-editor></smart-led-manager-visual-editor>
 <script type="module">
 import "/frontend/visual-editor-panel.mjs";
@@ -37,6 +43,18 @@ const selections = { managed_lights: [{ entity_id: "light.a", name: "Demo A" }] 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const connection = new EventTarget();
 connection.subscribeEvents = async () => () => {}; // Deliberately drop lifecycle events.
+const baseMode = { animation: "fixed", period: 1, brightness: 128, priority: 50, transition: null, allow_turn_on: true, expose_switch: false };
+const demo = {
+  managed: ["light.office", "light.living"], available: ["light.office", "light.living"],
+  lights: [{entity_id:"light.office",name:"Luz Oficina"},{entity_id:"light.living",name:"Luz Sala"},{entity_id:"light.kitchen",name:"Luz Cocina"}],
+  areas: [{id:"office",name:"Oficina"},{id:"living",name:"Sala"},{id:"kitchen",name:"Cocina"}],
+  zones: [{zone_id:"office",name:"Oficina",area_id:"office",targets:["light.office"]},{zone_id:"living",name:"Sala",area_id:"living",targets:["light.living"]}],
+  modes: [{...baseMode,mode_id:"cinema",zone_id:"living",name:"Cine",targets:["light.living"],rgb_color:[102,51,255],brightness:64},
+          {...baseMode,mode_id:"reading",zone_id:"living",name:"Lectura",targets:["light.living"],rgb_color:[255,204,128],brightness:204}],
+  status:{},
+};
+let admin = structuredClone(demo);
+let modeCalls = 0;
 editor.panel = { config: { entry_id: "lab" } };
 editor.hass = {
   language: "es",
@@ -48,7 +66,23 @@ editor.hass = {
       entry_state: runtime === "failed" ? "setup_error" : "loaded",
       mutation: receipt?.id === message.mutation_id ? receipt : null,
     };
+    if (message.type.endsWith("/admin/get")) return { revision, admin: structuredClone(admin) };
     if (message.type.endsWith("/get")) return { revision, selections, rules: rule ? [{ rule, targets: [] }] : [] };
+    if (message.type.endsWith("/admin/mode")) {
+      modeCalls++;
+      admin.status.living = { selected_mode_id: message.active ? message.mode_id : null, state: "winner" };
+      return { status: admin.status };
+    }
+    if (message.type.endsWith("/admin/mutate")) {
+      if (message.kind === "lights") {
+        if (!message.item.targets.includes("light.office")) throw {code:"zones_use_removed_lights"};
+        admin.managed = message.item.targets;
+      } else if (message.kind === "zone" && message.operation === "update") {
+        admin.zones = admin.zones.map((zone) => zone.zone_id === message.item_id ? message.item : zone);
+      } else throw new Error("Unexpected admin mutation");
+      revision = applied = "r" + (++mutations);
+      return { revision, item: message.item };
+    }
     if (!message.type.endsWith("/mutate")) throw new Error(message.type);
     mutations++;
     if (conflict) throw { code: "conflict" };
@@ -132,7 +166,67 @@ try {
   connection.dispatchEvent(new Event("ready"));
   await waitFor(() => pick('[data-edit="one"]') && pick(".notice"), "Reconnect did not recover the receipt");
   check(mutations === sent && rule.priority === 66, "Reconnect resent or lost the mutation");
+  pick("[data-home]").click();
+  check(root.querySelectorAll(".slm-tile").length === 5, "Expected exactly five home cards");
+  pick('[data-admin-view="lights"]').click();
+  await waitFor(() => pick("[data-admin-search]"), "Lights did not load");
+  change("[data-admin-search]", "Cocina", "input");
+  check([...root.querySelectorAll("[data-choice-label]")].filter((label) => !label.hidden).length === 1, "Integrated search did not filter lights");
+  change("[data-admin-search]", "", "input");
+  pick('[data-admin-target="light.office"]').click();
+  pick("[data-save]").click();
+  await waitFor(() => pick('[role="alert"]') && pick("[data-save]") && !pick("[data-save]").disabled, "Dependency failure was not retained");
+  check(!pick('[data-admin-target="light.office"]').checked, "Dependency failure dropped draft");
+  pick("[data-back]").click();
+  pick("[data-exit-discard]").click();
+  pick('[data-admin-view="zones"]').click();
+  await waitFor(() => pick('[data-admin-edit="office"]') && !pick('[data-admin-edit="office"]').disabled, "Zones did not load");
+  pick('[data-admin-edit="office"]').click();
+  change('[data-path="name"]', "Estudio", "input");
+  pick("[data-save]").click();
+  await waitFor(() => pick('[data-admin-edit="office"]')?.textContent.includes("Estudio"), "Zone rename did not preserve its ID");
+  pick("[data-home]").click();
+  pick('[data-admin-view="modes"]').click();
+  await waitFor(() => pick('[data-mode-active="cinema"]') && !pick('[data-mode-active="cinema"]').disabled, "Modes did not load");
+  pick('[data-mode-active="cinema"]').click();
+  await waitFor(() => pick('[data-mode-active="cinema"]')?.dataset.on === "true", "Mode selection was not shown");
+  pick('[data-mode-active="reading"]').click();
+  await waitFor(() => pick('[data-mode-active="reading"]')?.dataset.on === "true", "Other mode did not replace selection");
+  check(pick('[data-mode-active="cinema"]').dataset.on === "false", "Modes were not exclusive");
+  pick('[data-admin-edit="reading"]').click();
+  change('[data-path="animation"]', "pulse");
+  pick("[data-preview-effect]").click();
+  check(modeCalls === 2 && pick(".slm-strip.slm-pulse"), "Preview was not local or did not start");
+  pick("[data-back]").click();
+  pick("[data-exit-discard]").click();
   check(location.pathname === "/smart-led-manager-editor", "The panel left its route");
+  window.captureAdmin = async (name, theme) => {
+    document.documentElement.dataset.theme = theme;
+    admin = structuredClone(demo);
+    editor._openView("home");
+    const view = { "edit-zone":"zones", "create-zone":"zones", "draft-exit":"zones",
+      "create-mode":"modes", "edit-mode":"modes", "active-mode":"modes" }[name] ?? name;
+    if (name === "active-mode") admin.status.living = {selected_mode_id:"cinema", state:"winner"};
+    if (name === "smart") {
+      pick("[data-rules]").click();
+      await waitFor(() => pick("[data-create]") && !pick("[data-create]").disabled, "Rule list did not load");
+    } else if (name !== "home") {
+      pick('[data-admin-view="' + view + '"]').click();
+      if (view !== "settings") await waitFor(() => !editor._loading && editor._admin, "Administration did not load");
+      if (name === "edit-zone") pick('[data-admin-edit="office"]').click();
+      if (name === "draft-exit") {
+        pick('[data-admin-edit="office"]').click();
+        change('[data-path="name"]', "Estudio", "input");
+        pick("[data-back]").click();
+      }
+      if (name.startsWith("create-")) pick("[data-admin-create]").click();
+      if (name === "edit-mode") pick('[data-admin-edit="cinema"]').click();
+      if (name === "create-mode") change('[data-path="zone_id"]', "living");
+    }
+    window.scrollTo(0, 0);
+    const width = document.documentElement.scrollWidth;
+    return { width, clientWidth: document.documentElement.clientWidth, viewport: innerWidth, heading: pick("h1")?.textContent };
+  };
   result.textContent = "BROWSER_SMOKE_PASSED";
 } catch (error) {
   result.textContent = "FAILED: " + (error?.stack ?? error);
@@ -140,7 +234,7 @@ try {
 </script>`;
 
 const server = createServer(async (request, response) => {
-  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls)\.mjs$/.exec(request.url);
+  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views)\.mjs$/.exec(request.url);
   if (name) {
     const file = new URL(`../../custom_components/smart_led_manager/frontend/${name[1]}.mjs`, import.meta.url);
     response.setHeader("Content-Type", "text/javascript");
@@ -213,6 +307,36 @@ try {
     return state === "PENDING" ? null : state;
   });
   assert.equal(result, "BROWSER_SMOKE_PASSED");
+  if (captures) {
+    await mkdir(captures, { recursive: true });
+    const sets = [
+      { name: "desktop", theme: "light", width: 1280, height: 900, views: ["home", "lights", "zones", "create-zone", "edit-zone", "draft-exit", "modes", "active-mode", "create-mode", "edit-mode", "smart", "settings"] },
+      { name: "mobile", theme: "dark", width: 390, height: 844, views: ["home", "lights", "edit-zone", "modes", "create-mode"] },
+    ];
+    for (const { name, theme, width, height, views } of sets) {
+      await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
+      for (const view of views) {
+        const prepared = await send("Runtime.evaluate", {
+          expression: "window.captureAdmin(" + JSON.stringify(view) + "," + JSON.stringify(theme) + ")",
+          awaitPromise: true, returnByValue: true,
+        });
+        assert.equal(prepared.exceptionDetails, undefined);
+        assert.equal(prepared.result.value.viewport, width);
+        assert.ok(prepared.result.value.width <= prepared.result.value.clientWidth, "Horizontal overflow in " + view);
+        assert.ok(prepared.result.value.heading);
+        const saved = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
+        await writeFile(join(captures, name + "-" + view + ".png"), Buffer.from(saved.data, "base64"));
+        if (view === "create-mode") {
+          const { cssContentSize } = await send("Page.getLayoutMetrics");
+          const full = await send("Page.captureScreenshot", {
+            format: "png", fromSurface: true, captureBeyondViewport: true,
+            clip: { x: 0, y: 0, width, height: Math.ceil(cssContentSize.height), scale: 1 },
+          });
+          await writeFile(join(captures, name + "-" + view + "-full.png"), Buffer.from(full.data, "base64"));
+        }
+      }
+    }
+  }
 } finally {
   if (socket?.readyState === WebSocket.OPEN) {
     const disconnected = once(socket, "close");

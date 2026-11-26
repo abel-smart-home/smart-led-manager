@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import probatio
 from homeassistant.components import frontend, panel_custom, websocket_api
@@ -21,6 +22,7 @@ from homeassistant.helpers import label_registry as lr
 
 from .const import (
     CONF_LIGHTS,
+    CONF_MODES,
     CONF_RULES,
     CONF_SHOW_SIDEBAR,
     CONF_ZONES,
@@ -38,7 +40,14 @@ from .core.color import (
     parse_numeric_state,
     rgb_to_hex,
 )
+from .modules.admin_configuration import (
+    validate_managed_lights,
+    validate_mode,
+    validate_zone,
+    validate_zone_removal,
+)
 from .modules.configuration import mutable_json, options_revision
+from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 from .modules.rule_schema import RuleCatalog, RuleValidationError
 from .modules.targeting import (
     AdvancedTargetError,
@@ -63,7 +72,7 @@ _DATA_RECEIPTS = "visual_editor_mutation_receipts"
 _DATA_SIDEBAR = "visual_editor_sidebar"
 _EVENT_ENTRY_STATUS = f"{DOMAIN}_editor_entry_status"
 _MAX_MUTATION_RECEIPTS = 32
-_PANEL_ASSETS_REVISION = "c2.1"
+_PANEL_ASSETS_REVISION = "c2.2"
 
 _TRANSITION_STATES = {
     ConfigEntryState.SETUP_IN_PROGRESS,
@@ -92,6 +101,9 @@ async def async_setup_visual_editor(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, websocket_mutate_smart_rule)
         websocket_api.async_register_command(hass, websocket_preview_targets)
         websocket_api.async_register_command(hass, websocket_editor_status)
+        websocket_api.async_register_command(hass, websocket_admin_get)
+        websocket_api.async_register_command(hass, websocket_admin_mutate)
+        websocket_api.async_register_command(hass, websocket_admin_mode)
         domain_data[_DATA_COMMANDS] = True
     if not domain_data.get(_DATA_STATIC):
         await hass.http.async_register_static_paths(
@@ -831,6 +843,46 @@ async def websocket_mutate_smart_rule(
 ) -> None:
     """Apply one validated CRUD mutation with optimistic concurrency."""
 
+    await _async_send_editor_mutation(hass, connection, msg, _async_prepare_rule_edit)
+
+
+async def _async_prepare_rule_edit(hass, entry, msg):
+    try:
+        catalog = RuleCatalog(_configured_rules(entry))
+        operation = msg["operation"]
+        if operation == "create":
+            result = catalog.create(msg.get("rule", {}))
+        elif operation == "update":
+            result = catalog.update(str(msg.get("rule_id", "")), msg.get("rule", {}))
+        elif operation == "duplicate":
+            result = catalog.duplicate(str(msg.get("rule_id", "")))
+        elif operation == "toggle":
+            result = catalog.toggle(
+                str(msg.get("rule_id", "")), bool(msg.get("enabled"))
+            )
+        elif operation == "delete":
+            catalog.delete(str(msg.get("rule_id", "")))
+            result = None
+        else:
+            raise RuleValidationError("invalid_operation", "unsupported rule operation")
+        rules = catalog.snapshot()
+    except (RuleValidationError, ValueError) as err:
+        raise VisualEditorError(getattr(err, "code", "invalid_rule"), str(err)) from err
+    if (result is not None and operation in {"create", "update", "duplicate"}) or (
+        result is not None and operation == "toggle" and result["enabled"]
+    ):
+        await _async_validate_rule_catalog(hass, entry, [result])
+    return {CONF_RULES: rules}, {"rule": result}, {"rules": rules}
+
+
+async def _async_send_editor_mutation(
+    hass: HomeAssistant,
+    connection: websocket_api.ActiveConnection,
+    msg: dict[str, Any],
+    prepare: Callable[..., Awaitable[tuple[dict, dict, dict]]],
+) -> None:
+    """Write options once and issue a receipt subject to the runtime revision."""
+
     try:
         entry_id = msg["entry_id"]
         mutation_id = msg.get("mutation_id")
@@ -856,45 +908,15 @@ async def websocket_mutate_smart_rule(
                     connection.send_result(msg["id"], previous[1])
                     return
             entry = _entry(hass, entry_id, revision=msg["revision"])
-            try:
-                catalog = RuleCatalog(_configured_rules(entry))
-                operation = msg["operation"]
-                if operation == "create":
-                    result = catalog.create(msg.get("rule", {}))
-                elif operation == "update":
-                    result = catalog.update(
-                        str(msg.get("rule_id", "")), msg.get("rule", {})
-                    )
-                elif operation == "duplicate":
-                    result = catalog.duplicate(str(msg.get("rule_id", "")))
-                elif operation == "toggle":
-                    result = catalog.toggle(
-                        str(msg.get("rule_id", "")), bool(msg.get("enabled"))
-                    )
-                elif operation == "delete":
-                    catalog.delete(str(msg.get("rule_id", "")))
-                    result = None
-                else:
-                    raise RuleValidationError(
-                        "invalid_operation", "unsupported rule operation"
-                    )
-                rules = catalog.snapshot()
-            except (RuleValidationError, ValueError) as err:
-                raise VisualEditorError(
-                    getattr(err, "code", "invalid_rule"), str(err)
-                ) from err
-            if (
-                result is not None and operation in {"create", "update", "duplicate"}
-            ) or (result is not None and operation == "toggle" and result["enabled"]):
-                await _async_validate_rule_catalog(hass, entry, [result])
+            updates, result, additional = await prepare(hass, entry, msg)
             entry = _entry(hass, entry_id, revision=msg["revision"])
             options = _mutable_json(entry.options)
-            options[CONF_RULES] = rules
+            options.update(updates)
             changed = hass.config_entries.async_update_entry(entry, options=options)
             revision = _options_revision(options)
             receipt = {
                 "revision": revision,
-                "rule": result,
+                **result,
                 "reloading": changed is True,
             }
             if mutation_id is not None:
@@ -906,16 +928,201 @@ async def websocket_mutate_smart_rule(
                 receipts[mutation_id] = (fingerprint, receipt)
                 if len(receipts) > _MAX_MUTATION_RECEIPTS:
                     del receipts[next(iter(receipts))]
+    except ModeValidationError as err:
+        connection.send_error(msg["id"], err.key, str(err))
+        return
     except VisualEditorError as err:
         _send_editor_error(connection, msg["id"], err)
         return
     except Exception:  # pragma: no cover - defensive HA transport boundary
-        _LOGGER.exception("Unexpected smart-rule mutation failure")
+        _LOGGER.exception("Unexpected editor mutation failure")
         connection.send_error(
-            msg["id"], "internal_error", "Unexpected error while saving the rule"
+            msg["id"], "internal_error", "Unexpected error while saving configuration"
         )
         return
-    connection.send_result(msg["id"], {**receipt, "rules": rules})
+    connection.send_result(msg["id"], {**receipt, **additional})
+
+
+def _configured_definitions(entry: ConfigEntry, key: str) -> list[dict[str, Any]]:
+    definitions = entry.options.get(key, [])
+    if not isinstance(definitions, list) or not all(
+        isinstance(item, Mapping) for item in definitions
+    ):
+        raise VisualEditorError("invalid_options", f"Configured {key} are invalid")
+    return _mutable_json(definitions)
+
+
+def _available_lights(
+    hass: HomeAssistant, managed: frozenset[str]
+) -> list[dict[str, Any]]:
+    """List compatible light entities and retain references to offline managed lights."""
+    entities = managed.union(
+        state.entity_id for state in hass.states.async_all("light")
+    )
+    return sorted(
+        (
+            _friendly_entity(hass, entity_id)
+            for entity_id in entities
+            if not is_aggregate_light(hass, entity_id)
+        ),
+        key=lambda item: (item["name"].casefold(), item["entity_id"]),
+    )
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/admin/get",
+        probatio.Required("entry_id"): str,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_admin_get(hass, connection, msg) -> None:
+    """Read configuration and effective modes from the single loaded entry."""
+    try:
+        entry = _entry(hass, msg["entry_id"])
+        managed = _authorized_targets(entry)
+        runtime = hass.data[DOMAIN]["entries"][entry.entry_id]
+        snapshot = runtime.mode_snapshot()
+        areas = ar.async_get(hass).areas.values()
+        payload = {
+            "revision": runtime.options_revision,
+            "admin": {
+                "managed": sorted(managed),
+                "lights": _available_lights(hass, managed),
+                "areas": [
+                    {"id": area.id, "name": area.name}
+                    for area in sorted(areas, key=lambda item: item.name.casefold())
+                ],
+                "zones": [
+                    ZoneDefinition.from_dict(row).to_dict()
+                    for row in _configured_definitions(entry, CONF_ZONES)
+                ],
+                "modes": [
+                    ModeDefinition.from_dict(row).to_dict()
+                    for row in _configured_definitions(entry, CONF_MODES)
+                ],
+                "status": snapshot["status"],
+                "available": sorted(
+                    light
+                    for light in managed
+                    if (state := hass.states.get(light)) is not None
+                    and state.state not in ("unknown", "unavailable")
+                ),
+            },
+        }
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    except ModeValidationError as err:
+        connection.send_error(msg["id"], err.key, str(err))
+        return
+    connection.send_result(msg["id"], payload)
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/admin/mutate",
+        probatio.Required("entry_id"): str,
+        probatio.Required("revision"): str,
+        probatio.Required("kind"): str,
+        probatio.Required("operation"): str,
+        probatio.Optional("mutation_id"): str,
+        probatio.Optional("item_id"): str,
+        probatio.Optional("item"): dict,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_admin_mutate(hass, connection, msg) -> None:
+    """Save one administration change with the editor's revision protocol."""
+    await _async_send_editor_mutation(hass, connection, msg, _async_prepare_admin_edit)
+
+
+async def _async_prepare_admin_edit(hass, entry, msg):
+    kind = msg["kind"]
+    operation = msg["operation"]
+    item = msg.get("item", {})
+    managed = _authorized_targets(entry)
+    zones = _configured_definitions(entry, CONF_ZONES)
+    modes = _configured_definitions(entry, CONF_MODES)
+    if kind == "lights" and operation == "save":
+        lights = validate_managed_lights(
+            hass, managed, item.get("targets"), zones, _configured_rules(entry)
+        )
+        choices = {light["entity_id"] for light in _available_lights(hass, managed)}
+        if set(lights).difference(managed, choices):
+            raise ModeValidationError("light_not_available")
+        return {CONF_LIGHTS: lights}, {"item": {"targets": lights}}, {}
+
+    if kind not in {"zone", "mode"} or operation not in {"create", "update", "delete"}:
+        raise VisualEditorError(
+            "invalid_operation", "Unsupported administration operation"
+        )
+
+    id_key = f"{kind}_id"
+    key, definitions = (CONF_ZONES, zones) if kind == "zone" else (CONF_MODES, modes)
+    item_id = uuid4().hex if operation == "create" else msg.get("item_id")
+    existing = next((row for row in definitions if row.get(id_key) == item_id), None)
+    if operation != "create" and existing is None:
+        raise ModeValidationError(f"{kind}_not_found")
+    remaining = [row for row in definitions if row is not existing]
+    if operation == "delete":
+        if kind == "zone":
+            validate_zone_removal(item_id, modes, _configured_rules(entry))
+        return {key: remaining}, {"item": None}, {}
+
+    data = {**(existing or {}), **item, id_key: item_id}
+    if kind == "zone":
+        parsed = ZoneDefinition.from_dict(data)
+        validate_zone(hass, parsed, managed, zones, modes)
+    else:
+        parsed = ModeDefinition.from_dict(data)
+        validate_mode(parsed, zones, modes)
+        if parsed.transition is not None and not 0 <= parsed.transition <= 300:
+            raise ModeValidationError("invalid_mode")
+        if existing is not None and existing["zone_id"] != parsed.zone_id:
+            runtime = hass.data[DOMAIN]["entries"][entry.entry_id]
+            if runtime.modes.is_selected(item_id):
+                raise ModeValidationError("deactivate_before_move")
+    saved = {**(existing or {}), **parsed.to_dict()}
+    result = [saved if row is existing else row for row in definitions]
+    if existing is None:
+        result.append(saved)
+    return {key: result}, {"item": saved}, {}
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/admin/mode",
+        probatio.Required("entry_id"): str,
+        probatio.Required("revision"): str,
+        probatio.Required("mode_id"): str,
+        probatio.Required("active"): bool,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_admin_mode(hass, connection, msg) -> None:
+    """Activate or clear a mode through the existing exclusive coordinator."""
+    try:
+        async with hass.data[DOMAIN][_DATA_LOCK]:
+            entry = _entry(hass, msg["entry_id"], revision=msg["revision"])
+            runtime = hass.data[DOMAIN]["entries"][entry.entry_id]
+            action = (
+                runtime.async_activate_mode
+                if msg["active"]
+                else runtime.async_deactivate_mode
+            )
+            await action(msg["mode_id"])
+            status = runtime.mode_snapshot()["status"]
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    except ModeValidationError as err:
+        connection.send_error(msg["id"], err.key, str(err))
+        return
+    connection.send_result(msg["id"], {"status": status})
 
 
 @websocket_api.websocket_command(

@@ -62,3 +62,4 @@ MODULE_RULE: Final = "rule"
 MODULE_MODE: Final = "mode"
 
 EVENT_REQUEST_CHANGED: Final = f"{DOMAIN}_request_changed"
+EVENT_MODE_CHANGED: Final = f"{DOMAIN}_mode_changed"

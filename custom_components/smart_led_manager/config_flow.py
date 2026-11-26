@@ -12,7 +12,6 @@ import probatio
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.core import callback
-from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import selector
 
 from .const import (
@@ -37,6 +36,12 @@ from .const import (
 )
 from .core.color import normalize_color_points
 from .core.conditions import WEEKDAYS
+from .modules.admin_configuration import (
+    validate_managed_lights,
+    validate_mode,
+    validate_zone,
+    validate_zone_removal,
+)
 from .modules.configuration import options_revision
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 from .modules.native_rule_controls import (
@@ -290,16 +295,16 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         """Select the physical lights this integration may control."""
         errors: dict[str, str] = {}
         if user_input is not None:
-            lights = list(dict.fromkeys(user_input[CONF_LIGHTS]))
-            if not lights:
-                errors[CONF_LIGHTS] = "at_least_one_light"
-            elif any(is_aggregate_light(self.hass, light) for light in lights):
-                errors[CONF_LIGHTS] = "group_not_authorized"
-            elif any(
-                not set(zone.get("targets", [])).issubset(lights)
-                for zone in self._zones()
-            ):
-                errors[CONF_LIGHTS] = "zones_use_removed_lights"
+            try:
+                lights = validate_managed_lights(
+                    self.hass,
+                    self._lights(),
+                    user_input[CONF_LIGHTS],
+                    self._zones(),
+                    self._rules(),
+                )
+            except ModeValidationError as err:
+                errors[CONF_LIGHTS] = err.key
             else:
                 return self._create_options_entry({CONF_LIGHTS: lights})
 
@@ -513,8 +518,10 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
         if user_input is not None:
             zone_id = str(user_input["zone_id"])
-            if any(mode.get("zone_id") == zone_id for mode in self._modes()):
-                errors["base"] = "zone_has_modes"
+            try:
+                validate_zone_removal(zone_id, self._modes(), self._rules())
+            except ModeValidationError as err:
+                errors["base"] = err.key
             else:
                 return self._create_options_entry(
                     {CONF_ZONES: [zone for zone in zones if zone["zone_id"] != zone_id]}
@@ -710,48 +717,14 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any], zone_id: str
     ) -> ZoneDefinition:
         zone = ZoneDefinition.from_dict({**user_input, "zone_id": zone_id})
-        if not zone.targets.issubset(self._lights()):
-            raise ModeValidationError("target_not_managed")
-        if (
-            zone.area_id is not None
-            and ar.async_get(self.hass).async_get_area(zone.area_id) is None
-        ):
-            raise ModeValidationError("area_not_found")
-        for other in self._zones():
-            if other["zone_id"] != zone_id and zone.targets.intersection(
-                other.get("targets", [])
-            ):
-                raise ModeValidationError("target_in_multiple_zones")
-            if (
-                other["zone_id"] != zone_id
-                and str(other.get("name", "")).casefold() == zone.name.casefold()
-            ):
-                raise ModeValidationError("duplicate_zone")
-        if any(
-            mode.get("zone_id") == zone_id
-            and not set(mode.get("targets", [])).issubset(zone.targets)
-            for mode in self._modes()
-        ):
-            raise ModeValidationError("mode_target_outside_zone")
+        validate_zone(self.hass, zone, self._lights(), self._zones(), self._modes())
         return zone
 
     def _validated_mode(
         self, user_input: dict[str, Any], mode_id: str
     ) -> ModeDefinition:
         mode = ModeDefinition.from_dict({**user_input, "mode_id": mode_id})
-        zones = {zone["zone_id"]: zone for zone in self._zones()}
-        zone = zones.get(mode.zone_id)
-        if zone is None:
-            raise ModeValidationError("mode_zone_missing")
-        if not mode.targets.issubset(zone.get("targets", [])):
-            raise ModeValidationError("mode_target_outside_zone")
-        if any(
-            item["mode_id"] != mode_id
-            and item.get("zone_id") == mode.zone_id
-            and str(item.get("name", "")).casefold() == mode.name.casefold()
-            for item in self._modes()
-        ):
-            raise ModeValidationError("duplicate_mode_name")
+        validate_mode(mode, self._zones(), self._modes())
         return mode
 
     def _zone_choices(self) -> list[dict[str, str]]:

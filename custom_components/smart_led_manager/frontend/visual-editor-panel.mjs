@@ -1,4 +1,7 @@
 import {
+  ADMIN_STYLES, ADMIN_TEXT, renderAdminHome, renderAdministration,
+} from "./admin-views.mjs";
+import {
   cssGradient,
   deepClone,
   gradientStopEntries,
@@ -280,6 +283,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._selected = undefined;
     this._draft = undefined;
     this._original = undefined;
+    this._admin = undefined;
+    this._adminDraft = undefined;
+    this._adminExpanded = new Map();
+    this._effectPreview = false;
     this._creating = false;
     this._loading = false;
     this._saving = false;
@@ -311,7 +318,18 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._hass = value;
     this._language = value?.locale?.language ?? value?.language ?? "en";
     if (this.isConnected) this._subscribeStatus();
-    if (this.isConnected && (!previous || previous !== this._language)) this._render();
+    if (this.isConnected && (!previous || previous !== this._language || this._updateModeAvailability(value))) this._render();
+  }
+
+  _updateModeAvailability(hass) {
+    if (this._view !== "modes" || this._draft || !this._admin || !hass?.states) return false;
+    const available = this._admin.managed.filter((id) => {
+      const state = hass.states[id]?.state;
+      return state && !["unknown", "unavailable"].includes(state);
+    });
+    if (available.join() === this._admin.available.join()) return false;
+    this._admin.available = available;
+    return true;
   }
   set panel(value) {
     if (this._panel === value) return;
@@ -324,6 +342,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._pendingMutation = undefined;
       this._rules = [];
       this._selections = {};
+      this._admin = undefined;
       this._runtimeStatus = "checking";
       this._error = this._draft ? this._t.missingEntry : undefined;
       this._notice = undefined;
@@ -344,6 +363,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
   _detachStatus() {
     this._statusSubscription?.then((unsubscribe) => unsubscribe()).catch(() => {});
+    for (const subscription of this._modeSubscriptions ?? []) {
+      subscription?.then((unsubscribe) => unsubscribe()).catch(() => {});
+    }
+    this._modeSubscriptions = undefined;
     this._statusSubscription = undefined;
     this._statusConnection?.removeEventListener?.("ready", this._onReconnect);
     this._statusConnection?.removeEventListener?.("disconnected", this._onDisconnect);
@@ -359,7 +382,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._onReconnect = () => {
       this._runtimeStatus = "checking";
       this._loadGeneration++;
-      if (this._view === "rules" || this._pendingMutation) this._load();
+      if (this._readsCatalog() || this._pendingMutation) this._load();
     };
     this._onDisconnect = () => {
       this._loadGeneration++;
@@ -371,20 +394,33 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     connection.addEventListener?.("disconnected", this._onDisconnect);
     this._statusSubscription = connection.subscribeEvents?.(({ data }) => {
       if (this._statusConnection === connection && data.entry_id === this._entryId &&
-          (this._view === "rules" || this._pendingMutation)) this._load();
+          (this._readsCatalog() || this._pendingMutation)) this._load();
     }, "smart_led_manager_editor_entry_status");
     this._statusSubscription?.catch(() => {
-      if (this._statusConnection === connection && this._view === "rules") this._load();
+      if (this._statusConnection === connection && this._readsCatalog()) this._load();
     });
-    if (this._view === "rules" || this._pendingMutation) this._load();
+    const refreshModes = () => {
+      if (this._statusConnection === connection && this._view === "modes" && !this._draft &&
+          !this._saving) this._load();
+    };
+    this._modeSubscriptions = [
+      connection.subscribeEvents?.(refreshModes, "smart_led_manager_mode_changed"),
+      connection.subscribeEvents?.(({ data }) => {
+        if ([data.previous, data.current].some((id) => id?.startsWith("smart_led_manager:mode:"))) refreshModes();
+      }, "smart_led_manager_request_changed"),
+    ];
+    this._modeSubscriptions.forEach((subscription) => subscription?.catch(() => {}));
+    if (this._readsCatalog() || this._pendingMutation) this._load();
   }
   get _entryId() { return this._panel?.config?.entry_id; }
   get _version() { return this._panel?.config?.version ?? "0.1.0-alpha.3"; }
   get _t() {
     const language = this._hass?.locale?.language ?? this._hass?.language ?? "en";
     const locale = String(language).toLowerCase().startsWith("es") ? "es" : "en";
-    return { ...TEXT[locale], ...CONTROL_TEXT[locale] };
+    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale] };
   }
+
+  _readsCatalog() { return ["rules", "lights", "zones", "modes"].includes(this._view); }
 
   _dirty() {
     return this._pointInput.size > 0 ||
@@ -422,8 +458,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         }
         if (status.status !== "ready") return;
         try {
+          const catalog = this._view === "rules" || (!this._readsCatalog() && !pending?.admin)
+            ? "smart_rules" : "admin";
           const response = await this._hass.callWS({
-            type: "smart_led_manager/smart_rules/get", entry_id: this._entryId,
+            type: `smart_led_manager/${catalog}/get`, entry_id: this._entryId,
           });
           if (generation !== this._loadGeneration) return;
           if (response.revision === status.applied_revision) {
@@ -452,10 +490,17 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   _applyCatalog(response) {
-    this._rules = response.rules;
     this._catalogRevision = response.revision;
-    this._selections = response.selections ?? {};
     if (!this._draft) this._revision = response.revision;
+    if (response.admin) {
+      this._admin = response.admin;
+      if (this._view === "lights" && !this._draft) {
+        this._setAdminDraft("lights", { targets: [...this._admin.managed] }, false);
+      }
+    } else {
+      this._rules = response.rules;
+      this._selections = response.selections ?? {};
+    }
   }
 
   _confirmMutation(pending, revision) {
@@ -475,9 +520,20 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       if (pending.stamp === this._draftStamp()) {
         this._exitEditor(pending.destination);
       } else {
-        this._selected = this._rules.find(({ rule }) => rule.id === pending.receipt.rule.id);
-        this._original = this._draftFromRule(pending.receipt.rule);
-        this._draft.id = this._original.id;
+        if (pending.admin) {
+          if (!pending.receipt.item) {
+            this._notice = undefined;
+            this._error = this._t.conflict;
+            return;
+          }
+          this._original = deepClone(pending.receipt.item);
+          const id = `${pending.admin}_id`;
+          if (Object.hasOwn(this._original, id)) this._draft[id] = this._original[id];
+        } else {
+          this._selected = this._rules.find(({ rule }) => rule.id === pending.receipt.rule.id);
+          this._original = this._draftFromRule(pending.receipt.rule);
+          this._draft.id = this._original.id;
+        }
         this._creating = false;
         this._revision = revision;
         this._notice = this._t.changedAfterSave;
@@ -494,7 +550,20 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       !this._loading && !this._saving && !this._pendingMutation;
   }
 
-  _openRules() { this._view = "rules"; this._render(); this._load(); }
+  _openRules() { this._openView("rules"); }
+
+  _openView(view) {
+    this._loadGeneration++;
+    this._exitEditor(view);
+    this._revision = undefined;
+    this._render();
+    if (this._readsCatalog()) this._load();
+  }
+
+  _editorList() {
+    if (this._adminDraft === "lights") return "home";
+    return this._adminDraft ? this._view : "rules";
+  }
   _goHome() { this._requestExit("home"); }
 
   _requestExit(destination) {
@@ -515,6 +584,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._selected = undefined;
     this._draft = undefined;
     this._original = undefined;
+    this._adminDraft = undefined;
+    this._adminExpanded.clear();
+    this._effectPreview = false;
     this._creating = false;
     this._revision = this._catalogRevision;
     this._view = destination;
@@ -593,16 +665,17 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     };
     this._selected = { rule: this._draft, source: {}, targets: [] };
     this._resetControls();
-    this._original = undefined; this._creating = true; this._error = undefined; this._render();
+    this._original = deepClone(this._draft);
+    this._creating = true; this._error = undefined; this._render();
   }
 
-  async _mutate(operation, extra = {}, destination = "rules") {
+  async _mutate(operation, extra = {}, destination = "rules", admin) {
     if (!this._canWrite()) return;
     const bytes = crypto.getRandomValues(new Uint8Array(16));
     const id = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
     const pending = {
       id, revision: this._revision, destination,
-      draft: this._draft, stamp: this._draftStamp(),
+      draft: this._draft, stamp: this._draftStamp(), admin,
     };
     this._pendingMutation = pending;
     this._invalidatePreviews();
@@ -613,13 +686,16 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._render();
     try {
       pending.receipt = await this._hass.callWS({
-        type: "smart_led_manager/smart_rules/mutate", entry_id: this._entryId,
+        type: admin ? "smart_led_manager/admin/mutate" : "smart_led_manager/smart_rules/mutate",
+        entry_id: this._entryId,
         revision: pending.revision, operation, mutation_id: id, ...extra,
+        ...(admin && { kind: admin }),
       });
     } catch (error) {
       if (typeof error?.code === "string" && error.code !== "internal_error") {
         this._pendingMutation = undefined;
-        this._error = error.code === "conflict" ? this._t.conflict : (error.message ?? error.code);
+        this._error = error.code === "conflict" ? this._t.conflict
+          : (this._t.modeError[error.code] ?? error.message ?? error.code);
       } else {
         this._error = this._t.uncertainSave;
       }
@@ -632,9 +708,16 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     }
   }
 
-  async _save(destination = "rules") {
-    if (!this._draft?.name?.trim() || this._invalidNumeric()) {
+  async _save(destination = this._editorList()) {
+    if (!this._validDraft()) {
       this._error = this._t.invalid; this._render(); return;
+    }
+    if (this._adminDraft) {
+      const kind = this._adminDraft;
+      const itemId = this._draft[`${kind}_id`];
+      const operation = kind === "lights" ? "save" : itemId ? "update" : "create";
+      await this._mutate(operation, { item_id: itemId, item: deepClone(this._draft) }, destination, kind);
+      return;
     }
     const rule = deepClone(this._draft);
     if (rule.points) rule.points = this._draftPoints();
@@ -649,6 +732,68 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     await this._mutate(this._creating ? "create" : "update", {
       rule_id: this._selected?.rule?.id, rule,
     }, destination);
+  }
+
+  _validDraft() {
+    const draft = this._draft;
+    if (this._adminDraft === "lights") return draft.targets.length > 0;
+    if (this._adminDraft === "zone") return Boolean(draft.name.trim() && draft.targets.length);
+    if (this._adminDraft === "mode") return Boolean(draft.name.trim() && draft.zone_id &&
+      draft.targets.length && Number.isInteger(draft.priority) && draft.priority >= 0 &&
+      draft.priority <= 100 && (draft.transition == null || (draft.transition >= 0 && draft.transition <= 300)) &&
+      Number.isFinite(draft.period) && draft.period >= 0.5 && draft.period <= 60);
+    return Boolean(draft?.name?.trim()) && !this._invalidNumeric();
+  }
+
+  _setAdminDraft(kind, item, creating) {
+    this._adminDraft = kind;
+    this._draft = deepClone(item);
+    this._original = deepClone(item);
+    this._creating = creating;
+    this._adminExpanded.clear();
+    this._effectPreview = false;
+    this._resetControls();
+  }
+
+  _editAdmin(id) {
+    if (!this._admin || !this._canWrite()) return;
+    const { zones, modes } = this._admin;
+    const kind = this._view === "zones" ? "zone" : "mode";
+    const zone = zones[0];
+    const existing = (kind === "zone" ? zones : modes).find((item) => item[`${kind}_id`] === id);
+    if (id && !existing) return;
+    let item = existing;
+    if (!item && kind === "zone") item = { name: "", targets: [], area_id: null };
+    if (!item && zone) item = {
+      name: "", zone_id: zone.zone_id, targets: [...zone.targets], rgb_color: [102, 51, 255],
+      brightness: 128, animation: "fixed", priority: 50, transition: null, period: 1,
+      allow_turn_on: true, expose_switch: false,
+    };
+    if (!item) return;
+    this._setAdminDraft(kind, item, !existing);
+    this._notice = undefined;
+    this._error = undefined;
+    this._render();
+  }
+
+  async _selectAdminMode(id, active) {
+    if (!this._canWrite()) return;
+    this._saving = true;
+    this._error = this._notice = undefined;
+    this._render();
+    try {
+      const response = await this._hass.callWS({
+        type: "smart_led_manager/admin/mode", entry_id: this._entryId,
+        revision: this._revision, mode_id: id, active,
+      });
+      if (this._admin) this._admin.status = response.status;
+    } catch (error) {
+      this._error = this._t.modeError[error?.code] ?? error?.message ?? String(error);
+    } finally {
+      this._saving = false;
+      await this._load();
+      this._render();
+    }
   }
 
   _invalidNumeric() {
@@ -687,8 +832,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _refreshSave() {
     const button = this.shadowRoot.querySelector("[data-save]");
-    if (button) button.disabled = !this._canWrite() ||
-      !this._draft.name?.trim() || this._invalidNumeric();
+    if (button) button.disabled = !this._canWrite() || !this._validDraft();
   }
 
   _filterPicker(input) {
@@ -710,6 +854,14 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   _changeField(path, value, render = true) {
+    if (this._adminDraft) {
+      if (path === "zone_id") {
+        const zone = this._admin.zones.find((item) => item.zone_id === value);
+        this._draft.targets = [...(zone?.targets ?? [])];
+      }
+      this._set(path, path === "area_id" ? value || null : value, render);
+      return;
+    }
     if (path === "type") {
       this._draft.type = value;
       if (value === "numeric") {
@@ -875,7 +1027,27 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     @media(max-width:700px){main{padding-top:16px}.rule{grid-template-columns:1fr}.rule-actions button{flex:1}.point{grid-template-columns:44px 1fr}.point label,.point button{grid-column:2}.actions button{flex:1}.form-grid{grid-template-columns:1fr}}
   `; }
 
-  _renderHome() { const t = this._t; return `<main><div class="identity"><div class="icon">✦</div><div><h1>Smart LED Manager</h1><strong>${t.admin}</strong><p class="muted">${t.subtitle}</p><span class="version">${t.version}: ${esc(this._version)}</span></div></div><div class="grid"><article class="card home-card"><h2>${t.smartRules}</h2><p>${t.smartDescription}</p><span class="spacer"></span><button class="primary" data-rules>${t.open}</button></article><article class="card home-card"><h2>${t.native}</h2><p>${t.nativeDescription}</p><span class="spacer"></span><a class="button" href="/config/integrations/integration/smart_led_manager">${t.open}</a></article></div></main>`; }
+  _renderHome() {
+    return renderAdminHome(this._t, this._version, this._adminStatus(false));
+  }
+
+  _adminStatus(showRuntime = true) {
+    const message = showRuntime ? this._runtimeMessage() : "";
+    const reload = showRuntime && (this._error || message);
+    return `${message ? `<div class="message" role="status">${esc(message)}</div>` : ""}
+      ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
+      ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
+      ${reload ? `<button data-reload ${this._loading || this._saving || this._runtimeStatus === "offline" ? "disabled" : ""}>${this._t.checkStatus}</button>` : ""}`;
+  }
+
+  _renderAdmin() {
+    return renderAdministration({
+      view: this._view, t: this._t, kind: this._adminDraft, draft: this._draft,
+      data: this._admin, ready: this._canWrite(), canSave: this._canWrite() && this._validDraft(),
+      saving: this._saving, effect: this._effectPreview,
+      status: this._adminStatus(this._view !== "settings"),
+    });
+  }
 
   _runtimeMessage() {
     const t = this._t;
@@ -895,7 +1067,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _renderExitDialog() {
     if (!this._exitView) return "";
     const t = this._t;
-    const canSave = this._canWrite() && this._draft?.name?.trim() && !this._invalidNumeric();
+    const canSave = this._canWrite() && this._validDraft();
     return `<dialog data-exit-dialog aria-labelledby="exit-title"><h2 id="exit-title">${t.unsaved}</h2>
       <p>${t.unsavedPrompt}</p><div class="actions">
       <button data-exit-continue autofocus>${t.keepEditing}</button>
@@ -1110,7 +1282,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       <section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p>
         <details><summary>${t.advanced}</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details></section>
       </fieldset>
-      <div class="actions">${this._original ? `<button data-restore>${t.restore}</button>` : ""}
+      <div class="actions">${this._original && !this._creating ? `<button data-restore>${t.restore}</button>` : ""}
         <button data-discard>${t.cancel}</button><button class="primary" data-save
         ${!this._canWrite() || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>
       </div></main>`;
@@ -1120,8 +1292,13 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     if (!this.shadowRoot) return;
     const active = this.shadowRoot.activeElement;
     const focus = active && [...active.attributes].find((attr) => attr.name.startsWith("data-"));
-    const content = this._draft ? this._renderEditor() : this._view === "rules" ? this._renderList() : this._renderHome();
-    this.shadowRoot.innerHTML = `<style>${this._styles()}</style>${content}${this._renderExitDialog()}`; this._bind();
+    for (const details of this.shadowRoot.querySelectorAll("[data-admin-expanded]")) {
+      this._adminExpanded.set(details.dataset.adminExpanded, details.open);
+    }
+    const content = this._adminDraft || ["lights", "zones", "modes", "settings"].includes(this._view)
+      ? this._renderAdmin()
+      : this._draft ? this._renderEditor() : this._view === "rules" ? this._renderList() : this._renderHome();
+    this.shadowRoot.innerHTML = `<style>${this._styles()}${ADMIN_STYLES}</style>${content}${this._renderExitDialog()}`; this._bind();
     const dialog = this.shadowRoot.querySelector("[data-exit-dialog]");
     if (dialog?.isConnected) dialog.showModal();
     if (focus) {
@@ -1141,6 +1318,17 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         element.addEventListener(event, (e) => handler(element, e)));
     const click = (selector, handler) => on(selector, "click", handler);
     click("[data-rules]", () => this._openRules());
+    click("[data-admin-view]", (el) => this._openView(el.dataset.adminView));
+    click("[data-admin-create]", () => this._editAdmin());
+    click("[data-admin-edit]", (el) => this._editAdmin(el.dataset.adminEdit));
+    click("[data-admin-delete]", (el) => {
+      if (!this._canWrite()) return;
+      const kind = this._adminDraft;
+      if (window.confirm(kind === "zone" ? this._t.confirmZone : this._t.confirmMode)) {
+        this._mutate("delete", { item_id: el.dataset.adminDelete }, this._view, kind);
+      }
+    });
+    click("[data-mode-active]", (el) => this._selectAdminMode(el.dataset.modeActive, el.dataset.on !== "true"));
     click("[data-home]", () => this._goHome());
     click("[data-reload]", () => {
       this._error = this._draft && this._revision !== this._catalogRevision ? this._t.conflict : undefined;
@@ -1155,9 +1343,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     click("[data-delete]", (el) => {
       if (window.confirm(this._t.confirmDelete)) this._mutate("delete", { rule_id: el.dataset.delete });
     });
-    click("[data-back]", () => this._requestExit("rules"));
+    click("[data-back]", () => this._requestExit(this._editorList()));
     click("[data-restore]", () => { if (!this._saving) this._restore(); });
-    click("[data-discard]", () => this._requestExit("rules"));
+    click("[data-discard]", () => this._requestExit(this._editorList()));
     click("[data-save]", () => this._save());
     click("[data-exit-continue]", () => this._closeExit());
     on("[data-exit-dialog]", "cancel", (_dialog, event) => {
@@ -1173,6 +1361,51 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._closeExit();
       this._save(destination);
     });
+    for (const details of root.querySelectorAll("[data-admin-expanded]")) {
+      const open = this._adminExpanded.get(details.dataset.adminExpanded);
+      if (open !== undefined) details.open = open;
+    }
+    const search = root.querySelector("[data-admin-search]");
+    if (search) {
+      const filter = () => {
+        this._searches.set("admin", search.value);
+        const query = search.value.trim().toLocaleLowerCase();
+        let count = 0;
+        for (const label of root.querySelectorAll("[data-choice-label]")) {
+          label.hidden = !label.textContent.toLocaleLowerCase().includes(query);
+          if (!label.hidden) count++;
+        }
+        const empty = root.querySelector("[data-admin-empty]");
+        if (empty) empty.hidden = count !== 0;
+      };
+      search.value = this._searches.get("admin") ?? "";
+      search.addEventListener("input", filter);
+      filter();
+    }
+    on("[data-admin-target]", "change", (el) => {
+      const entity = el.dataset.adminTarget;
+      const targets = el.checked ? [...this._draft.targets, entity]
+        : this._draft.targets.filter((target) => target !== entity);
+      this._set("targets", [...new Set(targets)].sort());
+    });
+    on("[data-admin-boolean]", "change", (el) => {
+      const field = el.dataset.adminBoolean;
+      if (field === "keep_color") this._set("rgb_color", el.checked ? null : [255, 255, 255]);
+      else if (field === "keep_brightness") this._set("brightness", el.checked ? null : 255);
+      else this._set(field, el.checked);
+    });
+    click("[data-admin-color]", (el) => this._set("rgb_color", hexToRgb(el.dataset.adminColor)));
+    on("[data-admin-color-input]", "change", (el) => this._set("rgb_color", hexToRgb(el.value)));
+    on("[data-admin-brightness-input]", "input", (el) => {
+      const percent = Number(el.value);
+      this._set("brightness", Math.round(percent * 255 / 100), false);
+      root.querySelector("[data-admin-brightness]").textContent = percent + "%";
+      root.querySelector("[data-admin-effect-meta]").textContent = this._t[this._draft.animation] + " · " + percent + "%";
+      root.querySelector(".slm-strip").style.setProperty("--intensity", percent / 100);
+      const preserve = root.querySelector('[data-admin-boolean="keep_brightness"]');
+      if (preserve) preserve.checked = false;
+    });
+    click("[data-preview-effect]", () => { this._effectPreview = !this._effectPreview; this._render(); });
     on("[data-search]", "input", (el) => {
       this._searches.set(el.dataset.search, el.value);
       this._filterPicker(el);
