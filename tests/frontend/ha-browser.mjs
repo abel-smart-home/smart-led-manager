@@ -130,7 +130,7 @@ try {
   await send("Network.setExtraHTTPHeaders", { headers: { "Accept-Language": "es-ES,es;q=0.9" } });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `
     if (location.origin === ${JSON.stringify(origin)}) {
-      localStorage.setItem("selectedLanguage", "es");
+      localStorage.setItem("selectedLanguage", JSON.stringify("es"));
     }
     function panel(root = document) {
       const direct = root.querySelector("smart-led-manager-visual-editor");
@@ -203,9 +203,23 @@ try {
         assert.ok(await run("!!pick('[data-save]:enabled')"), "Invalid draft for " + view);
       }
       await run("document.fonts.ready.then(() => true)");
+      await delay(700); // Allow the native startup overlay to finish fading.
       const screenshot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
       await writeFile(join(output, device + "-" + view + ".png"), Buffer.from(screenshot.data, "base64"));
       console.log(device, view, await run("pick('h1').textContent"));
+      if (view === "home") {
+        const layout = await run(`({
+          columns: getComputedStyle(pick(".slm-grid")).gridTemplateColumns.split(" ").length,
+          width: pick(".slm-home").getBoundingClientRect().width,
+          targets: [...pick(".slm-grid").children].map((button) => button.getBoundingClientRect().height),
+        })`);
+        assert.equal(layout.columns, device === "desktop" ? 2 : 1);
+        assert.ok(layout.width <= 1000 && layout.targets.length === 5 && layout.targets.every((size) => size >= 44));
+        await run("pick('[data-rules]').focus()");
+        await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+        await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+        await waitFor(() => run("!!pick('[data-smart-category=smartRules]')"), "keyboard navigation");
+      }
     }
   }
 } finally {

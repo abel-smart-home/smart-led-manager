@@ -6,6 +6,11 @@ Escritorio usa 1280×900 en claro y móvil usa 390×844 en oscuro. Los archivos
 anchuras. El [HTML v1.0](../prototypes/Smart_LED_Manager_prototipo_v1.0.html)
 se conserva íntegro.
 
+El trabajo **browser** de CI también abre la integración instalada en Home
+Assistant Core 2026.11.3 con sensores y luces de laboratorio. Publica
+`ha-core-panel-c23` con las capturas del panel y la interfaz nativa de HA.
+[Ejecuciones de CI](https://github.com/abel-smart-home/smart-led-manager/actions/workflows/ci.yml).
+
 | Pantalla | Referencia | Escritorio claro | Móvil oscuro | Diferencia comprobada |
 | --- | --- | --- | --- | --- |
 | Inicio | [01](../reference/01-inicio.png) · [23 móvil](../reference/23-movil-inicio.png) · [C.2.2](../c22-evidence/desktop-home.png) | [Inicio compacto](desktop-home.png) | [Inicio compacto](mobile-home.png) | El propietario aprobó centrar y compactar el menú. Conserva las cinco tarjetas, sus textos, iconos, colores y orden. |
