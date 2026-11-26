@@ -202,7 +202,7 @@ vigila el ecosistema `github-actions`.
 
 Los workflows actuales validan cada `push`, pull request y ejecución manual;
 mantienen `contents: read`, desactivan el comentario de HACS Action y prueban
-Home Assistant `2026.11.0` y `2026.11.2`. La mejora pendiente no bloqueante es
+Home Assistant `2026.11.0`, `2026.11.2` y `2026.11.3`. La mejora pendiente no bloqueante es
 fijar acciones de terceros a SHA inmutables cuando el flujo de actualización
 adoptado lo permita, dejando la versión legible en un comentario. Dependabot
 ya vigila esas referencias.

@@ -496,8 +496,11 @@ VirtualBox con Home Assistant Core 2026.11.3 y el SHA funcional
 
 > Por lo que estuve probando es completamente funcional, solo que se presenta
 > algo grande el menú principal, ya que abarca toda la pantalla completa, tal
-> vez un ajuste de tamaño sería más conveniente.
+> vez un ajuste de tamaño sería más conveniente
 
 El propietario aprobó compactar el inicio en C.2.3. La aprobación visual
 definitiva sigue pendiente. C-01–C-20, U-01–U-06 y las pruebas físicas
 conservan sus estados.
+
+El [recorrido de C.2.3](haos-c23-checks.md) queda pendiente de ejecución por
+el propietario en VirtualBox.

@@ -76,5 +76,5 @@ Assistant en Linux (2026.11.0 y 2026.11.2), con 85,59 % de cobertura de ramas.
 También pasaron las 12 pruebas frontend, Hassfest y HACS/Marketplace. Estas
 pruebas cubren permisos, autorizaciones, respuestas WebSocket, revisión
 concurrente, descarte, recuperación de guardados y persistencia. El recorrido
-adicional en Chromium usó datos de prueba. La validación práctica con HAOS
-sigue pendiente. [CI Linux y frontend](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45876521527) · [Hassfest y HACS/Marketplace](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45876521637).
+adicional en Chromium usó datos de prueba. La validación funcional en HAOS
+se registró después en Q-01–Q-10. [CI Linux y frontend](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45876521527) · [Hassfest y HACS/Marketplace](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45876521637).
