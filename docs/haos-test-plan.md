@@ -390,6 +390,24 @@ con Raspberry Pi 5/ZHA/GLEDOPTO. Distingue la ausencia de órdenes durante la
 simulación de la aplicación real posterior al guardado. No marques el panel
 validado en hardware físico hasta recibir el reporte del propietario.
 
+## Resultado de C.2.1 en VirtualBox
+
+El propietario confirmó el 26 de noviembre de 2026 el recorrido práctico
+en HAOS VirtualBox sobre `cf2f371353dc6321baaef67c0ca8858e6d564110`.
+Resultado informado de 6/6, sin observaciones adicionales.
+
+| Caso | Comprobación | Resultado |
+| --- | --- | --- |
+| P-01 | Crear y guardar | Aprobada |
+| P-02 | Editar y cancelar | Aprobada |
+| P-03 | Guardar y salir | Aprobada |
+| P-04 | Recargar la integración | Aprobada |
+| P-05 | Persistencia | Aprobada |
+| P-06 | Eliminar | Aprobada |
+
+[Recorrido C.2.1](haos-c21-checks.md). Los casos C-01–C-20, U-01–U-06 y la
+validación física Zigbee conservan su registro independiente.
+
 ## Plan pendiente de `0.1.0-alpha.3`, Bloque C
 
 Sigue el [recorrido detallado C-01 a C-20](haos-block-c-walkthrough.md) para

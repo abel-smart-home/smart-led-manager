@@ -33,8 +33,8 @@ release de GitHub cuyo contenido corresponde al mismo commit y versión.
       `6ea6eca`, el endurecimiento de ciclo de vida `88862a5`, el seguimiento de
       grupos anidados `6a74106`, el ajuste de pruebas `8903be0` y el SHA
       funcional final, que conserva restauración, barra y gráfica B.1, es
-      `2b9c4dd` en `feat/v0.1.0-alpha.3-advanced-rules`. No cambia la versión,
-      ConfigEntry ni Store.
+      [`2b9c4dd453c71faf19b5a27d1346d9ef127f49d4`](https://github.com/abel-smart-home/smart-led-manager/commit/2b9c4dd453c71faf19b5a27d1346d9ef127f49d4).
+      No cambia la versión, ConfigEntry ni Store.
 - [x] `ruff format --check .` y `ruff check .` pasan localmente.
 - [x] `pytest --cov` y la matriz Linux de Home Assistant `2026.11.0`/`2026.11.2`
       pasan para B.1: 157 pruebas y cobertura de ramas `87.21 %` en ambas
@@ -201,8 +201,9 @@ verificación física, pausa/reanudación temporal y aliases de voz.
 
 ### Validación de C.1
 
-El SHA funcional es `85770cec7143c775dcc2a69853df2a9b0523b07c`, sobre
-`feat/v0.1.0-alpha.3-advanced-rules`. CI aprobó 228 pruebas por variante
+El SHA funcional es
+[`85770cec7143c775dcc2a69853df2a9b0523b07c`](https://github.com/abel-smart-home/smart-led-manager/commit/85770cec7143c775dcc2a69853df2a9b0523b07c).
+CI aprobó 228 pruebas por variante
 en Home Assistant `2026.11.0` y `2026.11.2`, con cobertura global de
 `85.13 %` y medición de ramas habilitada. `core/conditions.py` alcanzó
 `95 %` y `modules/rules.py` alcanzó `82 %`. También aprobaron Ruff,

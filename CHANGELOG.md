@@ -24,6 +24,8 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   salir, o guardar y salir.
 - Las recargas de opciones y las solicitadas desde Home Assistant mantienen
   la ruta del panel. [Recorrido de verificación C.2.1](docs/haos-c21-checks.md).
+- El propietario reportó P-01–P-06 aprobadas en HAOS VirtualBox con
+  `cf2f371353dc6321baaef67c0ca8858e6d564110`. [Registro de pruebas](docs/haos-test-plan.md#resultado-de-c21-en-virtualbox).
 
 ### Añadido — Bloque A
 

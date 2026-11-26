@@ -1,5 +1,10 @@
 # Instalar y probar Smart LED Manager C.2.1 en HAOS VirtualBox
 
+El propietario reportó el 26 de noviembre de 2026 **6/6 aprobadas, sin
+observaciones adicionales**, en VirtualBox con
+`cf2f371353dc6321baaef67c0ca8858e6d564110`.
+[Registro P-01–P-06](haos-test-plan.md#resultado-de-c21-en-virtualbox).
+
 Usa tu máquina de laboratorio de VirtualBox con Home Assistant OS. El código
 que se va a probar es **0.1.0-alpha.3**, commit
 `cf2f371353dc6321baaef67c0ca8858e6d564110`. Descarga y descomprime el ZIP en

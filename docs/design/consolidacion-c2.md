@@ -16,7 +16,7 @@ decisión posterior del propietario sobre el alcance.
 | `feat/v0.1.0-alpha.3-zone-devices` | `fa9ecd650485e27ee1f1f22654972a1c47379c17` | Candidata, con revisión de enlaces en documentación. |
 | `feat/v0.1.0-alpha.3-rules-editor` | `f8b9fc9ec8dc0a31378bb50595d605a2c88a48fe` | Candidata, con revisión de enlaces en documentación. |
 | `feat/v0.1.0-alpha.3-visual-editor` | `6ad79e0c3c388f714f08c727ba17f315807310a4` | Candidata, con revisión de enlaces en documentación. |
-| `feat/v0.1.0-alpha.3-advanced-rules` | `a0df3c48711f8b40fe48f8ded122d5a572906c83` | Base común; conviene conservarla al validar C.2. |
+| `feat/v0.1.0-alpha.3-advanced-rules` | `a0df3c48711f8b40fe48f8ded122d5a572906c83` | Base común conservada durante la prueba de C.2.1. [Hito documental C.1](https://github.com/abel-smart-home/smart-led-manager/commit/a0df3c48711f8b40fe48f8ded122d5a572906c83). |
 
 Al abrir el PR consolidado, #1 y #2 estaban abiertos en borrador. El inventario
 local y remoto de etiquetas estaba vacío y GitHub devolvió cero releases.
