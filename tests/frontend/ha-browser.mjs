@@ -10,6 +10,8 @@ import { setTimeout as delay } from "node:timers/promises";
 
 const origin = "http://127.0.0.1:8123";
 const client = origin + "/";
+const username = "visual-test";
+const password = randomUUID();
 const [chrome, output] = process.argv.slice(2);
 assert.ok(chrome && output, "Pass the browser executable and an output directory");
 const sources = {
@@ -51,8 +53,7 @@ await waitFor(async () => {
   catch { return false; }
 }, "Home Assistant", 180);
 const { auth_code } = await api("/api/onboarding/users", {
-  client_id: client, name: "Validación visual", username: "visual-test",
-  password: randomUUID(), language: "es",
+  client_id: client, name: "Validación visual", username, password, language: "es",
 });
 const auth = await api("/auth/token", new URLSearchParams({
   grant_type: "authorization_code", client_id: client, code: auth_code,
@@ -124,11 +125,11 @@ try {
     }
   });
   await send("Runtime.enable");
+  await send("Page.enable");
   await send("Network.enable");
-  const tokens = JSON.stringify({ ...auth, hassUrl: origin, clientId: client, expires: Date.now() + auth.expires_in * 1000 });
+  await send("Network.setExtraHTTPHeaders", { headers: { "Accept-Language": "es-ES,es;q=0.9" } });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `
     if (location.origin === ${JSON.stringify(origin)}) {
-      localStorage.setItem("hassTokens", ${JSON.stringify(tokens)});
       localStorage.setItem("selectedLanguage", "es");
     }
     function panel(root = document) {
@@ -149,6 +150,23 @@ try {
       field.dispatchEvent(new Event(event, {bubbles: true}));
     };
   ` });
+  const panelUrl = origin + "/smart-led-manager-editor";
+  await send("Page.navigate", { url: panelUrl });
+  await waitFor(() => run("location.pathname === '/auth/authorize'"), "the Home Assistant sign-in");
+  const query = new URLSearchParams(await run("location.search"));
+  const redirect = new URL(query.get("redirect_uri"));
+  assert.equal(redirect.origin, origin);
+  assert.equal(query.get("client_id"), client);
+  const loginArgs = Object.fromEntries(["client_id", "redirect_uri", "code_challenge", "code_challenge_method", "response_type"]
+    .filter((key) => query.has(key)).map((key) => [key, query.get(key)]));
+  const login = await api("/auth/login_flow", { ...loginArgs, handler: ["homeassistant", null] });
+  const completed = await api("/auth/login_flow/" + login.flow_id, { client_id: client, username, password });
+  assert.equal(completed.type, "create_entry");
+  redirect.searchParams.set("code", completed.result);
+  redirect.searchParams.set("state", query.get("state"));
+  redirect.searchParams.set("storeToken", "true");
+  await send("Page.navigate", { url: redirect.href });
+  await waitFor(() => run("typeof pick === 'function' && !!pick('.slm-tile')"), "the initial authenticated panel", 50);
   await mkdir(output, { recursive: true });
   const sets = [
     ["desktop", "light", 1280, 900, ["home", "smart", "smartRules", ...Object.keys(sources)]],
@@ -158,7 +176,7 @@ try {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
     await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] });
     for (const view of views) {
-      await send("Page.navigate", { url: origin + "/smart-led-manager-editor" });
+      await send("Page.navigate", { url: panelUrl });
       try {
         await waitFor(() => run("typeof pick === 'function' && !!pick('.slm-tile')"), "the installed panel", 40);
       } catch (error) {
