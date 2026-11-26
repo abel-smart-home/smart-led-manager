@@ -106,6 +106,25 @@ try {
     assert.ok(!response.exceptionDetails, "Chromium could not operate the panel");
     return response.result.value;
   }
+  const sentCommands = new Map();
+  socket.addEventListener("message", ({ data }) => {
+    const event = JSON.parse(data);
+    if (event.method === "Network.webSocketFrameSent" || event.method === "Network.webSocketFrameReceived") {
+      try {
+        const payload = JSON.parse(event.params.response.payloadData);
+        if (event.method.endsWith("Sent") && payload.id) sentCommands.set(payload.id, payload.type);
+        if (payload.success === false) console.log("WebSocket", sentCommands.get(payload.id), payload.error?.code);
+      } catch { /* Non-JSON control frame. */ }
+    }
+    if (event.method === "Runtime.exceptionThrown") {
+      console.log("Browser", event.params.exceptionDetails.text, event.params.exceptionDetails.exception?.className);
+    }
+    if (event.method === "Network.responseReceived" && event.params.response.status >= 400) {
+      console.log("HTTP", event.params.response.status, new URL(event.params.response.url).pathname);
+    }
+  });
+  await send("Runtime.enable");
+  await send("Network.enable");
   const tokens = JSON.stringify({ ...auth, hassUrl: origin, clientId: client, expires: Date.now() + auth.expires_in * 1000 });
   await send("Page.addScriptToEvaluateOnNewDocument", { source: `
     if (location.origin === ${JSON.stringify(origin)}) {
@@ -140,7 +159,14 @@ try {
     await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] });
     for (const view of views) {
       await send("Page.navigate", { url: origin + "/smart-led-manager-editor" });
-      await waitFor(() => run("typeof pick === 'function' && !!pick('.slm-tile')"), "the installed panel");
+      try {
+        await waitFor(() => run("typeof pick === 'function' && !!pick('.slm-tile')"), "the installed panel", 40);
+      } catch (error) {
+        console.log(await run(`({path: location.pathname, ready: document.readyState,
+          tags: Array.from(document.body.children, (element) => element.tagName),
+          panelRegistered: !!customElements.get('smart-led-manager-visual-editor')})`));
+        throw error;
+      }
       if (view !== "home") await run("click('[data-rules]')");
       if (view === "smartRules") {
         await run("click('[data-smart-category=smartRules]')");

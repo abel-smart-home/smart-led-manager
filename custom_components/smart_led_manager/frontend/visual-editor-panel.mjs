@@ -562,6 +562,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._loadGeneration++;
     this._templateToOpen = undefined;
     this._exitEditor(view);
+    this._notice = undefined;
     this._revision = undefined;
     this._render();
     if (load && this._readsCatalog()) this._load();
@@ -660,8 +661,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._selected = selected;
     this._revision = this._catalogRevision ?? this._revision;
     this._draft = this._draftFromRule(selected.rule);
-    this._templateEditor = Boolean(selected.rule.category) &&
-      (selected.rule.type === "numeric" ? Boolean(selected.rule.points) : selected.rule.operator === "equals");
+    const rule = this._draft;
+    this._templateEditor = Boolean(rule.category) && !rule.conditions && !rule.schedule &&
+      !["areas", "labels", "groups"].some((key) => rule.target_selection[key]?.length) &&
+      (rule.type === "numeric" ? Boolean(rule.points) && rule.animation === "fixed" : rule.operator === "equals");
     this._original = deepClone(this._draft);
     this._resetControls();
     this._simulateValue = this._draft.points?.length ? String(this._draft.points[0].value) : "";
@@ -690,7 +693,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._fromSmartMenu = true;
       this._draft.target_selection.entities = [];
       if (category === "newSchedule") this._draft.schedule = defaultSchedule();
-      else if (category !== "advancedTemplate") {
+      else if (category === "advancedTemplate") this._draft.conditions = newCondition("state");
+      else {
         this._templateEditor = true;
         this._draft.category = category;
         if (NUMERIC_CATEGORIES.includes(category)) {
@@ -707,7 +711,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._selected = { rule: this._draft, source: {}, targets: [] };
     this._resetControls();
     this._original = deepClone(this._draft);
-    this._creating = true; this._error = undefined; this._render();
+    this._creating = true; this._error = this._notice = undefined; this._render();
   }
 
   async _mutate(operation, extra = {}, destination = "rules", admin) {
@@ -789,6 +793,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       if (!source || !Object.values(selection).some((value) => value === true || value?.length)) return false;
       if (draft.type === "numeric" && (!draft.source_unit || source.unit !== draft.source_unit)) return false;
       if (draft.type === "state" && !stateOptions(source, undefined).includes(draft.state)) return false;
+      if (![draft.for_seconds, draft.release_seconds ?? 0].every((delay) =>
+        Number.isFinite(delay) && delay >= 0 && delay <= 604800)) return false;
     }
     return Boolean(draft?.name?.trim()) && !this._invalidNumeric();
   }
@@ -1208,7 +1214,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _renderOrigin() {
     const t = this._t, r = this._draft;
     if (r.type === "event") return this._renderTrigger();
-    const items = this._entities(r.type);
+    const items = r.category ? this._templateSources() : this._entities(r.type);
     const entity = items.find((item) => item.entity_id === r.source);
     return `<div class="form-grid">${picker(t.entity, "source", items, r.source, t)}
       ${r.type === "state" ? selectField(t.operator, "operator",
@@ -1340,7 +1346,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     return `<main class="template-editor">
       <div class="toolbar"><button data-back>← ${t.back}</button>
         ${status ? `<button data-reload ${this._saving || this._loading ? "disabled" : ""}>${t.checkStatus}</button>` : ""}</div>
-      <h1>${t[r.category]}</h1>
+      <h1>${t.templateTitles[r.category]}</h1>
       ${active ? `<p class="message" role="status">${esc(active)}</p>` : ""}
       ${this._error ? `<p class="message error" role="alert">${esc(this._error)}</p>` : ""}
       ${r.category === "security" ? `<p class="muted">${t.securityHelp}</p>` : ""}
@@ -1355,16 +1361,19 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         ${numeric && r.source_unit && source?.unit !== r.source_unit ? `<p role="alert">${t.rule_unit_changed}</p>` : ""}
         ${numeric ? "" : selectField(t.activationState, "state", [["", t.choose], ...stateChoices], r.state)}
       </section>
-      <section class="card"><h3>${t.targetSection}</h3><div class="form-grid">
+      <section class="card"><h3>${t.templateTargets}</h3><div class="form-grid">
         ${this._targetSelect(t.zones, "zones", items.zones)}
         ${this._targetSelect(t.individual, "entities", items.managed_lights)}
       </div><label class="check"><input type="checkbox" data-target-all ${r.target_selection.all_managed ? "checked" : ""}>${t.allManaged}</label></section>
-      <section class="card"><h3>${t.colorSection}</h3>
+      <section class="card"><h3>${t.templateColor}</h3>
         ${numeric ? "" : `<label>${t.color}<input type="color" data-color value="${rgbToHex(r.rgb_color)}"></label>`}
         <label><span>${t.brightness} <span data-template-brightness-label>${brightness}%</span></span>
           <input type="range" min="1" max="100" value="${brightness}" data-template-brightness></label>
         ${numeric ? "" : selectField(t.effect, "animation", ["fixed", "pulse", "blink"].map((key) => [key, t[key]]), r.animation)}
       </section>
+      ${numeric ? "" : `<section class="card"><h3>${t.afterRule}</h3>
+        ${numberField(t.releaseDelay, "release_seconds", r.release_seconds ?? 0, 'min="0" max="604800" step="any"')}
+        <p class="muted">${t.releaseHelp}</p></section>`}
       ${numeric ? this._renderNumeric(true) : `<section class="card"><h3>${t.stateSimulate}</h3>
         <label>${t.stateSimulate}<select data-state-simulation>${[["", t.choose], ...stateChoices, ["unknown", t.stateUnknown], ["unavailable", t.stateUnavailable]].map(([value, label]) =>
           `<option value="${esc(value)}" ${value === simulation ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
@@ -1376,10 +1385,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
           ${numberField(t.priority, "priority", r.priority, 'min="0" max="100" step="1"')}
           ${numberField(t.transition, "transition", r.transition, 'min="0" max="300" step="any"')}
           ${numberField(t.activationDelay, "for_seconds", r.for_seconds, 'min="0" max="604800" step="any"')}
-          ${numeric ? "" : numberField(t.releaseDelay, "release_seconds", r.release_seconds ?? 0, 'min="0" max="604800" step="any"')}
           ${!numeric && r.animation !== "fixed" ? numberField(t.period, "period", r.period, 'min="0.1" max="3600" step="any"') : ""}
         </div>
-        ${numeric ? this._numericPolicy() : `<p class="muted">${t.releaseHelp}</p>`}
+        ${numeric ? this._numericPolicy() : ""}
         <label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled ? "checked" : ""}>${t.enabled}</label>
         <button data-full-editor>${t.compatibleEditor}</button>
       </details>

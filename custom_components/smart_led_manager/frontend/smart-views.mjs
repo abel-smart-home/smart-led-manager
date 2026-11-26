@@ -21,6 +21,11 @@ export const SMART_TEXT = {
     automationName: "Nombre de la automatización", sensor: "Sensor o dispositivo",
     actualUnit: "Unidad del sensor", noSources: "Home Assistant no tiene sensores compatibles con esta categoría.",
     noSelectedSource: "Selecciona un sensor o dispositivo",
+    templateTitles: { temperature: "Iluminación por temperatura", humidity: "Iluminación por humedad",
+      power: "Iluminación por potencia instantánea", energy: "Iluminación por energía acumulada",
+      security: "Iluminación por seguridad", presence: "Iluminación por presencia" },
+    templateTargets: "¿Dónde quieres aplicar la iluminación?",
+    templateColor: "¿Cómo quieres que se ilumine?", afterRule: "Al finalizar",
     stateUnavailable: "No disponible", stateUnknown: "Desconocido",
     stateLabels: { on: "Detectado", off: "Sin detección", home: "En casa", not_home: "Fuera de casa",
       disarmed: "Desarmada", armed_home: "Armada en casa", armed_away: "Armada fuera", triggered: "Disparada",
@@ -55,6 +60,11 @@ export const SMART_TEXT = {
     automationName: "Automation name", sensor: "Sensor or device",
     actualUnit: "Sensor unit", noSources: "Home Assistant has no sensors compatible with this category.",
     noSelectedSource: "Choose a sensor or device",
+    templateTitles: { temperature: "Lighting by temperature", humidity: "Lighting by humidity",
+      power: "Lighting by power draw", energy: "Lighting by accumulated energy",
+      security: "Security lighting", presence: "Presence lighting" },
+    templateTargets: "Where should this lighting apply?",
+    templateColor: "How should it light up?", afterRule: "When the rule ends",
     stateUnavailable: "Unavailable", stateUnknown: "Unknown",
     stateLabels: { on: "Detected", off: "Not detected", home: "Home", not_home: "Away",
       disarmed: "Disarmed", armed_home: "Armed home", armed_away: "Armed away", triggered: "Triggered",
@@ -102,6 +112,7 @@ export function renderSmartMenu(t, view) {
 
 export const SMART_STYLES = `
  .template-editor{max-width:960px}.template-editor .card{margin:12px 0}
+ .template-editor .actions{position:static;background:none;padding-bottom:0}
  .template-editor details summary{font-weight:650;cursor:pointer;padding-block:10px}
  .template-editor details[open]>summary{margin-bottom:7px}
  .template-editor summary:focus-visible,.template-editor input:focus-visible,.template-editor select:focus-visible{outline:3px solid var(--primary-color);outline-offset:2px}

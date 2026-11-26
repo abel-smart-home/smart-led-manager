@@ -234,6 +234,23 @@ try {
     change('[data-add-choice="target_selection.zones"]', "living");
     if (["security","presence"].includes(category)) change('[data-path="state"]', "on");
   };
+  const sampleTemplate = async (category) => {
+    fillTemplate(category);
+    if (["security","presence"].includes(category)) {
+      change("[data-color]", category === "security" ? "#ff3737" : "#ffcc80");
+      change("[data-template-brightness]", category === "security" ? "70" : "50", "input");
+      change('[data-path="animation"]', category === "security" ? "blink" : "fixed");
+      change('[data-path="release_seconds"]', category === "security" ? "8" : "0", "input");
+      change("[data-state-simulation]", "on");
+    } else {
+      const values = {temperature:[16,36],humidity:[20,80],power:[0,3000],energy:[0,8]}[category];
+      change('[data-point-value="0"]', String(values[0]), "input");
+      change('[data-point-value="1"]', String(values[1]), "input");
+      change("[data-simulate]", String((values[0] + values[1]) / 2), "input");
+      pick("[data-preview-numeric]").click();
+      await waitFor(() => pick(".template-strip[data-preview-result]"), "Sample numeric preview did not render");
+    }
+  };
   await openTemplate("security");
   fillTemplate("security");
   const beforeSimulation = mutations;
@@ -274,7 +291,7 @@ try {
       }
     } else if (Object.hasOwn(sensors, name)) {
       await openTemplate(name);
-      fillTemplate(name);
+      await sampleTemplate(name);
     } else if (name !== "home") {
       pick('[data-admin-view="' + view + '"]').click();
       if (view !== "settings") await waitFor(() => !editor._loading && editor._admin, "Administration did not load");
