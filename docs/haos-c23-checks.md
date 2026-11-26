@@ -2,8 +2,8 @@
 
 Usa tu máquina de laboratorio de HAOS. La versión visible sigue siendo
 **0.1.0-alpha.3**. Instala el código del SHA
-`6cfda19c38424e904ec30fd0255fed0aa4c16ac0`.
-[Descargar el ZIP](https://github.com/abel-smart-home/smart-led-manager/archive/6cfda19c38424e904ec30fd0255fed0aa4c16ac0.zip).
+`98e77d013ef03581f3aa1359d8576935effe4645`.
+[Descargar el ZIP](https://github.com/abel-smart-home/smart-led-manager/archive/98e77d013ef03581f3aa1359d8576935effe4645.zip).
 
 ## Copia e instalación
 
@@ -58,5 +58,5 @@ La matriz técnica comprobó 248 casos por versión de Core
 (`2026.11.0`, `2026.11.2` y `2026.11.3`) con 85,87 % de cobertura
 de ramas. El resultado de este recorrido de HAOS, la revisión visual
 definitiva y las comprobaciones físicas se registran por separado.
-[Matriz Linux](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45885579658).
+[Matriz Linux del SHA funcional](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45888066752).
 [Plan de pruebas](haos-test-plan.md).
