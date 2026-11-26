@@ -215,9 +215,15 @@ try {
         })`);
         assert.equal(layout.columns, device === "desktop" ? 2 : 1);
         assert.ok(layout.width <= 1000 && layout.targets.length === 5 && layout.targets.every((size) => size >= 44));
-        await run("pick('[data-rules]').focus()");
-        await send("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-        await send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+        await send("Page.bringToFront");
+        assert.ok(await run(`(() => {
+          const tile = pick("[data-rules]");
+          tile.focus();
+          return tile.matches(":focus");
+        })()`), "The smart lighting tile did not accept keyboard focus");
+        const space = { key: " ", code: "Space", windowsVirtualKeyCode: 32, nativeVirtualKeyCode: 32 };
+        await send("Input.dispatchKeyEvent", { type: "keyDown", ...space, text: " ", unmodifiedText: " " });
+        await send("Input.dispatchKeyEvent", { type: "keyUp", ...space });
         await waitFor(() => run("!!pick('[data-smart-category=smartRules]')"), "keyboard navigation");
       }
     }

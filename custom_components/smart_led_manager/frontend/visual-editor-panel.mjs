@@ -1283,12 +1283,17 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const activation = template ? "" : `<section class="card"><h3>${t.activation}</h3>${this._numericPolicy()}</section>`;
     if (mode === "fixed") return activation + `<section class="card">${style}</section>`;
     const points = sortPoints(r.points ?? []);
-    const stops = gradientStopEntries(points, mode);
+    const editedPoints = this._draftPoints();
+    const plot = editedPoints ?? points;
+    const plotRows = editedPoints
+      ? points.map((point, index) => ({ ...point, value: Number(this._pointInput.get(index) ?? point.value) }))
+      : points;
+    const stops = gradientStopEntries(plot, mode);
     const svgStops = stops.map((stop) => `<stop offset="${stop.offset}%" stop-color="${stop.color}"></stop>`).join("");
-    const markers = points.map((point, index) =>
-      `<button class="marker" data-select-point="${index}" style="left:${pointPercent(point.value, points)}%;background:${rgbToHex(point.rgb)}" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"></button>`).join("");
-    const graphPoints = points.map((point, index) => {
-      const x = 30 + pointPercent(point.value, points) * 8.4;
+    const markers = plotRows.map((point, index) =>
+      `<button class="marker" data-select-point="${index}" style="left:${pointPercent(point.value, plot)}%;background:${rgbToHex(point.rgb)}" aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"></button>`).join("");
+    const graphPoints = plotRows.map((point, index) => {
+      const x = 30 + pointPercent(point.value, plot) * 8.4;
       return `<g class="graph-point" data-select-point="${index}" tabindex="0" role="button"
         aria-label="${esc(t.selectPoint.replace("{value}", point.value))}"><circle cx="${x}" cy="48" r="10"
         fill="${rgbToHex(point.rgb)}"></circle><line x1="${x}" y1="60" x2="${x}" y2="72" stroke="var(--secondary-text-color)"></line>
@@ -1305,7 +1310,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       <div><strong>${esc(p.hex)} · RGB(${p.rgb.join(", ")})</strong><p>${t.intervalResult} ${esc(p.lower)}${p.lower !== p.upper ? `–${esc(p.upper)}` : ""}${unitLabel}</p></div></div>
       ${template ? this._previewStrip(p.rgb, true, "", true) : ""}` : "";
     return activation + `<section class="card"><h3>${t.points}</h3>${style}
-      <h3>${t.colorBar}</h3><div class="visual"><div class="colorbar" style="background:${cssGradient(points, mode)}"></div>${markers}</div>
+      <h3>${t.colorBar}</h3><div class="visual"><div class="colorbar" style="background:${cssGradient(plot, mode)}"></div>${markers}</div>
       <h3>${t.graph}</h3><svg class="axis" viewBox="0 0 900 115" role="group" aria-label="${t.graph}">
       <defs><linearGradient id="graph-gradient">${svgStops}</linearGradient></defs>
       <line class="baseline" x1="30" y1="48" x2="870" y2="48"></line><line class="curve" x1="30" y1="48" x2="870" y2="48" stroke="url(#graph-gradient)"></line>

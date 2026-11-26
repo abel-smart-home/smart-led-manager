@@ -124,5 +124,6 @@ export const SMART_STYLES = `
  .template-editor .template-source{padding:0 12px;border:1px solid var(--divider-color);border-radius:9px}
  .template-editor .template-source .picker{padding-bottom:12px}
  .template-editor input[type=range]{accent-color:var(--primary-color)}
+ .template-editor input[type=color]{min-height:36px;padding:4px}
  @media(prefers-reduced-motion:reduce){.template-strip span{animation:none!important}}
 `;

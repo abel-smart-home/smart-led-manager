@@ -82,7 +82,9 @@ editor.hass = {
       mutation: receipt?.id === message.mutation_id ? receipt : null,
     };
     if (message.type.endsWith("/admin/get")) return { revision, admin: structuredClone(admin) };
-    if (message.type.endsWith("/preview")) return { results: [{hex:"#800080",rgb:[128,0,128],lower:0,upper:100}] };
+    if (message.type.endsWith("/preview")) return { results: [{
+      hex:"#800080", rgb:[128,0,128], lower:message.points[0].value, upper:message.points.at(-1).value,
+    }] };
     if (message.type.endsWith("/get")) return { revision, selections, rules: rule ? [{ rule, targets: [] }] : [] };
     if (message.type.endsWith("/admin/mode")) {
       modeCalls++;
@@ -268,9 +270,11 @@ try {
     !pick('[data-path="source"] option[value="sensor.energy"]'), "Energy leaked into the power selector");
   fillTemplate("power");
   check(root.textContent.includes("Unidad del sensor W"), "Power template did not bind the real unit");
+  change('[data-point-value="1"]', "3000", "input");
   change('[data-simulate]', "50", "input");
   pick("[data-preview-numeric]").click();
   await waitFor(() => pick(".template-strip[data-preview-result]"), "Numeric simulation did not render");
+  check(pick("svg.axis").textContent.includes("3000 (W)"), "Numeric graph did not use the edited points");
   pick("[data-save]").click();
   await tick();
   check(rule.category === "power" && rule.source_unit === "W", "Template save lost its source unit");
