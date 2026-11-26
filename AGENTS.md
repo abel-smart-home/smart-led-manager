@@ -59,3 +59,10 @@ See [architecture](docs/architecture.md), [requirements](docs/requirements.md), 
 - Review `docs/community-audit.md` before borrowing from another project. Preserve required license and copyright notices and update `THIRD_PARTY_NOTICES.md`.
 - The `0.1.0-alpha.1` manifest version, Python package form `0.1.0a1`, changelog, archive name, and eventual release tag must describe the same release.
 - Never call a placeholder or untested path “implemented.” Mark incomplete work explicitly and state the path to the regular `0.1.0` release.
+
+## Product UX and visual reference
+- Follow `docs/design/README.md` and linked requirements; use the approved HTML and reference screenshots as the source for layout, labels, hierarchy, navigation, and interaction. Preserve the five top-level sections and keep scenes/effects inside lighting modes.
+- Do not reinterpret approved design or introduce new screens, controls, scopes, or defaults without documenting the reason and obtaining approval. Official HA selectors and theme variables take precedence when necessary for accessibility and compatibility; provide before/after screenshots and rationale.
+- Prototype simulation code is not production logic. Keep all authorized-target, priority, persistence, admin, concurrency, lifecycle and rate-limit guarantees. Reuse one ConfigEntry/coordinator/engine/catalog. Avoid data loss, silent schema flattening, stale restoration, or faux success.
+- Capture actual HA frontend at equivalent desktop/mobile dimensions and light/dark themes. Compare each screen against the reference. Test every reachable button, save failure, draft exit, keyboard, concurrent update, and backend-confirmed save. Preserve user drafts/focus and report deviations.
+- Separate proposed, implemented, automated-tested, HAOS-tested and physical-tested status. Do not mark screenshots or simulations as physical validation. Retain historic test records and obtain explicit authorization for scope changes and Git operations.

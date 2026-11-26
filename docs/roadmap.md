@@ -114,6 +114,29 @@ operativo; el Bloque C amplía el mismo panel sin crear otro.
 - [ ] Ejecutar el [recorrido de laboratorio](haos-block-c-walkthrough.md)
   con C.1 y repetir las variantes Zigbee indicadas en el plan.
 
+### Bloque C.2 — administración y plantillas guiadas
+
+El propietario aprobó adelantar a alpha.3 los módulos gráficos de beta.1
+necesarios para el [prototipo v1.0](design/README.md). El objetivo es que las
+tiras se puedan configurar y usar desde el centro de administración de Home
+Assistant. Las etapas son internas a `0.1.0-alpha.3` y comparten una rama.
+
+| Etapa | Alcance aprobado |
+| --- | --- |
+| C.2.0 | Consolidación documental y de Git. [Base y respaldo](design/consolidacion-c2.md). |
+| C.2.1 | Estabilidad del panel, guardado confirmado por el runtime, recarga, concurrencia y protección de borradores. |
+| C.2.2 | Centro de cinco secciones, luces administradas, zonas y modos. Escenas y efectos dentro de Modos. |
+| C.2.3 | Plantillas de temperatura, humedad, energía, seguridad y presencia. Espera al finalizar en reglas compatibles. |
+| C.2.4 | Catálogo persistente de avisos y acción por ID con selección amigable, horarios sin sensor y reglas activadas sólo por condiciones. |
+| C.2.5 | Configuración y diagnóstico. |
+| C.2.6 | Estabilización integral, comparación visual por pantalla y recorrido práctico U-01–U-06. |
+
+La autorización de implementación inicial cubre C.2.1. C-01–C-20 y las
+repeticiones Zigbee conservan su estado en el [plan HAOS](haos-test-plan.md).
+El Bloque D mantiene la recuperación configurable, la pausa/reanudación y la
+verificación física. Las animaciones multicolor avanzadas, secuencias
+personalizadas e iluminación adaptativa permanecen en beta.1.
+
 ### Bloque D — alcance aprobado pendiente
 
 - Política de reintento y verificación física configurables.
@@ -125,7 +148,7 @@ operativo; el Bloque C amplía el mismo panel sin crear otro.
 
 ## `0.1.0-beta.1` — módulos funcionales
 
-- Módulos gráficos para temperatura, humedad, energía, seguridad, presencia, escenas/ambientes y horarios reutilizando reglas genéricas.
+- Ampliaciones de escenas y ambientes que excedan los modos representados en el prototipo v1.0.
 - Alternancia multicolor, respiración, transiciones graduales y secuencias personalizadas accesibles.
 - Entidades virtuales necesarias para control manual, dashboard y exposición opcional a Matter Hub/Alexa.
 - Detección conservadora de cambios directos mediante `Context`, tolerancias y ventana anti-eco; políticas temporal/permanente/retorno automático.

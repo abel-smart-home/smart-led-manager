@@ -7,6 +7,12 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 
 ## [0.1.0-alpha.3] — Sin publicar
 
+### Planificación aprobada — Bloque C.2
+
+- El propietario aprobó el prototipo v1.0 como referencia preliminar y adelantó
+  a C.2 los módulos gráficos previstos en beta.1 que requiere ese diseño. La
+  [hoja de ruta](docs/roadmap.md) registra el alcance y las etapas internas.
+
 ### Añadido — Bloque A
 
 - Un dispositivo virtual estable por zona, identificado por `entry_id` y
