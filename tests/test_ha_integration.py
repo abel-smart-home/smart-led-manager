@@ -28,6 +28,7 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.service import async_set_service_schema
 from homeassistant.helpers.translation import async_get_translations
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant.common import MockConfigEntry
@@ -245,7 +246,11 @@ async def test_notice_definition_updates_action_schema_and_renews_one_request(
     hass.states.async_set(
         "light.strip", STATE_OFF, {ATTR_SUPPORTED_COLOR_MODES: ["rgb"]}
     )
-    hass.services.async_register("light", SERVICE_TURN_ON, lambda _call: None)
+    # Both actions are test doubles. Supply their metadata so get_services
+    # does not import unrelated integration dependencies for real light actions.
+    for service in (SERVICE_TURN_ON, SERVICE_TURN_OFF):
+        hass.services.async_register("light", service, lambda _call: None)
+        async_set_service_schema(hass, "light", service, {})
     entry = MockConfigEntry(
         domain=DOMAIN, data={CONF_LIGHTS: ["light.strip"]}, minor_version=2
     )
@@ -256,6 +261,7 @@ async def test_notice_definition_updates_action_schema_and_renews_one_request(
     async def options(message_id):
         await client.send_json({"id": message_id, "type": "get_services"})
         response = await client.receive_json()
+        assert response["success"], response
         return response["result"][DOMAIN][SERVICE_RUN_NOTICE]["fields"]["notice_id"][
             "selector"
         ]["select"]["options"]
