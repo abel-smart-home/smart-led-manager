@@ -498,9 +498,28 @@ VirtualBox con Home Assistant Core 2026.11.3 y el SHA funcional
 > algo grande el menú principal, ya que abarca toda la pantalla completa, tal
 > vez un ajuste de tamaño sería más conveniente
 
-El propietario aprobó compactar el inicio en C.2.3. La aprobación visual
-definitiva sigue pendiente. C-01–C-20, U-01–U-06 y las pruebas físicas
-conservan sus estados.
+La observación sobre el tamaño se cerró al aprobar el inicio compacto en C.2.3.
 
-El [recorrido de C.2.3](haos-c23-checks.md) queda pendiente de ejecución por
-el propietario en VirtualBox.
+## Resultado de C.2.3 en VirtualBox
+
+El propietario aprobó **12/12** en HAOS VirtualBox con Home Assistant Core
+2026.11.3 y el SHA `98e77d013ef03581f3aa1359d8576935effe4645`. Aprobó el
+tamaño del inicio y la validación visual de C.2.3, sin observaciones.
+[Guía usada para el recorrido](haos-c23-checks.md).
+
+| Caso | Prueba | Resultado |
+| --- | --- | --- |
+| R-01 | Menú principal compacto | Aprobada |
+| R-02 | Mis automatizaciones | Aprobada |
+| R-03 | Temperatura | Aprobada |
+| R-04 | Humedad | Aprobada |
+| R-05 | Potencia instantánea | Aprobada |
+| R-06 | Energía acumulada | Aprobada |
+| R-07 | Seguridad | Aprobada |
+| R-08 | Presencia | Aprobada |
+| R-09 | Permanencia y espera al finalizar | Aprobada |
+| R-10 | Simulación sin cambios físicos | Aprobada |
+| R-11 | Guardado, borradores y recarga | Aprobada |
+| R-12 | Persistencia y regresiones | Aprobada |
+
+C-01–C-20, U-01–U-06 y las pruebas físicas conservan sus estados.

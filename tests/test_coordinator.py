@@ -650,6 +650,7 @@ class CoordinatorTests(unittest.IsolatedAsyncioTestCase):
         light_unsubscribe = Mock()
         coordinator._recovery_tasks = {"light.strip": recovery}
         coordinator._started = True
+        coordinator._mutation_lock = asyncio.Lock()
         coordinator.rules = SimpleNamespace(async_shutdown=AsyncMock())
         coordinator._unsub_lights = light_unsubscribe
         coordinator.expiry = SimpleNamespace(async_shutdown=AsyncMock())

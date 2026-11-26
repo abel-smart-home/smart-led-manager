@@ -568,6 +568,7 @@
       "no_rules": "There are no configured rules",
       "rule_not_found": "The selected rule no longer exists",
       "invalid_rule": "The selected rule type is not supported",
+      "rule_edit_in_panel": "Open the Smart LED Manager panel to edit this rule.",
       "rule_unit_changed": "Recalibrate the points and thresholds for the current sensor unit in the administration panel.",
       "incompatible_template_source": "Select a source compatible with this template in the administration panel.",
       "invalid_template_state": "Choose a valid activation state in the administration panel.",
@@ -661,6 +662,11 @@
     }
   },
   "exceptions": {
+    "notice_not_found": { "message": "The saved notice no longer exists." },
+    "notice_disabled": { "message": "The saved notice is disabled." },
+    "notice_invalid": { "message": "Check the notice and its authorized targets." },
+    "notice_entry_not_ready": { "message": "Wait for Smart LED Manager to apply the current configuration." },
+    "managed_notice_request": { "message": "This request ID belongs to the saved notice catalog." },
     "not_configured": {
       "message": "Smart LED Manager is not configured."
     },
@@ -737,6 +743,16 @@
         "request_id": {
           "name": "Request ID",
           "description": "Identifier of the request to deactivate."
+        }
+      }
+    },
+    "run_notice": {
+      "name": "Run saved notice",
+      "description": "Play a saved light notice by its stable ID.",
+      "fields": {
+        "notice_id": {
+          "name": "Notice",
+          "description": "Choose a saved notice by name."
         }
       }
     },

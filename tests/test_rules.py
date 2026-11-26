@@ -88,6 +88,81 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.submitted[0].command.color, (255, 128, 0))
         self.assertEqual(self.cancelled, ["rule:door"])
 
+    async def test_schedule_without_source_evaluates_on_restart_and_releases_at_end(
+        self,
+    ) -> None:
+        rule = {
+            "id": "night",
+            "type": "continuous",
+            "targets": ["light.strip"],
+            "schedule": {"after": "22:00", "before": "06:00", "weekdays": ["mon"]},
+        }
+        tz = ZoneInfo("America/Tijuana")
+        now = datetime(2026, 11, 24, 4, 0, tzinfo=tz)
+        fake = _Hass({})
+        manager = RuleManager(
+            fake, [rule], frozenset({"light.strip"}), self.submit, self.cancel
+        )
+        with (
+            patch(
+                "custom_components.smart_led_manager.modules.rules.dt_util.now",
+                side_effect=lambda: now,
+            ),
+            patch(
+                "custom_components.smart_led_manager.modules.rules.async_track_point_in_time"
+            ) as track,
+        ):
+            await manager.async_setup()
+            self.assertEqual(self.submitted[-1].source, "schedule")
+            self.assertEqual(track.call_args.args[2], now.replace(hour=6))
+            now = now.replace(hour=6)
+            await manager._async_schedule_boundary()
+            self.assertEqual(self.cancelled, ["rule:night"])
+            await manager.async_shutdown()
+
+    async def test_condition_only_rule_preserves_unknown_under_not_and_numeric_hysteresis(
+        self,
+    ) -> None:
+        door, power = "binary_sensor.door", "sensor.power"
+        rule = {
+            "id": "plan",
+            "type": "continuous",
+            "targets": ["light.strip"],
+            "conditions": {
+                "type": "and",
+                "conditions": [
+                    {
+                        "type": "not",
+                        "condition": {
+                            "type": "state",
+                            "entity_id": door,
+                            "state": "on",
+                        },
+                    },
+                    {
+                        "type": "numeric",
+                        "entity_id": power,
+                        "operator": "above",
+                        "threshold": 10,
+                        "hysteresis": 2,
+                    },
+                ],
+            },
+        }
+        fake = _Hass({door: State(door, "unknown"), power: State(power, "12")})
+        manager = RuleManager(
+            fake, [rule], frozenset({"light.strip"}), self.submit, self.cancel
+        )
+        await manager._async_evaluate(rule)
+        self.assertFalse(self.submitted)
+        fake.states.values[door] = State(door, "off")
+        fake.states.values[power] = State(power, "9")
+        await manager._async_evaluate(rule)
+        self.assertEqual(self.submitted[-1].source, "conditions")
+        fake.states.values[power] = State(power, "NaN")
+        await manager._async_evaluate(rule)
+        self.assertEqual(self.cancelled, ["rule:plan", "rule:plan"])
+
     async def test_numeric_rule_interpolates_and_rejects_unknown(self) -> None:
         rule = {
             "id": "temperature",

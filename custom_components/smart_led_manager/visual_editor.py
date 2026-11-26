@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -19,6 +21,7 @@ from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import label_registry as lr
+from homeassistant.util import dt as dt_util
 
 from .const import (
     CONF_LIGHTS,
@@ -39,6 +42,12 @@ from .core.color import (
     normalize_color_points,
     parse_numeric_state,
     rgb_to_hex,
+)
+from .core.conditions import (
+    ConditionValidationError,
+    condition_entity_ids,
+    evaluate_activation,
+    validate_condition_tree,
 )
 from .modules.admin_configuration import (
     validate_managed_lights,
@@ -73,7 +82,7 @@ _DATA_RECEIPTS = "visual_editor_mutation_receipts"
 _DATA_SIDEBAR = "visual_editor_sidebar"
 _EVENT_ENTRY_STATUS = f"{DOMAIN}_editor_entry_status"
 _MAX_MUTATION_RECEIPTS = 32
-_PANEL_ASSETS_REVISION = "c2.3"
+_PANEL_ASSETS_REVISION = "c2.4"
 
 _TRANSITION_STATES = {
     ConfigEntryState.SETUP_IN_PROGRESS,
@@ -100,6 +109,8 @@ async def async_setup_visual_editor(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, websocket_save_numeric_rule)
         websocket_api.async_register_command(hass, websocket_get_smart_rules)
         websocket_api.async_register_command(hass, websocket_mutate_smart_rule)
+        websocket_api.async_register_command(hass, websocket_run_saved_notice)
+        websocket_api.async_register_command(hass, websocket_preview_activation)
         websocket_api.async_register_command(hass, websocket_preview_targets)
         websocket_api.async_register_command(hass, websocket_editor_status)
         websocket_api.async_register_command(hass, websocket_admin_get)
@@ -892,6 +903,90 @@ async def _async_prepare_rule_edit(hass, entry, msg):
     ):
         await _async_validate_rule_catalog(hass, entry, [result])
     return {CONF_RULES: rules}, {"rule": result}, {"rules": rules}
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/notices/run",
+        probatio.Required("entry_id"): str,
+        probatio.Required("revision"): str,
+        probatio.Required("notice_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_run_saved_notice(hass, connection, msg) -> None:
+    """Run the saved revision on physical lights from the admin panel."""
+    try:
+        entry = _entry(hass, msg["entry_id"], revision=msg["revision"])
+        runtime = hass.data[DOMAIN]["entries"][entry.entry_id]
+        result = await runtime.async_run_notice(msg["notice_id"])
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    except ModeValidationError as err:
+        connection.send_error(msg["id"], err.key, str(err))
+        return
+    connection.send_result(msg["id"], result)
+
+
+@websocket_api.websocket_command(
+    {
+        probatio.Required("type"): "smart_led_manager/smart_rules/preview_activation",
+        probatio.Required("entry_id"): str,
+        probatio.Optional("conditions"): dict,
+        probatio.Optional("schedule"): dict,
+        probatio.Optional("values"): dict,
+        probatio.Optional("at"): str,
+    }
+)
+@websocket_api.require_admin
+@callback
+def websocket_preview_activation(hass, connection, msg) -> None:
+    """Evaluate draft conditions and time locally without submitting a light request."""
+    try:
+        _entry(hass, msg["entry_id"])
+        conditions = validate_condition_tree(msg.get("conditions"))
+        schedule = (
+            validate_condition_tree({**msg["schedule"], "type": "time"})
+            if "schedule" in msg
+            else None
+        )
+        if not (conditions or schedule):
+            raise VisualEditorError("empty_activation", "Add conditions or a schedule")
+        if schedule and schedule["after"] == schedule["before"]:
+            raise VisualEditorError("invalid_schedule", "Start and end must differ")
+        now = dt_util.now()
+        if msg.get("at"):
+            requested = datetime.fromisoformat(msg["at"])
+            if requested.tzinfo is not None:
+                raise ValueError("Use a local date and time")
+            now = requested.replace(tzinfo=now.tzinfo)
+        values = msg.get("values", {})
+        if values.keys() - condition_entity_ids(conditions) or not all(
+            isinstance(state, str) for state in values.values()
+        ):
+            raise VisualEditorError(
+                "invalid_conditions", "Preview values must belong to the draft"
+            )
+
+        def get_state(entity_id: str):
+            return (
+                SimpleNamespace(state=values[entity_id])
+                if entity_id in values
+                else hass.states.get(entity_id)
+            )
+
+        result = evaluate_activation(conditions, schedule, get_state, now)
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    except (ConditionValidationError, ValueError, OverflowError) as err:
+        connection.send_error(msg["id"], "invalid_conditions", str(err))
+        return
+    connection.send_result(
+        msg["id"], {"result": result.value, "local_time": now.isoformat()}
+    )
 
 
 async def _async_send_editor_mutation(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from datetime import timedelta
 from unittest.mock import patch
 
 import probatio
@@ -22,6 +23,7 @@ from homeassistant.const import (
     STATE_ON,
 )
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -42,8 +44,10 @@ from custom_components.smart_led_manager.const import (
     DOMAIN,
     SERVICE_CANCEL,
     SERVICE_NOTIFY,
+    SERVICE_RUN_NOTICE,
 )
 from custom_components.smart_led_manager.coordinator import SmartLEDCoordinator
+from custom_components.smart_led_manager.models import utc_now
 from custom_components.smart_led_manager.modules.configuration import options_revision
 from custom_components.smart_led_manager.modules.rules import RuleManager
 from custom_components.smart_led_manager.registry import (
@@ -232,6 +236,110 @@ async def test_editor_confirms_runtime_revision_after_real_reload(
     )
     assert len(entry.options[CONF_RULES]) == 1
     assert panels[PANEL_PATH] is panel
+    await client.close()
+
+
+async def test_notice_definition_updates_action_schema_and_renews_one_request(
+    hass, hass_ws_client
+) -> None:
+    hass.states.async_set(
+        "light.strip", STATE_OFF, {ATTR_SUPPORTED_COLOR_MODES: ["rgb"]}
+    )
+    hass.services.async_register("light", SERVICE_TURN_ON, lambda _call: None)
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_LIGHTS: ["light.strip"]}, minor_version=2
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_ws_client()
+
+    async def options(message_id):
+        await client.send_json({"id": message_id, "type": "get_services"})
+        response = await client.receive_json()
+        return response["result"][DOMAIN][SERVICE_RUN_NOTICE]["fields"]["notice_id"][
+            "selector"
+        ]["select"]["options"]
+
+    async def mutate(message_id, operation, **data):
+        await client.send_json(
+            {
+                "id": message_id,
+                "type": f"{DOMAIN}/smart_rules/mutate",
+                "entry_id": entry.entry_id,
+                "revision": options_revision(entry.options),
+                "operation": operation,
+                **data,
+            }
+        )
+        response = await client.receive_json()
+        assert response["success"], response
+        await hass.async_block_till_done()
+        return response["result"]["rule"]
+
+    async def run(notice_id):
+        return await hass.services.async_call(
+            DOMAIN,
+            SERVICE_RUN_NOTICE,
+            {"notice_id": notice_id},
+            blocking=True,
+            return_response=True,
+        )
+
+    assert await options(1) == []
+    rule = await mutate(
+        2,
+        "create",
+        rule={
+            "type": "notice",
+            "name": "Door",
+            "targets": ["light.strip"],
+            "duration": 15,
+            "priority": 70,
+            "rgb_color": [255, 80, 0],
+        },
+    )
+    notice_id = rule["id"]
+    assert await options(3) == [{"label": "Door", "value": notice_id}]
+    now = utc_now()
+    with patch(
+        "custom_components.smart_led_manager.coordinator.utc_now", return_value=now
+    ):
+        request = await run(notice_id)
+    runtime = entry.runtime_data
+    with patch(
+        "custom_components.smart_led_manager.coordinator.utc_now",
+        return_value=now + timedelta(seconds=2),
+    ):
+        assert await run(notice_id) == request
+    (pending,) = await runtime.engine.async_requests()
+    assert pending.expires_at == now + timedelta(seconds=17)
+    assert not pending.persistent
+    await hass.services.async_call(
+        DOMAIN,
+        SERVICE_NOTIFY,
+        {
+            "request_id": "ceiling",
+            "targets": ["light.strip"],
+            "rgb_color": [0, 0, 255],
+            "priority": 100,
+            "duration": 60,
+        },
+        blocking=True,
+    )
+    assert (await runtime.engine.async_winner("light.strip")).request_id == "ceiling"
+    await runtime.engine.async_expire(now + timedelta(seconds=18))
+    await runtime.async_cancel("ceiling")
+    assert await runtime.engine.async_winner("light.strip") is None
+    await mutate(4, "update", rule_id=notice_id, rule={**rule, "name": "Renamed"})
+    assert await options(5) == [{"label": "Renamed", "value": notice_id}]
+    assert await entry.runtime_data.engine.async_requests() == ()
+    assert await run(notice_id) == request
+    await mutate(6, "delete", rule_id=notice_id)
+    assert await options(7) == []
+    assert await entry.runtime_data.engine.async_requests() == ()
+    with pytest.raises(ServiceValidationError) as rejected:
+        await run(notice_id)
+    assert rejected.value.translation_key == "notice_not_found"
     await client.close()
 
 

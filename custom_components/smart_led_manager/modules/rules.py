@@ -5,13 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Awaitable, Callable, Mapping
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from time import monotonic
 from typing import Any
 
 from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_UNIT_OF_MEASUREMENT,
+    EVENT_CORE_CONFIG_UPDATE,
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
 )
@@ -27,14 +28,21 @@ from homeassistant.helpers.event import (
 )
 from homeassistant.util import dt as dt_util
 
-from ..const import RULE_TYPE_EVENT, RULE_TYPE_NUMERIC, RULE_TYPE_STATE
+from ..const import (
+    RULE_TYPE_CONTINUOUS,
+    RULE_TYPE_EVENT,
+    RULE_TYPE_NOTICE,
+    RULE_TYPE_NUMERIC,
+    RULE_TYPE_STATE,
+)
 from ..core.color import ColorPoint, interpolate_rgb, parse_numeric_state
 from ..core.conditions import (
     ConditionResult,
     ConditionValidationError,
     condition_entity_ids,
     condition_schedules,
-    evaluate_condition,
+    evaluate_activation,
+    next_schedule_boundary,
     numeric_activation_matches,
     validate_condition_tree,
 )
@@ -81,6 +89,7 @@ class RuleManager:
         self._registry_unsubscribes: list[Callable[[], None]] = []
         self._trigger_unsubscribes: list[Callable[[], None]] = []
         self._schedule_unsubscribe: Callable[[], None] | None = None
+        self._timezone_unsubscribe: Callable[[], None] | None = None
         self._pending: dict[str, Callable[[], None]] = {}
         self._holds: dict[str, Callable[[], None]] = {}
         self._release_timers: dict[str, Callable[[], None]] = {}
@@ -91,6 +100,7 @@ class RuleManager:
         self._last_numeric: dict[str, float] = {}
         self._last_numeric_update: dict[str, float] = {}
         self._numeric_activation: dict[str, bool] = {}
+        self._condition_numeric: dict[str, dict[tuple[int, ...], bool]] = {}
         self._resolved_targets: dict[str, frozenset[str]] = {}
         self._resolved_groups: dict[str, frozenset[str]] = {}
         self._event_expiry: dict[str, datetime] = {}
@@ -104,7 +114,7 @@ class RuleManager:
         sources: set[str] = set()
         track_registries = False
         for rule in self._rules.values():
-            if not _is_enabled(rule):
+            if not _is_enabled(rule) or rule.get("type") == RULE_TYPE_NOTICE:
                 continue
             selection = rule.get("target_selection")
             if isinstance(selection, Mapping):
@@ -116,7 +126,9 @@ class RuleManager:
             if rule.get("type") == RULE_TYPE_EVENT:
                 await self._async_setup_event_rule(rule)
                 continue
-            if source := rule.get("source"):
+            if rule.get("type") != RULE_TYPE_CONTINUOUS and (
+                source := rule.get("source")
+            ):
                 sources.add(str(source))
             sources.update(self._condition_entities(rule))
 
@@ -138,8 +150,12 @@ class RuleManager:
                 ),
             ]
         self._schedule_next_boundary()
+        if self._schedule_unsubscribe is not None and hasattr(self._hass, "bus"):
+            self._timezone_unsubscribe = self._hass.bus.async_listen(
+                EVENT_CORE_CONFIG_UPDATE, self._async_clock_changed
+            )
         for rule in self._rules.values():
-            if rule.get("type") != RULE_TYPE_EVENT:
+            if rule.get("type") not in {RULE_TYPE_EVENT, RULE_TYPE_NOTICE}:
                 await self._async_evaluate(rule)
 
     async def async_shutdown(self) -> None:
@@ -158,6 +174,9 @@ class RuleManager:
         if self._schedule_unsubscribe is not None:
             self._schedule_unsubscribe()
             self._schedule_unsubscribe = None
+        if self._timezone_unsubscribe is not None:
+            self._timezone_unsubscribe()
+            self._timezone_unsubscribe = None
         for unsubscribe in (
             *self._pending.values(),
             *self._holds.values(),
@@ -176,6 +195,7 @@ class RuleManager:
             await asyncio.gather(*tasks, return_exceptions=True)
         self._tasks.clear()
         self._event_expiry.clear()
+        self._condition_numeric.clear()
         self._resolved_groups.clear()
         self._tracked_sources = frozenset()
 
@@ -183,7 +203,7 @@ class RuleManager:
     def _refresh_state_subscription(self) -> None:
         tracked = set(self._state_sources)
         for rule_id, rule in self._rules.items():
-            if _is_enabled(rule):
+            if _is_enabled(rule) and rule.get("type") != RULE_TYPE_NOTICE:
                 dependencies = self._targets.group_dependencies(rule)
                 self._resolved_groups[rule_id] = dependencies
                 tracked.update(dependencies)
@@ -250,7 +270,7 @@ class RuleManager:
         if topology_changed:
             self._refresh_state_subscription()
         for rule in self._rules.values():
-            if not _is_enabled(rule):
+            if not _is_enabled(rule) or rule.get("type") == RULE_TYPE_NOTICE:
                 continue
             if rule.get("type") == RULE_TYPE_EVENT:
                 if topology_changed and entity_id in self._group_entities(rule):
@@ -283,7 +303,7 @@ class RuleManager:
 
         self._refresh_state_subscription()
         for rule in self._rules.values():
-            if not _is_enabled(rule):
+            if not _is_enabled(rule) or rule.get("type") == RULE_TYPE_NOTICE:
                 continue
             if rule.get("type") == RULE_TYPE_EVENT:
                 await self._async_refresh_event_targets(rule)
@@ -344,7 +364,24 @@ class RuleManager:
                 await self._async_evaluate_numeric(
                     rule, targets=resolved, targets_changed=targets_changed
                 )
-            elif rule_type != RULE_TYPE_EVENT:
+            elif rule_type == RULE_TYPE_CONTINUOUS:
+                if not (
+                    rule.get("conditions") or rule.get("schedule")
+                ) or not self._extra_conditions_match(rule):
+                    await self._release(rule)
+                elif self._dwell_is_ready(rule):
+                    await self._submit(
+                        self._request(
+                            rule,
+                            None,
+                            targets=resolved,
+                            request_id=_request_id(rule),
+                            source="conditions"
+                            if rule.get("conditions")
+                            else "schedule",
+                        )
+                    )
+            elif rule_type not in {RULE_TYPE_EVENT, RULE_TYPE_NOTICE}:
                 _LOGGER.warning(
                     "Ignoring rule %s with unknown type %s", rule.get("id"), rule_type
                 )
@@ -601,17 +638,15 @@ class RuleManager:
         except (ConditionValidationError, TypeError):
             _LOGGER.exception("Invalid conditions in rule %s", rule.get("id"))
             return ConditionResult.UNKNOWN
-        now_local = dt_util.now()
-        results = {
-            evaluate_condition(item, self._hass.states.get, now_local)
-            for item in (condition, schedule)
-            if item is not None
-        }
-        if ConditionResult.UNKNOWN in results:
-            return ConditionResult.UNKNOWN
-        if ConditionResult.FALSE in results:
-            return ConditionResult.FALSE
-        return ConditionResult.TRUE
+        return evaluate_activation(
+            condition,
+            schedule,
+            self._hass.states.get,
+            dt_util.now(),
+            numeric_history=self._condition_numeric.setdefault(str(rule["id"]), {})
+            if rule.get("type") == RULE_TYPE_CONTINUOUS
+            else None,
+        )
 
     def _cancel_release(self, rule_id: str) -> None:
         if unsubscribe := self._release_timers.pop(rule_id, None):
@@ -688,47 +723,14 @@ class RuleManager:
         schedules = [
             schedule
             for rule in self._rules.values()
-            if _is_enabled(rule) and rule.get("type") != RULE_TYPE_EVENT
+            if _is_enabled(rule)
+            and rule.get("type") not in {RULE_TYPE_EVENT, RULE_TYPE_NOTICE}
             for schedule in self._rule_schedules(rule)
         ]
         if not schedules:
             return
-        now = dt_util.now()
-        candidates: list[datetime] = []
-        for schedule in schedules:
-            after = time.fromisoformat(str(schedule["after"]))
-            before = time.fromisoformat(str(schedule["before"]))
-            weekdays = set(schedule["weekdays"])
-            # An overnight interval may have started yesterday and still have
-            # an upcoming closing boundary when Core starts after midnight.
-            for offset in range(-1, 9):
-                start_date = now.date() + timedelta(days=offset)
-                weekday = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")[
-                    start_date.weekday()
-                ]
-                if weekday not in weekdays:
-                    continue
-                if after == before:
-                    candidates.append(
-                        datetime.combine(start_date, time.min, tzinfo=now.tzinfo)
-                    )
-                    candidates.append(
-                        datetime.combine(
-                            start_date + timedelta(days=1),
-                            time.min,
-                            tzinfo=now.tzinfo,
-                        )
-                    )
-                    continue
-                candidates.append(
-                    datetime.combine(start_date, after, tzinfo=now.tzinfo)
-                )
-                end_date = (
-                    start_date + timedelta(days=1) if after > before else start_date
-                )
-                candidates.append(datetime.combine(end_date, before, tzinfo=now.tzinfo))
-        future = [candidate for candidate in candidates if candidate > now]
-        if not future:
+        boundary = next_schedule_boundary(schedules, dt_util.now())
+        if boundary is None:
             return
 
         @callback
@@ -742,13 +744,23 @@ class RuleManager:
             )
 
         self._schedule_unsubscribe = async_track_point_in_time(
-            self._hass, _run, min(future)
+            self._hass, _run, boundary
         )
+
+    @callback
+    def _async_clock_changed(self, _event: Event) -> None:
+        if not self._stopped:
+            self._create_task(
+                self._async_schedule_boundary(), "smart_led_manager_schedule_clock"
+            )
 
     async def _async_schedule_boundary(self) -> None:
         self._schedule_next_boundary()
         for rule in self._rules.values():
-            if _is_enabled(rule) and rule.get("type") != RULE_TYPE_EVENT:
+            if _is_enabled(rule) and rule.get("type") not in {
+                RULE_TYPE_EVENT,
+                RULE_TYPE_NOTICE,
+            }:
                 await self._async_evaluate(rule)
 
     def _condition_entities(self, rule: Mapping[str, Any]) -> frozenset[str]:

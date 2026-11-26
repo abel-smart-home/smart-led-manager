@@ -30,7 +30,9 @@ from .const import (
     DEFAULT_TIE_BREAKER,
     DOMAIN,
     NAME,
+    RULE_TYPE_CONTINUOUS,
     RULE_TYPE_EVENT,
+    RULE_TYPE_NOTICE,
     RULE_TYPE_NUMERIC,
     RULE_TYPE_STATE,
 )
@@ -51,7 +53,7 @@ from .modules.native_rule_controls import (
     native_trigger,
     selector_clock,
 )
-from .modules.rule_schema import RuleValidationError, normalize_rule
+from .modules.rule_schema import RuleCatalog, RuleValidationError, normalize_rule
 from .modules.rule_templates import template_source_error
 from .modules.targeting import (
     AdvancedTargetError,
@@ -802,6 +804,8 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             return await self.async_step_edit_numeric_rule()
         if rule.get("type") == RULE_TYPE_EVENT:
             return await self.async_step_edit_event_rule()
+        if rule.get("type") in {RULE_TYPE_CONTINUOUS, RULE_TYPE_NOTICE}:
+            return self.async_abort(reason="rule_edit_in_panel")
         return self.async_abort(reason="invalid_rule")
 
     async def async_step_duplicate_rule(
@@ -824,6 +828,12 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
             return await self.async_step_duplicate_numeric_rule()
         if rule.get("type") == RULE_TYPE_EVENT:
             return await self.async_step_duplicate_event_rule()
+        if rule.get("type") in {RULE_TYPE_CONTINUOUS, RULE_TYPE_NOTICE}:
+            try:
+                duplicate = RuleCatalog(rules).duplicate(rule["id"])
+            except (RuleValidationError, ValueError):
+                return self.async_abort(reason="invalid_rule")
+            return self._save_rule(duplicate)
         return self.async_abort(reason="invalid_rule")
 
     async def async_step_toggle_rule(

@@ -8,7 +8,13 @@ from math import isfinite
 from typing import Any
 from uuid import uuid4
 
-from ..const import RULE_TYPE_EVENT, RULE_TYPE_NUMERIC, RULE_TYPE_STATE
+from ..const import (
+    RULE_TYPE_CONTINUOUS,
+    RULE_TYPE_EVENT,
+    RULE_TYPE_NOTICE,
+    RULE_TYPE_NUMERIC,
+    RULE_TYPE_STATE,
+)
 from ..core.color import normalize_color_points
 from ..core.conditions import (
     ConditionValidationError,
@@ -64,7 +70,13 @@ def normalize_rule(
     if not isinstance(name, str) or not name.strip():
         raise RuleValidationError("invalid_rule", "rule name is required")
     kind = str(rule.get("type", ""))
-    if kind not in {RULE_TYPE_STATE, RULE_TYPE_NUMERIC, RULE_TYPE_EVENT}:
+    if kind not in {
+        RULE_TYPE_STATE,
+        RULE_TYPE_NUMERIC,
+        RULE_TYPE_EVENT,
+        RULE_TYPE_CONTINUOUS,
+        RULE_TYPE_NOTICE,
+    }:
         raise RuleValidationError("invalid_rule", "unsupported rule type")
     rule["id"] = identity.strip()
     rule["name"] = name.strip()
@@ -134,11 +146,27 @@ def normalize_rule(
     try:
         rule["conditions"] = validate_condition_tree(rule.get("conditions"))
         if schedule := rule.get("schedule"):
-            rule["schedule"] = validate_condition_tree({"type": "time", **schedule})
+            if not isinstance(schedule, Mapping):
+                raise ConditionValidationError("schedule must be an object")
+            rule["schedule"] = validate_condition_tree({**schedule, "type": "time"})
         elif "schedule" in rule:
             rule["schedule"] = None
     except ConditionValidationError as err:
         raise RuleValidationError("invalid_conditions", str(err)) from err
+    if kind == RULE_TYPE_CONTINUOUS:
+        schedule = rule.get("schedule")
+        if schedule and schedule["after"] == schedule["before"]:
+            raise RuleValidationError("invalid_schedule", "Start and end must differ")
+        if not (rule["conditions"] or schedule):
+            raise RuleValidationError(
+                "empty_activation", "Add conditions or a schedule"
+            )
+    if kind == RULE_TYPE_NOTICE and (
+        rule["conditions"] or rule.get("schedule") or rule["for_seconds"]
+    ):
+        raise RuleValidationError(
+            "invalid_rule", "A saved notice runs only when requested"
+        )
 
     animation = str(rule.get("animation", "fixed"))
     if animation not in {"fixed", "blink", "pulse"}:
@@ -150,19 +178,25 @@ def normalize_rule(
         source = rule.get("source")
         if not isinstance(source, str) or "." not in source:
             raise RuleValidationError("invalid_rule", "source entity is required")
-    if kind == RULE_TYPE_STATE:
-        operator = str(rule.get("operator", "equals"))
-        if operator not in {"equals", "not_equals"}:
-            raise RuleValidationError("invalid_rule", "invalid state operator")
-        if not isinstance(rule.get("state"), str):
-            raise RuleValidationError("invalid_rule", "expected state is required")
-        rule["operator"] = operator
+    if kind in {RULE_TYPE_STATE, RULE_TYPE_CONTINUOUS, RULE_TYPE_NOTICE}:
         try:
             rule["rgb_color"] = list(
                 validate_rgb(rule.get("rgb_color", [255, 255, 255]))
             )
         except ValueError as err:
             raise RuleValidationError("invalid_color", str(err)) from err
+    if kind == RULE_TYPE_NOTICE:
+        rule["duration"] = _number(
+            rule.get("duration", 5), "duration", minimum=0.1, maximum=86400
+        )
+        rule["period"] = _number(rule["period"], "period", minimum=0.5, maximum=60)
+    elif kind == RULE_TYPE_STATE:
+        operator = str(rule.get("operator", "equals"))
+        if operator not in {"equals", "not_equals"}:
+            raise RuleValidationError("invalid_rule", "invalid state operator")
+        if not isinstance(rule.get("state"), str):
+            raise RuleValidationError("invalid_rule", "expected state is required")
+        rule["operator"] = operator
     elif kind == RULE_TYPE_NUMERIC:
         rule["minimum_change"] = _number(
             rule.get("minimum_change", 0), "minimum_change", minimum=0
@@ -198,7 +232,7 @@ def normalize_rule(
                 rule["activation"] = validate_numeric_activation(activation)
             except ConditionValidationError as err:
                 raise RuleValidationError("invalid_rule", str(err)) from err
-    else:
+    elif kind == RULE_TYPE_EVENT:
         if rule["for_seconds"]:
             raise RuleValidationError(
                 "invalid_rule",

@@ -752,7 +752,7 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
             await async_register_visual_editor_panel(hass, entry)
             async_remove_visual_editor_panel(hass)
 
-        self.assertEqual(register_command.call_count, 10)
+        self.assertEqual(register_command.call_count, 12)
         hass.http.async_register_static_paths.assert_awaited_once()
         static_path = hass.http.async_register_static_paths.await_args.args[0][0]
         self.assertEqual(static_path.url_path, STATIC_URL)

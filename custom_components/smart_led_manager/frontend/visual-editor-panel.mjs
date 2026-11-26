@@ -2,6 +2,7 @@ import {
   ADMIN_STYLES, ADMIN_TEXT, renderAdminHome, renderAdministration,
 } from "./admin-views.mjs";
 import { NUMERIC_CATEGORIES, SMART_STYLES, SMART_TEXT, renderSmartMenu } from "./smart-views.mjs";
+import { PLAN_TEXT, planTitle, renderPlan, simpleConditions } from "./plan-views.mjs";
 import {
   cssGradient,
   deepClone,
@@ -359,6 +360,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._render();
   }
   disconnectedCallback() {
+    clearTimeout(this._noticeTimer);
+    this._noticeTimer = undefined;
     window.removeEventListener("beforeunload", this._beforeUnload);
     this._detachStatus();
     this._invalidatePreviews();
@@ -419,10 +422,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   get _t() {
     const language = this._hass?.locale?.language ?? this._hass?.language ?? "en";
     const locale = String(language).toLowerCase().startsWith("es") ? "es" : "en";
-    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale], ...SMART_TEXT[locale] };
+    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale], ...SMART_TEXT[locale], ...PLAN_TEXT[locale] };
   }
 
-  _readsCatalog() { return ["rules", "lights", "zones", "modes"].includes(this._view); }
+  _readsCatalog() { return ["rules", "notifications", "lights", "zones", "modes"].includes(this._view); }
 
   _dirty() {
     return this._pointInput.size > 0 ||
@@ -460,7 +463,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         }
         if (status.status !== "ready") return;
         try {
-          const catalog = this._view === "rules" || (!this._readsCatalog() && !pending?.admin)
+          const catalog = ["rules", "notifications"].includes(this._view) || (!this._readsCatalog() && !pending?.admin)
             ? "smart_rules" : "admin";
           const response = await this._hass.callWS({
             type: `smart_led_manager/${catalog}/get`, entry_id: this._entryId,
@@ -569,7 +572,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   _openSmartCategory(category) {
-    if (["energyMenu", "notifications", "scheduleTemplate"].includes(category)) {
+    if (["energyMenu", "notifications"].includes(category)) {
       this._openView(category);
       return;
     }
@@ -581,7 +584,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _editorList() {
     if (this._adminDraft === "lights") return "home";
-    return this._adminDraft ? this._view : "rules";
+    return this._adminDraft || this._view === "notifications" ? this._view : "rules";
   }
   _goHome() { this._requestExit("home"); }
 
@@ -605,6 +608,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._original = undefined;
     this._adminDraft = undefined;
     this._templateEditor = false;
+    this._planEditor = false;
     this._fromSmartMenu = false;
     this._adminExpanded.clear();
     this._effectPreview = false;
@@ -635,6 +639,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._dwellUnit = "seconds";
     this._previousPoints = undefined;
     this._simulatedState = undefined;
+    this._planValues = {};
+    this._planAt = "";
   }
 
   _invalidatePreviews() {
@@ -642,6 +648,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._targetRequest++;
     this._targetPreview = undefined;
     this._numericPreview = undefined;
+    this._planPreview = undefined;
+    clearTimeout(this._noticeTimer);
+    this._noticeTimer = undefined;
     for (const element of this.shadowRoot.querySelectorAll("[data-preview-result]")) element.hidden = true;
   }
 
@@ -662,6 +671,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._revision = this._catalogRevision ?? this._revision;
     this._draft = this._draftFromRule(selected.rule);
     const rule = this._draft;
+    this._planEditor = rule.type === "notice" || rule.type === "continuous" &&
+      (!rule.conditions || simpleConditions(rule));
     this._templateEditor = Boolean(rule.category) && !rule.conditions && !rule.schedule &&
       !["areas", "labels", "groups"].some((key) => rule.target_selection[key]?.length) &&
       (rule.type === "numeric" ? Boolean(rule.points) && rule.animation === "fixed" : rule.operator === "equals");
@@ -690,11 +701,22 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       animation: "fixed", period: 1, for_seconds: 0,
     };
     if (category) {
-      this._fromSmartMenu = true;
+      this._fromSmartMenu = category !== "notifications";
       this._draft.target_selection.entities = [];
-      if (category === "newSchedule") this._draft.schedule = defaultSchedule();
-      else if (category === "advancedTemplate") this._draft.conditions = newCondition("state");
-      else {
+      if (["notifications", "scheduleTemplate", "advancedTemplate"].includes(category)) {
+        this._planEditor = true;
+        const rule = this._draft;
+        delete rule.source; delete rule.state; delete rule.operator;
+        rule.type = category === "notifications" ? "notice" : "continuous";
+        rule.rgb_color = [255, 136, 0];
+        if (rule.type === "notice") {
+          rule.duration = 5;
+          rule.priority = 70;
+          rule.brightness = 204;
+        } else if (category === "scheduleTemplate") {
+          rule.schedule = { ...defaultSchedule(), after: "19:00", before: "23:00" };
+        } else rule.conditions = { type: "and", conditions: [newCondition("state")] };
+      } else {
         this._templateEditor = true;
         this._draft.category = category;
         if (NUMERIC_CATEGORIES.includes(category)) {
@@ -787,6 +809,15 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       draft.targets.length && Number.isInteger(draft.priority) && draft.priority >= 0 &&
       draft.priority <= 100 && (draft.transition == null || (draft.transition >= 0 && draft.transition <= 300)) &&
       Number.isFinite(draft.period) && draft.period >= 0.5 && draft.period <= 60);
+    if (["notice", "continuous"].includes(draft?.type)) {
+      const schedule = draft.schedule;
+      if (!draft.name?.trim() || !Object.values(draft.target_selection).some((value) => value === true || value?.length)) return false;
+      if (!Number.isInteger(draft.priority) || draft.priority < 0 || draft.priority > 100) return false;
+      if (draft.type === "notice") return Number.isFinite(draft.duration) && draft.duration >= 0.1 && draft.duration <= 86400 &&
+        Number.isFinite(draft.period) && draft.period >= 0.5 && draft.period <= 60;
+      return Boolean((draft.conditions || schedule) && (!schedule || (schedule.weekdays.length &&
+        schedule.after && schedule.before && schedule.after !== schedule.before)));
+    }
     if (this._templateEditor) {
       const source = this._templateSources().find((item) => item.entity_id === draft.source);
       const selection = draft.target_selection;
@@ -995,6 +1026,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._eventPairs[Number(index)][Number(part)] = value;
       return;
     }
+    if (this._planEditor && path === "conditions.type" && ["and", "or"].includes(value)) {
+      this._set("conditions", { ...this._draft.conditions, type: value });
+      return;
+    }
     if (path.startsWith("conditions") && path.endsWith(".type")) {
       const key = path.slice(0, -5);
       const replacement = newCondition(value);
@@ -1153,20 +1188,23 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _renderList() {
     const t = this._t;
+    const notices = this._view === "notifications";
     const status = this._runtimeMessage();
     const disabled = this._canWrite() ? "" : "disabled";
-    const rows = this._rules.map(({ rule, source, category, targets, target_error, condition_summary, schedule_summary }) => {
+    const rows = this._rules.filter(({rule}) => !notices || rule.type === "notice")
+      .map(({ rule, source, category, targets, target_error, condition_summary, schedule_summary }) => {
       const targetNames = (targets ?? []).map((item) => item.name).join(", ");
       const color = rule.points ? cssGradient(rule.points, rule.mode) : rgbToHex(rule.rgb_color ?? [255,255,255]);
       return `<article class="rule"><div><strong>${esc(rule.name)}</strong>
         <span class="badge ${rule.enabled !== false ? "on" : ""}">${rule.enabled !== false ? t.enabled : t.disabled}</span>
-        <div class="meta"><span>${esc(t[category ?? rule.category] ?? t[rule.type] ?? rule.type)}</span><span>${t.priority}: ${esc(rule.priority)}</span>
+        <div class="meta"><span>${esc(planTitle(rule, t) ?? t[category ?? rule.category] ?? t[rule.type] ?? rule.type)}</span><span>${t.priority}: ${esc(rule.priority)}</span>
         <span>${t.source}: ${esc(source?.name ?? rule.source)}</span><span>${t.targets}: ${esc(targetNames)}</span>
         ${condition_summary ? `<span>${t.conditions}: ${esc(condition_summary)}</span>` : ""}
         ${schedule_summary ? `<span>${t.schedule}: ${esc(schedule_summary)}</span>` : ""}</div>
         <div class="rule-color" style="background:${color}"></div>
         ${target_error ? `<p role="status">${t.unsafe}: ${esc(target_error)}</p>` : ""}
         </div><div class="rule-actions">
+        ${rule.type === "notice" && rule.enabled !== false ? `<button data-run-notice="${esc(rule.id)}" ${disabled}>${t.physicalRun}</button>` : ""}
         <button data-edit="${esc(rule.id)}">${t.edit}</button>
         <button data-duplicate="${esc(rule.id)}" ${disabled}>${t.duplicate}</button>
         <button data-toggle="${esc(rule.id)}" data-enabled="${rule.enabled !== false}" ${disabled}>
@@ -1176,7 +1214,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const list = this._loading ? `<p>${t.loading}</p>` : rows || (this._error || status ? "" : `<p class="muted">${t.noRules}</p>`);
     return `<main><div class="toolbar"><button data-smart-menu>← ${t.smart}</button>
       <button data-reload ${this._loading || this._saving || this._runtimeStatus === "offline" ? "disabled" : ""}>${t.checkStatus}</button>
-      <span class="spacer"></span><button class="primary" data-create ${disabled}>${t.create}</button></div><h1>${t.smartRules}</h1><p>${t.smartDescription}</p>
+      <span class="spacer"></span><button class="primary" data-create ${disabled}>${notices ? t.newNotice : t.create}</button></div>
+      <h1>${notices ? t.noticeCatalog : t.smartRules}</h1><p>${notices ? t.noticeHelp : t.smartDescription}</p>
       ${status ? `<div class="message" role="status">${esc(status)}</div>` : ""}
       ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
       ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
@@ -1214,6 +1253,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _renderOrigin() {
     const t = this._t, r = this._draft;
     if (r.type === "event") return this._renderTrigger();
+    if (r.type === "continuous") return "";
     const items = r.category ? this._templateSources() : this._entities(r.type);
     const entity = items.find((item) => item.entity_id === r.source);
     return `<div class="form-grid">${picker(t.entity, "source", items, r.source, t)}
@@ -1401,6 +1441,101 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         <button class="primary" data-save ${this._canWrite() && this._validDraft() ? "" : "disabled"}>${this._saving ? t.saving : t.save}</button></div></main>`;
   }
 
+  _renderPlan() {
+    const t = this._t, r = this._draft, items = this._selections;
+    const result = this._planPreview;
+    const playing = Boolean(this._noticeTimer);
+    const preview = r.type === "notice" ? this._previewStrip(r.rgb_color, playing, playing ? r.animation : "", playing) :
+      `${inputField(t.activationTime, "preview_at", this._planAt, "datetime-local")}
+        ${this._renderPlanInputs(r.conditions)}
+        ${this._previewStrip(r.rgb_color, result === "true", result === "true" ? r.animation : "", true)}
+        ${result ? `<p data-preview-result role="status">${t["plan_" + result]}</p>` : ""}`;
+    return renderPlan({
+      rule: r, t, preview, simulating: playing,
+      conditions: conditionControls(r.conditions, {t, entities: this._entities("state"), numeric: this._entities("numeric"), simple: true}),
+      targets: `<div class="form-grid">${this._targetSelect(t.zones, "zones", items.zones)}
+          ${this._targetSelect(t.individual, "entities", items.managed_lights)}</div>
+        <label class="check"><input type="checkbox" data-target-all ${r.target_selection.all_managed ? "checked" : ""}>${t.allManaged}</label>`,
+      advancedTargets: `<div class="form-grid">${this._targetSelect(t.areas, "areas", items.areas)}
+        ${this._targetSelect(t.labels, "labels", items.labels)}${this._targetSelect(t.groups, "groups", items.groups)}</div>`,
+      status: this._runtimeMessage() || this._notice, error: this._error, busy: this._saving,
+      canSave: this._canWrite() && this._validDraft(),
+      canRun: Boolean(r.id && r.enabled && !this._dirty() && this._canWrite()),
+    });
+  }
+
+  _renderPlanInputs(tree) {
+    const t = this._t, sources = new Map();
+    for (const node of tree?.conditions ?? []) {
+      if (node.entity_id) sources.set(node.entity_id, node.type);
+    }
+    const entities = this._entities("state");
+    return [...sources].map(([id, type]) => {
+      const entity = entities.find((item) => item.entity_id === id);
+      const label = esc(entity?.name ?? id);
+      const value = this._planValues[id] ?? "";
+      if (type === "numeric") return `<label>${label}<input type="text" inputmode="decimal"
+        data-plan-value="${esc(id)}" value="${esc(value)}" placeholder="${t.useLive}"></label>`;
+      const options = [["", t.useLive], ...stateOptions(entity).map((item) => [item, this._stateLabel(entity, item)]),
+        ["unknown", t.stateUnknown], ["unavailable", t.stateUnavailable]];
+      return `<label>${label}<select data-plan-value="${esc(id)}">${options.map(([id, name]) =>
+        `<option value="${esc(id)}" ${value === id ? "selected" : ""}>${esc(name)}</option>`).join("")}</select></label>`;
+    }).join("");
+  }
+
+  async _previewActivation() {
+    const request = ++this._previewRequest;
+    const { conditions, schedule } = this._draft;
+    const valid = new Set((conditions?.conditions ?? []).map((item) => item.entity_id));
+    const values = Object.fromEntries(Object.entries(this._planValues).filter(([id, value]) => valid.has(id) && value !== ""));
+    try {
+      const response = await this._hass.callWS({
+        type: "smart_led_manager/smart_rules/preview_activation", entry_id: this._entryId,
+        ...(conditions && {conditions}), ...(schedule && {schedule}), ...(this._planAt && {at: this._planAt}), values,
+      });
+      if (request !== this._previewRequest) return;
+      this._planPreview = response.result;
+      this._error = undefined;
+    } catch (error) {
+      if (request !== this._previewRequest) return;
+      this._planPreview = undefined;
+      this._error = this._t[error?.code] ?? error?.message ?? String(error);
+    }
+    this._render();
+  }
+
+  _simulateNotice() {
+    if (this._noticeTimer) {
+      this._invalidatePreviews();
+    } else {
+      const duration = this._draft.duration;
+      if (!Number.isFinite(duration) || duration < 0.1 || duration > 86400) return;
+      this._noticeTimer = setTimeout(() => {
+        this._noticeTimer = undefined;
+        this._render();
+      }, duration * 1000);
+    }
+    this._render();
+  }
+
+  async _runNotice(id) {
+    if (!this._canWrite() || (this._draft && this._dirty()) || !window.confirm(this._t.confirmPhysicalRun)) return;
+    this._saving = true;
+    this._error = this._notice = undefined;
+    this._render();
+    try {
+      await this._hass.callWS({
+        type: "smart_led_manager/notices/run", entry_id: this._entryId, revision: this._revision, notice_id: id,
+      });
+      this._notice = this._t.noticeRequested;
+    } catch (error) {
+      this._error = this._t[error?.code] ?? error?.message ?? String(error);
+    } finally {
+      this._saving = false;
+      this._render();
+    }
+  }
+
   _focusPoint(index) {
     const input = this.shadowRoot.querySelector(`[data-point-value="${index}"]`);
     input?.scrollIntoView?.({ behavior: "smooth", block: "center" });
@@ -1428,9 +1563,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
           : `<p>${t[r.type]}</p>`}
         <label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled !== false ? "checked" : ""}>${t.enabled}</label>
       </div></section>
-      <section class="card"><h3>${t.origin}</h3>${this._renderOrigin()}</section>
+      ${r.type === "continuous" ? "" : `<section class="card"><h3>${t.origin}</h3>${this._renderOrigin()}</section>`}
       <section class="card"><h3>${t.conditionSection}</h3>${conditionControls(r.conditions,
-        { t, entities: this._entities("state"), numeric: this._entities("numeric") })}</section>
+        { t, entities: this._entities("state"), numeric: this._entities("numeric"), hysteresis: r.type === "continuous" })}</section>
       <section class="card"><h3>${t.timeSection}</h3>${this._renderTime()}</section>
       <section class="card"><h3>${t.targetSection}</h3><div class="form-grid">
         ${this._targetSelect(t.individual, "entities", items.managed_lights)}
@@ -1460,7 +1595,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       </fieldset>
       <div class="actions">${this._original && !this._creating ? `<button data-restore>${t.restore}</button>` : ""}
         <button data-discard>${t.cancel}</button><button class="primary" data-save
-        ${!this._canWrite() || !r.name?.trim() || this._invalidNumeric() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>
+        ${!this._canWrite() || !this._validDraft() ? "disabled" : ""}>${this._saving ? t.saving : t.save}</button>
       </div></main>`;
   }
 
@@ -1473,8 +1608,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     }
     const content = this._adminDraft || ["lights", "zones", "modes", "settings"].includes(this._view)
       ? this._renderAdmin()
-      : this._draft ? (this._templateEditor ? this._renderTemplate() : this._renderEditor())
-        : this._view === "rules" ? this._renderList()
+      : this._draft ? (this._planEditor ? this._renderPlan() : this._templateEditor ? this._renderTemplate() : this._renderEditor())
+        : ["rules", "notifications"].includes(this._view) ? this._renderList()
           : this._view === "home" ? this._renderHome() : renderSmartMenu(this._t, this._view);
     this.shadowRoot.innerHTML = `<style>${this._styles()}${ADMIN_STYLES}${SMART_STYLES}</style>${content}${this._renderExitDialog()}`; this._bind();
     const dialog = this.shadowRoot.querySelector("[data-exit-dialog]");
@@ -1514,7 +1649,14 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._error = this._draft && this._revision !== this._catalogRevision ? this._t.conflict : undefined;
       this._load();
     });
-    click("[data-create]", () => this._create());
+    click("[data-create]", () => this._create(this._view === "notifications" ? "notifications" : undefined));
+    click("[data-run-notice]", (el) => this._runNotice(el.dataset.runNotice));
+    click("[data-simulate-notice]", () => this._simulateNotice());
+    click("[data-simulate-plan]", () => this._previewActivation());
+    click("[data-plan-advanced]", () => { this._planEditor = false; this._render(); });
+    on("[data-plan-value]", "input", (el) => {
+      this._planValues[el.dataset.planValue] = el.value; this._invalidatePreviews();
+    });
     click("[data-edit]", (el) => this._edit(el.dataset.edit));
     click("[data-duplicate]", (el) => this._mutate("duplicate", { rule_id: el.dataset.duplicate }));
     click("[data-toggle]", (el) => this._mutate("toggle", {
@@ -1605,6 +1747,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     }
     on("[data-path]", "input", (el) => {
       if (el.tagName !== "INPUT" || el.type === "time") return;
+      if (el.dataset.path === "preview_at") {
+        this._planAt = el.value; this._invalidatePreviews(); return;
+      }
       const value = el.type === "number" ? (el.value === "" ? null : Number(el.value)) : el.value;
       this._changeField(el.dataset.path, value, false);
     });

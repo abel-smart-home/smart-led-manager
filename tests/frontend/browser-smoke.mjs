@@ -82,6 +82,7 @@ editor.hass = {
       mutation: receipt?.id === message.mutation_id ? receipt : null,
     };
     if (message.type.endsWith("/admin/get")) return { revision, admin: structuredClone(admin) };
+    if (message.type.endsWith("/preview_activation")) return { result: "true" };
     if (message.type.endsWith("/preview")) return { results: [{
       hex:"#800080", rgb:[128,0,128], lower:message.points[0].value, upper:message.points.at(-1).value,
     }] };
@@ -280,6 +281,36 @@ try {
   check(rule.category === "power" && rule.source_unit === "W", "Template save lost its source unit");
   runtime = "ready"; applied = revision;
   await waitFor(() => pick(".notice") && pick("[data-edit]"), "Template save did not return to the common catalog");
+  const openPlan = async (category) => {
+    editor._openView("home");
+    pick("[data-rules]").click();
+    pick('[data-smart-category="' + category + '"]').click();
+    if (category === "notifications") {
+      await waitFor(() => pick("[data-create]:enabled"), "Notice catalog did not open");
+      pick("[data-create]").click();
+    }
+    await waitFor(() => pick(".plan-editor"), "C.2.4 form did not open");
+  };
+  await openPlan("notifications");
+  const beforeNotice = mutations;
+  pick("[data-simulate-notice]").click();
+  check(pick(".template-strip span").style.getPropertyValue("--preview-intensity") === "0.8", "Notice did not simulate locally");
+  check(mutations === beforeNotice && !pick('[data-run-notice]'), "Unsaved notice can send real commands");
+  pick("[data-simulate-notice]").click();
+  await openPlan("scheduleTemplate");
+  check(!pick('[data-path="source"]'), "Independent schedule requires a fake source");
+  change('[data-path="name"]', "Luz nocturna", "input");
+  change('[data-add-choice="target_selection.zones"]', "living");
+  change('[data-path="schedule.before"]', "19:00");
+  check(pick("[data-save]").disabled, "Equal schedule endpoints were accepted");
+  change('[data-path="schedule.before"]', "06:00");
+  pick("[data-simulate-plan]").click();
+  await waitFor(() => root.textContent.includes("Solicitaría la iluminación"), "Schedule preview did not render");
+  await openPlan("advancedTemplate");
+  change('[data-path="conditions.conditions.0.entity_id"]', "input_boolean.door");
+  change('[data-path="conditions.conditions.0.state"]', "on", "input");
+  change('[data-path="conditions.type"]', "or");
+  check(pick('[data-path="conditions.conditions.0.entity_id"]').value === "input_boolean.door", "Changing all/any dropped the conditions");
   window.captureAdmin = async (name, theme) => {
     document.documentElement.dataset.theme = theme;
     admin = structuredClone(demo);
@@ -292,6 +323,27 @@ try {
       if (name === "automation-list") {
         pick('[data-smart-category="smartRules"]').click();
         await waitFor(() => pick("[data-create]") && !pick("[data-create]").disabled, "Rule list did not load");
+      }
+    } else if (["notice", "schedule", "advanced"].includes(name)) {
+      await openPlan({notice:"notifications",schedule:"scheduleTemplate",advanced:"advancedTemplate"}[name]);
+      change('[data-path="name"]', {notice:"Límite de energía",schedule:"Iluminación nocturna",advanced:"Iluminar si hay presencia"}[name], "input");
+      change('[data-add-choice="target_selection.zones"]', "living");
+      if (name === "notice") {
+        change('[data-path="animation"]', "pulse");
+        pick("[data-simulate-notice]").click();
+      } else {
+        if (name === "advanced") {
+          change('[data-path="conditions.conditions.0.entity_id"]', "input_boolean.door");
+          change('[data-path="conditions.conditions.0.state"]', "on", "input");
+          pick("[data-schedule-enabled]").click();
+          change('[data-path="schedule.after"]', "19:00");
+          change('[data-path="schedule.before"]', "23:00");
+        } else {
+          change('[data-path="schedule.after"]', "22:00");
+          change('[data-path="schedule.before"]', "06:00");
+        }
+        pick("[data-simulate-plan]").click();
+        await waitFor(() => root.textContent.includes("Solicitaría la iluminación"), "Draft preview did not render");
       }
     } else if (Object.hasOwn(sensors, name)) {
       await openTemplate(name);
@@ -320,7 +372,7 @@ try {
 </script>`;
 
 const server = createServer(async (request, response) => {
-  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views|smart-views)\.mjs$/.exec(request.url);
+  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views|smart-views|plan-views)\.mjs$/.exec(request.url);
   if (name) {
     const file = new URL(`../../custom_components/smart_led_manager/frontend/${name[1]}.mjs`, import.meta.url);
     response.setHeader("Content-Type", "text/javascript");
@@ -396,7 +448,11 @@ try {
   if (captures) {
     await mkdir(captures, { recursive: true });
     const c23 = basename(captures) === "c23-evidence";
-    const sets = c23 ? [
+    const c24 = basename(captures) === "c24-evidence";
+    const sets = c24 ? [
+      {name:"desktop",theme:"light",width:1280,height:900,views:["notice","schedule","advanced"]},
+      {name:"mobile",theme:"dark",width:390,height:844,views:["notice","schedule","advanced"]},
+    ] : c23 ? [
       { name: "desktop", theme: "light", width: 1280, height: 900, views: ["home","smart","automation-list","temperature","humidity","power","energy","security","presence"] },
       { name: "mobile", theme: "dark", width: 390, height: 844, views: ["home","smart","temperature","energy","security","presence"] },
     ] : [
@@ -416,7 +472,7 @@ try {
         assert.ok(prepared.result.value.heading);
         const saved = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
         await writeFile(join(captures, name + "-" + view + ".png"), Buffer.from(saved.data, "base64"));
-        if (view === "create-mode" || c23 && ["temperature","humidity","power","energy","security","presence"].includes(view)) {
+        if (c24 || view === "create-mode" || c23 && ["temperature","humidity","power","energy","security","presence"].includes(view)) {
           const { cssContentSize } = await send("Page.getLayoutMetrics");
           const full = await send("Page.captureScreenshot", {
             format: "png", fromSurface: true, captureBeyondViewport: true,

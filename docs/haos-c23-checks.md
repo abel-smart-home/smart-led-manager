@@ -1,5 +1,8 @@
 # Instalar y probar Smart LED Manager C.2.3 en VirtualBox
 
+El propietario aprobó R-01–R-12, el tamaño del inicio y la validación visual
+en Core 2026.11.3, sin observaciones. [Registro del propietario](haos-test-plan.md#resultado-de-c23-en-virtualbox).
+
 Usa tu máquina de laboratorio de HAOS. La versión visible sigue siendo
 **0.1.0-alpha.3**. Instala el código del SHA
 `98e77d013ef03581f3aa1359d8576935effe4645`.
@@ -56,7 +59,7 @@ recuperar. Elimina secretos de los registros que compartas.
 
 La matriz técnica comprobó 248 casos por versión de Core
 (`2026.11.0`, `2026.11.2` y `2026.11.3`) con 85,87 % de cobertura
-de ramas. El resultado de este recorrido de HAOS, la revisión visual
-definitiva y las comprobaciones físicas se registran por separado.
+de ramas. El recorrido de HAOS y su revisión visual quedaron aprobados.
+Las comprobaciones físicas conservan su registro separado.
 [Matriz Linux del SHA funcional](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45888066752).
 [Plan de pruebas](haos-test-plan.md).

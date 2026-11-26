@@ -14,7 +14,7 @@ from homeassistant.helpers.typing import ConfigType
 from .const import CONF_AREA_ID, CONF_ZONES, DOMAIN, PLATFORMS
 from .coordinator import SmartLEDCoordinator, SmartLEDManagerConfigEntry
 from .registry import async_reconcile_registries
-from .services import async_setup_services
+from .services import async_setup_services, async_update_notice_schema
 from .storage import SmartLEDStorage
 from .visual_editor import (
     async_clear_visual_editor_state,
@@ -60,6 +60,7 @@ async def async_setup_entry(
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await async_register_visual_editor_panel(hass, entry)
+    async_update_notice_schema(hass, coordinator.notice_choices())
     return True
 
 
@@ -70,7 +71,10 @@ async def async_unload_entry(
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False
     await entry.runtime_data.async_shutdown()
-    hass.data.get(DOMAIN, {}).get("entries", {}).pop(entry.entry_id, None)
+    entries = hass.data.get(DOMAIN, {}).get("entries", {})
+    entries.pop(entry.entry_id, None)
+    if not entries:
+        async_update_notice_schema(hass, [])
     async_finish_visual_editor_unload(hass, entry)
     return True
 

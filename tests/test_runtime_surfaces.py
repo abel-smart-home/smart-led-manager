@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from homeassistant.components import frontend
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
+from homeassistant.core import SupportsResponse
 
 from custom_components.smart_led_manager import (
     _async_update_listener,
@@ -62,6 +63,9 @@ class _Hass:
     def __init__(self, *, unload_result: bool = True) -> None:
         self.data: dict[str, object] = {}
         self.config_entries = _ConfigEntries(unload_result=unload_result)
+        self.services = SimpleNamespace(
+            supports_response=lambda *_: SupportsResponse.OPTIONAL
+        )
 
 
 class _Entry:
@@ -191,6 +195,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
             async_shutdown=AsyncMock(),
             modes=Mock(),
             catalog_valid=True,
+            notice_choices=Mock(return_value=[]),
         )
         with (
             patch(

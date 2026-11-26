@@ -98,14 +98,6 @@ export function renderSmartMenu(t, view) {
   if (view === "energyMenu") {
     return smartFrame(t.energyMenu, back, row("power", t.power, t.powerHelp) + row("energy", t.energy, t.energyHelp));
   }
-  if (view === "notifications") {
-    return smartFrame(t.notifications, back, `<p>${t.notifyHelp}</p>
-      <a class="slm-row slm-link" href="/developer-tools/action"><strong>${t.nativeNotify}</strong><span aria-hidden="true">›</span></a>`);
-  }
-  if (view === "scheduleTemplate") {
-    return smartFrame(t.scheduleTemplate, back, `<p>${t.scheduleHelp}</p>
-      ${row("newSchedule", t.createSchedule, "")}${row("smartRules", t.smartRules, t.categories[0])}`);
-  }
   return smartFrame(t.smart, home, `<p>${t.smartQuestion}</p>` +
     CATEGORIES.map((key, index) => row(key, t[key], t.categories[index])).join(""));
 }
@@ -117,6 +109,7 @@ export const SMART_STYLES = `
  .template-editor details[open]>summary{margin-bottom:7px}
  .template-editor summary:focus-visible,.template-editor input:focus-visible,.template-editor select:focus-visible{outline:3px solid var(--primary-color);outline-offset:2px}
  .template-strip{min-height:105px;border-radius:12px;background:#181820;display:grid;place-items:center;margin-top:12px}
+ .template-strip[hidden]{display:none}
  .template-strip span{height:8px;border-radius:6px;width:84%;background:var(--strip);opacity:var(--intensity);box-shadow:0 0 20px var(--strip)}
  .template-strip .preview-pulse{animation:slm-fade var(--period) ease-in-out infinite}
  .template-strip .preview-blink{animation:slm-fade var(--period) steps(1,end) infinite}

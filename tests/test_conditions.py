@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
@@ -14,11 +14,30 @@ from custom_components.smart_led_manager.core.conditions import (
     condition_entity_ids,
     condition_schedules,
     evaluate_condition,
+    next_schedule_boundary,
     numeric_activation_matches,
     schedule_is_active,
     validate_condition_tree,
     validate_numeric_activation,
 )
+
+
+def test_schedule_boundary_handles_both_dst_transitions() -> None:
+    local = ZoneInfo("America/Los_Angeles")
+    sunday = {"weekdays": ["sun"], "after": "02:10", "before": "03:30"}
+    before_gap = datetime(2026, 3, 8, 1, 59, tzinfo=local)
+    jump = next_schedule_boundary([sunday], before_gap)
+    assert jump == datetime(2026, 3, 8, 10, tzinfo=UTC)
+    assert schedule_is_active(sunday, jump.astimezone(local))
+
+    repeated = {"weekdays": ["sun"], "after": "01:30", "before": "02:30"}
+    first = datetime(2026, 11, 1, 1, 45, tzinfo=local)
+    rewind = next_schedule_boundary([repeated], first)
+    assert rewind == datetime(2026, 11, 1, 9, tzinfo=UTC)
+    assert not schedule_is_active(repeated, rewind.astimezone(local))
+    assert next_schedule_boundary([repeated], rewind.astimezone(local)) == datetime(
+        2026, 11, 1, 9, 30, tzinfo=UTC
+    )
 
 
 def _states(values: dict[str, str]):

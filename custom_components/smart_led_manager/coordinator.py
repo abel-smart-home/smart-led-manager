@@ -36,6 +36,8 @@ from .const import (
     EVENT_REQUEST_CHANGED,
     MAX_ACTIVITY_ITEMS,
     MODULE_MANUAL,
+    MODULE_NOTIFICATION,
+    RULE_TYPE_NOTICE,
 )
 from .controllers.base import ApplyStatus, UnsupportedLightCommandError
 from .controllers.rgb import RGBLightController
@@ -43,6 +45,7 @@ from .core.engine import PriorityEngine
 from .core.scheduler import AnimationScheduler, DeadlineScheduler
 from .core.targets import TargetResolver
 from .models import (
+    AnimationKind,
     AnimationSpec,
     DecisionChange,
     LightCommand,
@@ -52,12 +55,15 @@ from .models import (
 )
 from .modules.configuration import options_revision
 from .modules.modes import ModeManager, ModeValidationError
+from .modules.rule_schema import RuleValidationError, normalize_rule
 from .modules.rules import RuleManager
+from .modules.targeting import AdvancedTargetError, AdvancedTargetResolver
 from .storage import SmartLEDStorage
 
 _LOGGER = logging.getLogger(__name__)
 
 _FAILED_SEND_RECOVERY_DELAY = 5.0
+_NOTICE_REQUEST_PREFIX = "smart_led_manager:notice:"
 
 CoordinatorListener = Callable[[], None]
 
@@ -99,13 +105,23 @@ class SmartLEDCoordinator:
             catalog_error = f"Invalid mode catalog ignored: {err.key}"
             _LOGGER.error("%s", catalog_error)
             self.modes = ModeManager(self.engine, [], [], self.targets.authorized)
+        rules = list(options.get(CONF_RULES, []))
+        zones = list(options.get(CONF_ZONES, []))
+        self._notices = {
+            rule["id"]: rule
+            for rule in rules
+            if rule.get("type") == RULE_TYPE_NOTICE and isinstance(rule.get("id"), str)
+        }
+        self._notice_targets = AdvancedTargetResolver(
+            hass, self.targets.authorized, zones, audit=False
+        )
         self.rules = RuleManager(
             hass,
-            list(options.get(CONF_RULES, [])),
+            rules,
             self.targets.authorized,
             self.async_submit,
             self.async_cancel,
-            zones=list(options.get(CONF_ZONES, [])),
+            zones=zones,
         )
         self.manual_policy = str(options.get(CONF_MANUAL_POLICY, DEFAULT_MANUAL_POLICY))
         self.history: deque[dict[str, Any]] = deque(maxlen=MAX_ACTIVITY_ITEMS)
@@ -148,6 +164,9 @@ class SmartLEDCoordinator:
                         err,
                     )
                     continue
+                if request.request_id.startswith(_NOTICE_REQUEST_PREFIX):
+                    storage_changed = True
+                    continue
                 authorized.append(request)
             if rejected:
                 self.last_error = (
@@ -186,16 +205,74 @@ class SmartLEDCoordinator:
         """Authorize, submit, apply, persist, and reschedule a request."""
         if ModeManager.is_internal_request(request):
             raise ModeValidationError("managed_mode_request")
+        if request.request_id.startswith(_NOTICE_REQUEST_PREFIX):
+            raise ModeValidationError("managed_notice_request")
         resolved = self.targets.resolve(request.targets)
         if resolved != request.targets:
             request = replace(request, targets=resolved)
         async with self._mutation_lock:
-            save = (
-                request.persistent or request.request_id in self._persisted_request_ids
+            await self._async_submit_locked(request)
+
+    async def _async_submit_locked(self, request: Request) -> None:
+        save = request.persistent or request.request_id in self._persisted_request_ids
+        changes = await self.engine.async_submit(request)
+        await self._async_apply_changes(changes)
+        await self._async_after_mutation(save=save)
+
+    def notice_choices(self) -> list[dict[str, str]]:
+        """Expose enabled saved notices by display name and stable identifier."""
+        choices = [
+            {"value": notice_id, "label": str(rule.get("name") or notice_id)}
+            for notice_id, rule in self._notices.items()
+            if rule.get("enabled", True) is not False
+        ]
+        return sorted(
+            choices, key=lambda choice: (choice["label"].casefold(), choice["value"])
+        )
+
+    async def async_run_notice(self, notice_id: str) -> dict[str, Any]:
+        """Renew one transient engine request from the current saved definition."""
+        async with self._mutation_lock:
+            if (
+                not self._started
+                or options_revision(self.entry.options) != self.options_revision
+            ):
+                raise ModeValidationError("notice_entry_not_ready")
+            if (definition := self._notices.get(notice_id)) is None:
+                raise ModeValidationError("notice_not_found")
+            if definition.get("enabled", True) is False:
+                raise ModeValidationError("notice_disabled")
+            try:
+                notice = normalize_rule(definition)
+                targets = self._notice_targets.resolve_rule(notice).targets
+            except (RuleValidationError, AdvancedTargetError) as err:
+                raise ModeValidationError("notice_invalid") from err
+            now = utc_now()
+            request = Request(
+                request_id=_NOTICE_REQUEST_PREFIX + notice_id,
+                source="action:run_notice",
+                name=notice["name"],
+                module=MODULE_NOTIFICATION,
+                targets=targets,
+                priority=notice["priority"],
+                command=LightCommand(
+                    color=tuple(notice["rgb_color"]),
+                    brightness=notice["brightness"],
+                    transition=notice["transition"],
+                    animation=AnimationSpec(
+                        kind=AnimationKind.NONE
+                        if notice["animation"] == "fixed"
+                        else AnimationKind(notice["animation"]),
+                        interval=notice["period"],
+                    ),
+                ),
+                activated_at=now,
+                updated_at=now,
+                expires_at=now + timedelta(seconds=notice["duration"]),
+                metadata={"notice_id": notice_id},
             )
-            changes = await self.engine.async_submit(request)
-            await self._async_apply_changes(changes)
-            await self._async_after_mutation(save=save)
+            await self._async_submit_locked(request)
+            return {"request_id": request.request_id, "targets": sorted(targets)}
 
     async def async_deactivate(self, request_id: str) -> None:
         """Deactivate a request without deleting its record."""
@@ -340,11 +417,12 @@ class SmartLEDCoordinator:
         if self._unsub_lights is not None:
             self._unsub_lights()
             self._unsub_lights = None
-        await self.expiry.async_shutdown()
-        await self._async_cancel_recoveries()
-        await self.animations.async_shutdown()
-        await self.controller.async_shutdown()
-        await self._async_save()
+        async with self._mutation_lock:
+            await self.expiry.async_shutdown()
+            await self._async_cancel_recoveries()
+            await self.animations.async_shutdown()
+            await self.controller.async_shutdown()
+            await self._async_save()
         self.status = "stopped"
         self._notify_listeners()
 

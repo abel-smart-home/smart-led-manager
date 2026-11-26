@@ -24,5 +24,6 @@ Assistant Core 2026.11.3 con sensores y luces de laboratorio. Publica
 
 Los controles mantienen las variables de tema de HA y presentan por separado
 zonas y luces autorizadas. Las reglas con destinos o condiciones avanzadas
-abren el editor compatible para preservar su configuración. La aprobación
-visual definitiva sigue pendiente. [Guía del propietario](../../haos-c23-checks.md).
+abren el editor compatible para preservar su configuración. El propietario
+aprobó la validación visual de C.2.3 en HAOS VirtualBox, sin observaciones.
+[Resultado](../../haos-test-plan.md#resultado-de-c23-en-virtualbox).

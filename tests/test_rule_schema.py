@@ -94,6 +94,24 @@ def test_invalid_color_and_empty_targets_have_stable_error_codes() -> None:
     assert targets.value.code == "empty_targets"
 
 
+def test_source_free_schedule_and_notice_share_the_catalog() -> None:
+    targets = ["light.one"]
+    schedule = {"after": "22:00", "before": "06:00", "weekdays": ["mon"]}
+    plan = {"id": "plan", "name": "Night", "type": "continuous", "targets": targets}
+    saved = normalize_rule({**plan, "schedule": schedule})
+    assert "source" not in saved
+    assert saved["schedule"]["weekdays"] == ["mon"]
+    with pytest.raises(RuleValidationError, match="Start and end"):
+        normalize_rule({**plan, "schedule": {**schedule, "before": "22:00"}})
+    with pytest.raises(RuleValidationError, match="Add conditions"):
+        normalize_rule(plan)
+    notice = normalize_rule({**plan, "type": "notice", "duration": 15})
+    catalog = RuleCatalog([saved, notice | {"id": "notice"}])
+    duplicate = catalog.duplicate("notice")
+    assert duplicate["id"] != "notice"
+    assert duplicate["enabled"] is False and duplicate["duration"] == 15
+
+
 def test_optional_state_delay_preserves_legacy_shape_and_duplicate() -> None:
     assert "release_seconds" not in normalize_rule(_state_rule())
     raw = {

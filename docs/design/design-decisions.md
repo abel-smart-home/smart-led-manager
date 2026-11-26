@@ -17,7 +17,9 @@ C.2.2 pasó las diez pruebas funcionales de VirtualBox. El propietario indicó
 que el menú principal ocupaba demasiado espacio. C.2.3 adopta el
 [inicio compacto](design-system.md#inicio-compacto-aprobado-para-c23) y conserva
 las cinco tarjetas, textos, orden, iconos, colores y jerarquía. El HTML v1.0
-permanece como referencia histórica. La validación visual final queda pendiente.
+permanece como referencia histórica. El propietario aprobó el inicio
+compacto y el resultado visual de C.2.3 en Core 2026.11.3. Con ello cerró la
+observación de tamaño de C.2.2. [Registro completo](../haos-test-plan.md#resultado-de-c23-en-virtualbox).
 
 ## No autorizado
 No modificar main, publicar release, etiquetar, cerrar PR, borrar ramas ni enviar a Marketplace sin permiso expreso. No elevar resultados simulados a HAOS o Zigbee. No declarar C.1 ni C.2 aprobados por la maqueta.

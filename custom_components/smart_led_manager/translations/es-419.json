@@ -568,6 +568,7 @@
       "no_rules": "No hay reglas configuradas",
       "rule_not_found": "La regla seleccionada ya no existe",
       "invalid_rule": "El tipo de regla seleccionado no es compatible",
+      "rule_edit_in_panel": "Abre el panel de Smart LED Manager para editar esta regla.",
       "rule_unit_changed": "Recalibra los puntos y umbrales para la unidad actual del sensor en el panel de administración.",
       "incompatible_template_source": "Selecciona un origen compatible con esta plantilla en el panel de administración.",
       "invalid_template_state": "Elige un estado de activación válido en el panel de administración.",
@@ -661,6 +662,11 @@
     }
   },
   "exceptions": {
+    "notice_not_found": { "message": "El aviso guardado ya no existe." },
+    "notice_disabled": { "message": "El aviso guardado está deshabilitado." },
+    "notice_invalid": { "message": "Revisa el aviso y sus destinos autorizados." },
+    "notice_entry_not_ready": { "message": "Espera a que Smart LED Manager aplique la configuración actual." },
+    "managed_notice_request": { "message": "El identificador pertenece al catálogo de avisos guardados." },
     "not_configured": {
       "message": "Smart LED Manager no está configurado."
     },
@@ -737,6 +743,16 @@
         "request_id": {
           "name": "ID de solicitud",
           "description": "Identificador de la solicitud que se desactivará."
+        }
+      }
+    },
+    "run_notice": {
+      "name": "Ejecutar aviso guardado",
+      "description": "Ejecuta un aviso luminoso guardado por su identificador estable.",
+      "fields": {
+        "notice_id": {
+          "name": "Aviso",
+          "description": "Elige un aviso guardado por nombre."
         }
       }
     },

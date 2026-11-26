@@ -50,6 +50,15 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   cambia, liberan la solicitud y requieren recalibrar los valores.
 - Las reglas de estado pueden esperar antes de finalizar. Recuperar la
   condición cancela la espera. La pérdida del sensor libera la solicitud.
+- El propietario aprobó R-01–R-12, el tamaño del inicio y la validación visual
+  en HAOS VirtualBox con Core 2026.11.3. [Registro](docs/haos-test-plan.md#resultado-de-c23-en-virtualbox).
+
+### Añadido — C.2.4
+
+- Catálogo de avisos guardados, simulación en pantalla y prueba explícita en
+  luces autorizadas. La acción `smart_led_manager.run_notice` usa un ID estable.
+- Horarios independientes y reglas continuas basadas sólo en condiciones.
+  La simulación evalúa el borrador localmente sin enviar órdenes a luces.
 
 ### Añadido — Bloque A
 

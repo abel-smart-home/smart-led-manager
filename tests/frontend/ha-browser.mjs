@@ -45,7 +45,8 @@ async function api(path, data) {
     body: data && (form ? data : JSON.stringify(data)),
   });
   assert.ok(response.ok, path + " returned HTTP " + response.status);
-  return response.json();
+  const body = await response.text();
+  return body ? JSON.parse(body) : undefined;
 }
 
 await waitFor(async () => {
@@ -132,16 +133,17 @@ try {
     if (location.origin === ${JSON.stringify(origin)}) {
       localStorage.setItem("selectedLanguage", JSON.stringify("es"));
     }
-    function panel(root = document) {
-      const direct = root.querySelector("smart-led-manager-visual-editor");
+    function deepFind(selector, root = document) {
+      const direct = root.querySelector(selector);
       if (direct) return direct;
       for (const node of root.querySelectorAll("*")) {
         if (node.shadowRoot) {
-          const nested = panel(node.shadowRoot);
+          const nested = deepFind(selector, node.shadowRoot);
           if (nested) return nested;
         }
       }
     }
+    const panel = () => deepFind("smart-led-manager-visual-editor");
     window.pick = (selector) => panel()?.shadowRoot?.querySelector(selector);
     window.click = (selector) => pick(selector).click();
     window.change = (selector, value, event) => {
@@ -167,10 +169,12 @@ try {
   redirect.searchParams.set("storeToken", "true");
   await send("Page.navigate", { url: redirect.href });
   await waitFor(() => run("typeof pick === 'function' && !!pick('.slm-tile')"), "the initial authenticated panel", 50);
+  const entryId = await run("panel()._entryId");
+  const planViews = {notice:"notifications", schedule:"scheduleTemplate", advanced:"advancedTemplate"};
   await mkdir(output, { recursive: true });
   const sets = [
-    ["desktop", "light", 1280, 900, ["home", "smart", "smartRules", ...Object.keys(sources)]],
-    ["mobile", "dark", 390, 844, ["home", "smart", "temperature", "energy", "security", "presence"]],
+    ["desktop", "light", 1280, 900, ["home", "smart", "smartRules", ...Object.keys(sources), ...Object.keys(planViews)]],
+    ["mobile", "dark", 390, 844, ["home", "smart", "temperature", "energy", "security", "presence", ...Object.keys(planViews)]],
   ];
   for (const [device, theme, width, height, views] of sets) {
     await send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false });
@@ -202,6 +206,27 @@ try {
         if (["security", "presence"].includes(view)) await run("change('[data-path=state]', 'on', 'change')");
         assert.ok(await run("!!pick('[data-save]:enabled')"), "Invalid draft for " + view);
       }
+      if (Object.hasOwn(planViews, view)) {
+        await run(`click('[data-smart-category=${planViews[view]}]')`);
+        if (view === "notice") {
+          await waitFor(() => run("!!pick('[data-create]:enabled')"), "the notice catalog");
+          await run("click('[data-create]')");
+        }
+        await waitFor(() => run("!!pick('.plan-editor')"), view);
+        const title = {notice:"Límite de energía", schedule:"Iluminación nocturna", advanced:"Iluminar si hay presencia"}[view];
+        await run(`change('[data-path="name"]', ${JSON.stringify(title)}, 'input');
+          change('[data-add-choice="target_selection.entities"]', "${light}", 'change');`);
+        if (view === "notice") {
+          await run(`change('[data-path="animation"]', 'pulse', 'change'); click('[data-simulate-notice]')`);
+        } else {
+          if (view === "advanced") {
+            await run(`change('[data-path="conditions.conditions.0.entity_id"]', '${sources.presence[0]}', 'change');
+              change('[data-path="conditions.conditions.0.state"]', 'on', 'input')`);
+          }
+          await run("click('[data-simulate-plan]')");
+          await waitFor(() => run("!!pick('[data-preview-result][role=status]')"), "the local activation preview");
+        }
+      }
       await run("document.fonts.ready.then(() => true)");
       await delay(700); // Allow the native startup overlay to finish fading.
       const screenshot = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
@@ -228,6 +253,63 @@ try {
       }
     }
   }
+
+  const notice = {type:"notice", name:"Aviso original", targets:[light], rgb_color:[255,128,0], duration:5};
+  async function mutate(operation, fields) {
+    const command = {type:"smart_led_manager/smart_rules/mutate", entry_id:entryId, operation, ...fields};
+    const current = await run(`document.querySelector("home-assistant").hass.callWS({
+      type:"smart_led_manager/editor/status",entry_id:${JSON.stringify(entryId)}})`);
+    assert.equal(current.status, "ready");
+    const result = await run(`document.querySelector("home-assistant").hass.callWS(${JSON.stringify({
+      ...command,revision:current.applied_revision,
+    })})`);
+    await waitFor(() => run(`document.querySelector("home-assistant").hass.callWS({
+      type:"smart_led_manager/editor/status",entry_id:${JSON.stringify(entryId)}
+    }).then((value)=>value.applied_revision===${JSON.stringify(result.revision)})`), "applied notice revision");
+    return result.rule;
+  }
+  const saved = await mutate("create", {rule:notice});
+  const automationId = "slm_notice_probe";
+  const automationPath = "/api/config/automation/config/" + automationId;
+  await api(automationPath, {
+    alias:"Prueba del selector de avisos", triggers:[], conditions:[],
+    actions:[{action:"smart_led_manager.run_notice", data:{notice_id:saved.id}}],
+  });
+  await send("Emulation.setDeviceMetricsOverride", {width:1280,height:900,deviceScaleFactor:1,mobile:false});
+  await send("Emulation.setEmulatedMedia", {features:[{name:"prefers-color-scheme",value:"light"}]});
+  const actionRoute = origin + "/config/automation/edit/" + automationId;
+  const noticeOptions = (metadata) =>
+    metadata.smart_led_manager.run_notice.fields.notice_id.selector.select.options;
+  async function openAutomation() {
+    await send("Page.navigate", {url:actionRoute});
+    await waitFor(() => run("!!deepFind('ha-automation-editor')?.config && !!deepFind('ha-automation-editor')?.hass?.services?.smart_led_manager?.run_notice"), "the native automation editor");
+  }
+  async function displayedOptions() {
+    return noticeOptions(await run(`({smart_led_manager: {
+      run_notice:deepFind("ha-automation-editor").hass.services.smart_led_manager.run_notice}
+    })`));
+  }
+  await openAutomation();
+  assert.deepEqual(await displayedOptions(), [{value:saved.id,label:"Aviso original"}]);
+  const edits = [
+    ["create", {rule:{...notice,name:"Aviso extra"}}],
+    ["update", {rule_id:saved.id,rule:{...saved,name:"Aviso renombrado"}}],
+    ["delete", {rule_id:saved.id}],
+  ];
+  for (const [operation, fields] of edits) {
+    const before = await displayedOptions();
+    await mutate(operation, fields);
+    const metadata = noticeOptions(await run(`document.querySelector("home-assistant").hass.callWS({type:"get_services"})`));
+    assert.notDeepEqual(metadata, before);
+    const open = await displayedOptions();
+    console.log("Native notice selector", operation, "open editor",
+      JSON.stringify(open) === JSON.stringify(metadata) ? "updated" : "cached");
+    await openAutomation();
+    assert.deepEqual(await displayedOptions(), metadata);
+    console.log("Native notice selector", operation, "fresh editor verified");
+  }
+  const storedAutomation = await api(automationPath);
+  assert.equal(storedAutomation.actions[0].data.notice_id, saved.id);
 } finally {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ id: 999999, method: "Browser.close" }));
   socket?.close();

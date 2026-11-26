@@ -29,6 +29,8 @@ DEFAULT_SHOW_SIDEBAR: Final = True
 RULE_TYPE_STATE: Final = "state"
 RULE_TYPE_NUMERIC: Final = "numeric"
 RULE_TYPE_EVENT: Final = "event"
+RULE_TYPE_CONTINUOUS: Final = "continuous"
+RULE_TYPE_NOTICE: Final = "notice"
 
 TARGET_ENTITIES: Final = "entities"
 TARGET_ZONES: Final = "zones"
@@ -47,6 +49,7 @@ MAX_ACTIVITY_ITEMS: Final = 100
 SERVICE_ACTIVATE: Final = "activate"
 SERVICE_DEACTIVATE: Final = "deactivate"
 SERVICE_NOTIFY: Final = "notify"
+SERVICE_RUN_NOTICE: Final = "run_notice"
 SERVICE_SET_SCENE: Final = "set_scene"
 SERVICE_CANCEL: Final = "cancel"
 SERVICE_CLEAR_NOTIFICATIONS: Final = "clear_notifications"

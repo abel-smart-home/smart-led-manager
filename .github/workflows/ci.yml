@@ -61,7 +61,8 @@ jobs:
       - name: Start a disposable Home Assistant instance
         run: |
           mkdir -p "$RUNNER_TEMP/slm-ha/.storage"
-          printf 'default_config:\n' > "$RUNNER_TEMP/slm-ha/configuration.yaml"
+          printf 'default_config:\nautomation: !include automations.yaml\n' > "$RUNNER_TEMP/slm-ha/configuration.yaml"
+          printf '[]\n' > "$RUNNER_TEMP/slm-ha/automations.yaml"
           printf '{"version":4,"minor_version":1,"key":"onboarding","data":{"done":["core_config","integration","analytics"]}}\n' > "$RUNNER_TEMP/slm-ha/.storage/onboarding"
           docker run --detach --name slm-ha --publish 127.0.0.1:8123:8123 \
             --volume "$RUNNER_TEMP/slm-ha:/config" \
@@ -72,7 +73,7 @@ jobs:
       - name: Upload screenshots
         uses: actions/upload-artifact@v7
         with:
-          name: ha-core-panel-c23
+          name: ha-core-panel-c24
           path: ${{ runner.temp }}/slm-captures
           if-no-files-found: error
       - name: Inspect Home Assistant on failure

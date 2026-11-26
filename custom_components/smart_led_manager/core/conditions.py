@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from datetime import datetime, time
+from datetime import UTC, datetime, time, timedelta
 from enum import StrEnum
 from math import isfinite
 from typing import Any
@@ -167,6 +167,9 @@ def evaluate_condition(
     condition: Mapping[str, Any] | None,
     state_getter: Callable[[str], object | None],
     now_local: datetime,
+    *,
+    numeric_history: dict[tuple[int, ...], bool] | None = None,
+    path: tuple[int, ...] = (),
 ) -> ConditionResult:
     """Evaluate a normalized tree with explicit unknown propagation."""
 
@@ -177,6 +180,8 @@ def evaluate_condition(
         state = state_getter(str(condition["entity_id"]))
         value = getattr(state, "state", None)
         if value in (None, "unknown", "unavailable"):
+            if numeric_history is not None:
+                numeric_history.pop(path, None)
             return ConditionResult.UNKNOWN
         if kind == "state":
             matched = str(value) == condition["state"]
@@ -186,10 +191,20 @@ def evaluate_condition(
             try:
                 number = float(value)
             except (TypeError, ValueError):
+                if numeric_history is not None:
+                    numeric_history.pop(path, None)
                 return ConditionResult.UNKNOWN
             if not isfinite(number):
+                if numeric_history is not None:
+                    numeric_history.pop(path, None)
                 return ConditionResult.UNKNOWN
-            matched = numeric_activation_matches(number, condition, previous=False)
+            matched = numeric_activation_matches(
+                number,
+                condition,
+                previous=bool(numeric_history and numeric_history.get(path)),
+            )
+            if numeric_history is not None:
+                numeric_history[path] = matched
         return ConditionResult.TRUE if matched else ConditionResult.FALSE
     if kind == "time":
         return (
@@ -198,7 +213,13 @@ def evaluate_condition(
             else ConditionResult.FALSE
         )
     if kind == "not":
-        result = evaluate_condition(condition["condition"], state_getter, now_local)
+        result = evaluate_condition(
+            condition["condition"],
+            state_getter,
+            now_local,
+            numeric_history=numeric_history,
+            path=(*path, 0),
+        )
         if result is ConditionResult.UNKNOWN:
             return result
         return (
@@ -207,8 +228,14 @@ def evaluate_condition(
             else ConditionResult.TRUE
         )
     results = [
-        evaluate_condition(child, state_getter, now_local)
-        for child in condition["conditions"]
+        evaluate_condition(
+            child,
+            state_getter,
+            now_local,
+            numeric_history=numeric_history,
+            path=(*path, index),
+        )
+        for index, child in enumerate(condition["conditions"])
     ]
     if kind == "and":
         if ConditionResult.FALSE in results:
@@ -221,6 +248,27 @@ def evaluate_condition(
     if ConditionResult.UNKNOWN in results:
         return ConditionResult.UNKNOWN
     return ConditionResult.FALSE
+
+
+def evaluate_activation(
+    condition: Mapping[str, Any] | None,
+    schedule: Mapping[str, Any] | None,
+    state_getter: Callable[[str], object | None],
+    now_local: datetime,
+    *,
+    numeric_history: dict[tuple[int, ...], bool] | None = None,
+) -> ConditionResult:
+    """Combine a condition tree with the optional schedule used by a rule."""
+    result = evaluate_condition(
+        condition, state_getter, now_local, numeric_history=numeric_history
+    )
+    if (
+        result is ConditionResult.TRUE
+        and schedule is not None
+        and not schedule_is_active(schedule, now_local)
+    ):
+        return ConditionResult.FALSE
+    return result
 
 
 def schedule_is_active(schedule: Mapping[str, Any], now_local: datetime) -> bool:
@@ -241,6 +289,58 @@ def schedule_is_active(schedule: Mapping[str, Any], now_local: datetime) -> bool
     else:
         return False
     return WEEKDAYS[start_day] in days
+
+
+def next_schedule_boundary(
+    schedules: list[dict[str, Any]], now: datetime
+) -> datetime | None:
+    """Find the next UTC instant whose local clock can change a schedule."""
+    if not schedules:
+        return None
+    candidates: set[datetime] = set()
+    now_utc = now.astimezone(UTC)
+    tz = now.tzinfo
+    for offset in range(-1, 9):
+        day = now.date() + timedelta(days=offset)
+        for schedule in schedules:
+            if WEEKDAYS[day.weekday()] not in schedule["weekdays"]:
+                continue
+            start = time.fromisoformat(schedule["after"])
+            end = time.fromisoformat(schedule["before"])
+            end_day = day + timedelta(days=start >= end)
+            if start == end:  # Legacy equal endpoints describe a full local day.
+                start = end = time.min
+            for candidate in (
+                datetime.combine(day, start),
+                datetime.combine(end_day, end),
+            ):
+                for fold in (0, 1):
+                    instant = candidate.replace(tzinfo=tz, fold=fold).astimezone(UTC)
+                    if instant.astimezone(tz).replace(tzinfo=None) == candidate:
+                        candidates.add(instant)
+
+    # A skipped or repeated wall-clock interval can change truth at the
+    # offset transition itself, even if no endpoint falls at that instant.
+    if tz is not None:
+        lower = now_utc.replace(microsecond=0)
+        for _ in range(8):
+            upper = lower + timedelta(days=1)
+            offset_before = lower.astimezone(tz).utcoffset()
+            if upper.astimezone(tz).utcoffset() != offset_before:
+                left, right = lower, upper
+                while (right - left).total_seconds() > 1:
+                    middle = left + timedelta(
+                        seconds=int((right - left).total_seconds()) // 2
+                    )
+                    if middle.astimezone(tz).utcoffset() == offset_before:
+                        left = middle
+                    else:
+                        right = middle
+                candidates.add(right)
+            lower = upper
+    return min(
+        (candidate for candidate in candidates if candidate > now_utc), default=None
+    )
 
 
 def validate_numeric_activation(value: Mapping[str, Any]) -> dict[str, Any]:

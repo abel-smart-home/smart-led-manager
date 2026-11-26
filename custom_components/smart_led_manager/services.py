@@ -11,6 +11,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, cal
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import selector
+from homeassistant.helpers.service import async_set_service_schema
 
 from .const import (
     DOMAIN,
@@ -23,6 +24,7 @@ from .const import (
     SERVICE_DEACTIVATE,
     SERVICE_DEACTIVATE_MODE,
     SERVICE_NOTIFY,
+    SERVICE_RUN_NOTICE,
     SERVICE_SET_MANUAL_OVERRIDE,
     SERVICE_SET_SCENE,
     SERVICE_SET_ZONE_MODE,
@@ -52,6 +54,7 @@ ATTR_PERIOD = "period"
 ATTR_ENABLED = "enabled"
 ATTR_MODE_ID = "mode_id"
 ATTR_ZONE_ID = "zone_id"
+ATTR_NOTICE_ID = "notice_id"
 
 _TARGET_SELECTOR = selector.EntitySelector(
     selector.EntitySelectorConfig(domain="light", multiple=True)
@@ -115,6 +118,11 @@ def async_setup_services(hass: HomeAssistant) -> None:
     async def _handle(call: ServiceCall) -> dict[str, Any]:
         coordinator = _coordinator(hass)
         service = call.service
+        if service == SERVICE_RUN_NOTICE:
+            try:
+                return await coordinator.async_run_notice(call.data[ATTR_NOTICE_ID])
+            except ModeValidationError as err:
+                raise _service_mode_error(err) from err
 
         if service in {
             SERVICE_ACTIVATE_MODE,
@@ -246,6 +254,13 @@ def async_setup_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN,
+        SERVICE_RUN_NOTICE,
+        _handle,
+        schema=probatio.Schema({probatio.Required(ATTR_NOTICE_ID): cv.string}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
         SERVICE_CANCEL,
         _handle,
         schema=probatio.Schema({probatio.Required(ATTR_REQUEST_ID): cv.string}),
@@ -307,6 +322,7 @@ def async_unload_services(hass: HomeAssistant) -> None:
         SERVICE_ACTIVATE,
         SERVICE_DEACTIVATE,
         SERVICE_NOTIFY,
+        SERVICE_RUN_NOTICE,
         SERVICE_SET_SCENE,
         SERVICE_CANCEL,
         SERVICE_CLEAR_NOTIFICATIONS,
@@ -316,6 +332,30 @@ def async_unload_services(hass: HomeAssistant) -> None:
         SERVICE_SET_ZONE_MODE,
     ):
         hass.services.async_remove(DOMAIN, service)
+
+
+@callback
+def async_update_notice_schema(
+    hass: HomeAssistant, choices: list[dict[str, str]]
+) -> None:
+    """Publish the current notice choices through Home Assistant's service metadata."""
+    async_set_service_schema(
+        hass,
+        DOMAIN,
+        SERVICE_RUN_NOTICE,
+        {
+            "name": "Run saved notice",
+            "description": "Play a saved Smart LED Manager light notice.",
+            "fields": {
+                ATTR_NOTICE_ID: {
+                    "name": "Notice",
+                    "description": "Pick the saved notice by name.",
+                    "required": True,
+                    "selector": {"select": {"options": choices, "mode": "dropdown"}},
+                },
+            },
+        },
+    )
 
 
 def _coordinator(hass: HomeAssistant):

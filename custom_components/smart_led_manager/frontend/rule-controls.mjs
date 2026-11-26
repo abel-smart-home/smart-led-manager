@@ -154,10 +154,10 @@ export function treeSize(node) {
   return 1 + (node.conditions ?? []).reduce((total, child) => total + treeSize(child), 0);
 }
 
-export function numericControls(path, data, t, unit, hysteresis = false) {
+export function numericControls(path, data, t, unit, hysteresis = false, allowEmpty = hysteresis) {
   const label = (text) => unit ? `${text} (${escapeHtml(unit)})` : text;
   const options = ["above", "below", "inside", "outside"].map((operator) => [operator, t[operator]]);
-  if (hysteresis) options.unshift(["", t.noThreshold]);
+  if (allowEmpty) options.unshift(["", t.noThreshold]);
   return `<div class="form-grid">
     ${selectField(t.operator, path + ".operator", options, data?.operator ?? "")}
     ${["above", "below"].includes(data?.operator)
@@ -178,16 +178,20 @@ export function stateControl(path, entity, value, t) {
 }
 
 export function conditionControls(root, context) {
-  const { t, entities, numeric } = context;
+  const { t, entities, numeric, simple = false, hysteresis = false } = context;
   if (!root) return `<button data-add-root>${t.addCondition}</button>`;
   function render(node, path, depth, index, count) {
     const kinds = ["state", "numeric", "time"];
-    if (depth < 5) kinds.push("and", "or", "not");
-    const kind = selectField(t.type, path + ".type", kinds.map((key) => [key, t[key]]), node.type);
+    if (simple) {
+      kinds.pop();
+      if (depth === 1) kinds.splice(0, 2, "and", "or");
+    } else if (depth < 5) kinds.push("and", "or", "not");
+    const kind = selectField(t.type, path + ".type", kinds.map((key) =>
+      [key, simple && key === "and" ? t.matchAll : simple && key === "or" ? t.matchAny : t[key]]), node.type);
     const buttons = `<div class="chips">
       ${index > 0 ? `<button data-move-condition="${path}" data-delta="-1" aria-label="${t.moveUp}">↑</button>` : ""}
       ${index < count - 1 ? `<button data-move-condition="${path}" data-delta="1" aria-label="${t.moveDown}">↓</button>` : ""}
-      ${count > 1 || depth === 1 ? `<button data-remove-condition="${path}">${t.remove}</button>` : ""}
+      ${count > 1 || depth === 1 && !simple ? `<button data-remove-condition="${path}">${t.remove}</button>` : ""}
       </div>`;
     let body = "";
     if (node.type === "and" || node.type === "or") {
@@ -203,7 +207,7 @@ export function conditionControls(root, context) {
       const items = node.type === "numeric" ? numeric : entities;
       const entity = items.find((item) => item.entity_id === node.entity_id);
       body = picker(t.entity, path + ".entity_id", items, node.entity_id, t);
-      body += node.type === "numeric" ? numericControls(path, node, t, entity?.unit)
+      body += node.type === "numeric" ? numericControls(path, node, t, entity?.unit, hysteresis, false)
         : `<div class="form-grid">
           ${selectField(t.operator, path + ".operator", [["equals", t.equals], ["not_equals", t.notEquals]], node.operator)}
           ${stateControl(path + ".state", entity, node.state, t)}</div>`;

@@ -72,6 +72,15 @@ deactivate:
       selector:
         text:
 
+run_notice:
+  fields:
+    notice_id:
+      required: true
+      selector:
+        select:
+          options: []
+          mode: dropdown
+
 notify:
   fields:
     request_id:
