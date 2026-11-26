@@ -472,9 +472,32 @@ Hub, M-10, M-15 y M-17 mantienen el alcance parcial ya documentado. La mera
 instalación de Matter Hub o la existencia de un device trigger no aprueba esas
 pruebas.
 
-## Recorrido de C.2.2 en VirtualBox
+## Resultado de C.2.2 en VirtualBox
 
-La [guía de instalación y validación C.2.2](haos-c22-checks.md) fija el SHA y
-el recorrido del centro, luces, zonas y modos. La ejecución práctica está
-pendiente. Este recorrido conserva los estados de C-01–C-20, U-01–U-06 y las
-pruebas físicas registradas por separado.
+El propietario confirmó **10/10 pruebas funcionales aprobadas** en HAOS
+VirtualBox con Home Assistant Core 2026.11.3 y el SHA funcional
+`7a0fc49c2eda8a15e9b0e658e10b6da2efaede29`.
+[Guía usada para el recorrido](haos-c22-checks.md).
+
+| Caso | Prueba | Resultado |
+| --- | --- | --- |
+| Q-01 | Centro de administración | Aprobada |
+| Q-02 | Luces administradas | Aprobada |
+| Q-03 | Crear y editar zonas | Aprobada |
+| Q-04 | Protección de dependencias | Aprobada |
+| Q-05 | Crear y editar modos | Aprobada |
+| Q-06 | Activación exclusiva | Aprobada |
+| Q-07 | Control externo | Aprobada |
+| Q-08 | Borradores y recarga | Aprobada |
+| Q-09 | Persistencia y eliminación | Aprobada |
+| Q-10 | Regresión C.2.1 | Aprobada |
+
+**Validación visual con observaciones.** El propietario indicó:
+
+> Por lo que estuve probando es completamente funcional, solo que se presenta
+> algo grande el menú principal, ya que abarca toda la pantalla completa, tal
+> vez un ajuste de tamaño sería más conveniente.
+
+El propietario aprobó compactar el inicio en C.2.3. La aprobación visual
+definitiva sigue pendiente. C-01–C-20, U-01–U-06 y las pruebas físicas
+conservan sus estados.

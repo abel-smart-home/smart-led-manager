@@ -1,6 +1,7 @@
 import {
   ADMIN_STYLES, ADMIN_TEXT, renderAdminHome, renderAdministration,
 } from "./admin-views.mjs";
+import { NUMERIC_CATEGORIES, SMART_STYLES, SMART_TEXT, renderSmartMenu } from "./smart-views.mjs";
 import {
   cssGradient,
   deepClone,
@@ -27,6 +28,7 @@ import {
   scheduleControls,
   selectField,
   stateControl,
+  stateOptions,
   treeSize,
   triggerKind,
 } from "./rule-controls.mjs";
@@ -417,7 +419,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   get _t() {
     const language = this._hass?.locale?.language ?? this._hass?.language ?? "en";
     const locale = String(language).toLowerCase().startsWith("es") ? "es" : "en";
-    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale] };
+    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale], ...SMART_TEXT[locale] };
   }
 
   _readsCatalog() { return ["rules", "lights", "zones", "modes"].includes(this._view); }
@@ -484,7 +486,11 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._loading = false;
       const again = this._loadAgain;
       this._loadAgain = false;
-      this._render();
+      if (this._templateToOpen && this._view === "rules" && this._canWrite()) {
+        const category = this._templateToOpen;
+        this._templateToOpen = undefined;
+        this._create(category);
+      } else this._render();
       if (again) this._load();
     }
   }
@@ -550,14 +556,26 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       !this._loading && !this._saving && !this._pendingMutation;
   }
 
-  _openRules() { this._openView("rules"); }
+  _openRules() { this._openView("smart"); }
 
-  _openView(view) {
+  _openView(view, load = true) {
     this._loadGeneration++;
+    this._templateToOpen = undefined;
     this._exitEditor(view);
     this._revision = undefined;
     this._render();
-    if (this._readsCatalog()) this._load();
+    if (load && this._readsCatalog()) this._load();
+  }
+
+  _openSmartCategory(category) {
+    if (["energyMenu", "notifications", "scheduleTemplate"].includes(category)) {
+      this._openView(category);
+      return;
+    }
+    this._openView("rules", category === "smartRules");
+    if (category === "smartRules") return;
+    this._templateToOpen = category;
+    this._load();
   }
 
   _editorList() {
@@ -585,6 +603,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._draft = undefined;
     this._original = undefined;
     this._adminDraft = undefined;
+    this._templateEditor = false;
+    this._fromSmartMenu = false;
     this._adminExpanded.clear();
     this._effectPreview = false;
     this._creating = false;
@@ -613,6 +633,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._deviceRequest++;
     this._dwellUnit = "seconds";
     this._previousPoints = undefined;
+    this._simulatedState = undefined;
   }
 
   _invalidatePreviews() {
@@ -639,6 +660,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._selected = selected;
     this._revision = this._catalogRevision ?? this._revision;
     this._draft = this._draftFromRule(selected.rule);
+    this._templateEditor = Boolean(selected.rule.category) &&
+      (selected.rule.type === "numeric" ? Boolean(selected.rule.points) : selected.rule.operator === "equals");
     this._original = deepClone(this._draft);
     this._resetControls();
     this._simulateValue = this._draft.points?.length ? String(this._draft.points[0].value) : "";
@@ -653,7 +676,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     return draft;
   }
 
-  _create() {
+  _create(category) {
     this._revision = this._catalogRevision ?? this._revision;
     this._invalidatePreviews();
     const first = this._selections.managed_lights?.[0]?.entity_id;
@@ -663,6 +686,24 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       priority: 40, rgb_color: [0, 0, 255], brightness: 255, transition: 0,
       animation: "fixed", period: 1, for_seconds: 0,
     };
+    if (category) {
+      this._fromSmartMenu = true;
+      this._draft.target_selection.entities = [];
+      if (category === "newSchedule") this._draft.schedule = defaultSchedule();
+      else if (category !== "advancedTemplate") {
+        this._templateEditor = true;
+        this._draft.category = category;
+        if (NUMERIC_CATEGORIES.includes(category)) {
+          this._draft.type = "numeric";
+          this._draft.mode = "interpolate";
+          this._draft.points = [{ value: 0, rgb: [0, 0, 255] }, { value: 100, rgb: [255, 0, 0] }];
+          this._simulateValue = "";
+        } else {
+          this._draft.state = "";
+          this._draft.release_seconds = 0;
+        }
+      }
+    }
     this._selected = { rule: this._draft, source: {}, targets: [] };
     this._resetControls();
     this._original = deepClone(this._draft);
@@ -695,7 +736,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       if (typeof error?.code === "string" && error.code !== "internal_error") {
         this._pendingMutation = undefined;
         this._error = error.code === "conflict" ? this._t.conflict
-          : (this._t.modeError[error.code] ?? error.message ?? error.code);
+          : (this._t.modeError[error.code] ?? this._t[error.code] ?? error.message ?? error.code);
       } else {
         this._error = this._t.uncertainSave;
       }
@@ -742,6 +783,13 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       draft.targets.length && Number.isInteger(draft.priority) && draft.priority >= 0 &&
       draft.priority <= 100 && (draft.transition == null || (draft.transition >= 0 && draft.transition <= 300)) &&
       Number.isFinite(draft.period) && draft.period >= 0.5 && draft.period <= 60);
+    if (this._templateEditor) {
+      const source = this._templateSources().find((item) => item.entity_id === draft.source);
+      const selection = draft.target_selection;
+      if (!source || !Object.values(selection).some((value) => value === true || value?.length)) return false;
+      if (draft.type === "numeric" && (!draft.source_unit || source.unit !== draft.source_unit)) return false;
+      if (draft.type === "state" && !stateOptions(source, undefined).includes(draft.state)) return false;
+    }
     return Boolean(draft?.name?.trim()) && !this._invalidNumeric();
   }
 
@@ -860,6 +908,27 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         this._draft.targets = [...(zone?.targets ?? [])];
       }
       this._set(path, path === "area_id" ? value || null : value, render);
+      return;
+    }
+    if (path === "source" && this._draft.category) {
+      const source = this._templateSources().find((item) => item.entity_id === value);
+      if (!source) { this._render(); return; }
+      if (this._draft.type === "numeric") {
+        const previous = this._draft.source_unit;
+        if (previous && source.unit !== previous) {
+          if (!window.confirm(this._t.recalibrate)) { this._render(); return; }
+          this._draft.points = [];
+          this._draft.activation = null;
+          this._draft.minimum_change = 0;
+          this._pointInput.clear();
+          this._simulateValue = "";
+        }
+        this._draft.source_unit = source.unit;
+      } else if (this._draft.source !== value) {
+        this._draft.state = "";
+        this._simulatedState = undefined;
+      }
+      this._set(path, value);
       return;
     }
     if (path === "type") {
@@ -1080,12 +1149,12 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     const t = this._t;
     const status = this._runtimeMessage();
     const disabled = this._canWrite() ? "" : "disabled";
-    const rows = this._rules.map(({ rule, source, targets, target_error, condition_summary, schedule_summary }) => {
+    const rows = this._rules.map(({ rule, source, category, targets, target_error, condition_summary, schedule_summary }) => {
       const targetNames = (targets ?? []).map((item) => item.name).join(", ");
       const color = rule.points ? cssGradient(rule.points, rule.mode) : rgbToHex(rule.rgb_color ?? [255,255,255]);
       return `<article class="rule"><div><strong>${esc(rule.name)}</strong>
         <span class="badge ${rule.enabled !== false ? "on" : ""}">${rule.enabled !== false ? t.enabled : t.disabled}</span>
-        <div class="meta"><span>${t.type}: ${esc(t[rule.type] ?? rule.type)}</span><span>${t.priority}: ${esc(rule.priority)}</span>
+        <div class="meta"><span>${esc(t[category ?? rule.category] ?? t[rule.type] ?? rule.type)}</span><span>${t.priority}: ${esc(rule.priority)}</span>
         <span>${t.source}: ${esc(source?.name ?? rule.source)}</span><span>${t.targets}: ${esc(targetNames)}</span>
         ${condition_summary ? `<span>${t.conditions}: ${esc(condition_summary)}</span>` : ""}
         ${schedule_summary ? `<span>${t.schedule}: ${esc(schedule_summary)}</span>` : ""}</div>
@@ -1099,9 +1168,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         <button class="danger" data-delete="${esc(rule.id)}" ${disabled}>${t.remove}</button></div></article>`;
     }).join("");
     const list = this._loading ? `<p>${t.loading}</p>` : rows || (this._error || status ? "" : `<p class="muted">${t.noRules}</p>`);
-    return `<main><div class="toolbar"><button data-home>← ${t.home}</button>
+    return `<main><div class="toolbar"><button data-smart-menu>← ${t.smart}</button>
       <button data-reload ${this._loading || this._saving || this._runtimeStatus === "offline" ? "disabled" : ""}>${t.checkStatus}</button>
-      <span class="spacer"></span><button class="primary" data-create ${disabled}>${t.create}</button></div><h1>${t.smartRules}</h1>
+      <span class="spacer"></span><button class="primary" data-create ${disabled}>${t.create}</button></div><h1>${t.smartRules}</h1><p>${t.smartDescription}</p>
       ${status ? `<div class="message" role="status">${esc(status)}</div>` : ""}
       ${this._error ? `<div class="message error" role="alert">${esc(this._error)}</div>` : ""}
       ${this._notice ? `<div class="message notice" role="status">${esc(this._notice)}</div>` : ""}
@@ -1118,8 +1187,22 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   _unit() {
-    return this._hass?.states?.[this._draft.source]?.attributes?.unit_of_measurement ??
+    return this._draft.source_unit ?? this._hass?.states?.[this._draft.source]?.attributes?.unit_of_measurement ??
       (this._selected?.rule?.source === this._draft.source ? this._selected?.unit : undefined);
+  }
+
+  _templateSources() {
+    const types = this._selections.template_sources ?? {};
+    return this._entities(this._draft.type).filter((entity) => types[entity.entity_id] === this._draft.category);
+  }
+
+  _stateLabel(entity, value) {
+    const t = this._t;
+    if (value === "unknown") return t.stateUnknown;
+    if (value === "unavailable") return t.stateUnavailable;
+    const state = this._hass?.states?.[entity?.entity_id];
+    const formatted = state && this._hass?.formatEntityState?.(state, value);
+    return formatted || t.stateLabels[value] || value;
   }
 
   _renderOrigin() {
@@ -1183,17 +1266,15 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         </div><p class="muted">${t.dwellHelp}</p>`}`;
   }
 
-  _renderNumeric() {
+  _renderNumeric(template = false) {
     if (this._draft.type !== "numeric") return "";
     const t = this._t, r = this._draft, unit = this._unit();
     const mode = r.points ? r.mode ?? "interpolate" : "fixed";
     const unitLabel = unit ? ` (${esc(unit)})` : "";
+    const styles = [["interpolate", t.interpolate], ["ranges", t.ranges]];
     const style = selectField(t.calculation, "numeric_style",
-      [["fixed", t.fixedColor], ["interpolate", t.interpolate], ["ranges", t.ranges]], mode);
-    const activation = `<section class="card"><h3>${t.activation}</h3>
-      ${numericControls("activation", r.activation, t, unit, true)}
-      <div class="form-grid">${numberField(t.variability + unitLabel, "minimum_change", draftValue(r, "minimum_change", 0), 'min="0" step="any"')}
-      ${numberField(t.interval, "minimum_interval", draftValue(r, "minimum_interval", 0), 'min="0" step="any"')}</div></section>`;
+      template ? styles : [["fixed", t.fixedColor], ...styles], mode);
+    const activation = template ? "" : `<section class="card"><h3>${t.activation}</h3>${this._numericPolicy()}</section>`;
     if (mode === "fixed") return activation + `<section class="card">${style}</section>`;
     const points = sortPoints(r.points ?? []);
     const stops = gradientStopEntries(points, mode);
@@ -1215,7 +1296,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       <code>${rgbToHex(point.rgb)} · RGB(${point.rgb.join(", ")})</code></div>`).join("");
     const p = this._numericPreview;
     const preview = p ? `<div class="preview" data-preview-result><span class="swatch" style="background:${esc(p.hex)}"></span>
-      <div><strong>${esc(p.hex)} · RGB(${p.rgb.join(", ")})</strong><p>${t.intervalResult} ${esc(p.lower)}${p.lower !== p.upper ? `–${esc(p.upper)}` : ""}${unitLabel}</p></div></div>` : "";
+      <div><strong>${esc(p.hex)} · RGB(${p.rgb.join(", ")})</strong><p>${t.intervalResult} ${esc(p.lower)}${p.lower !== p.upper ? `–${esc(p.upper)}` : ""}${unitLabel}</p></div></div>
+      ${template ? this._previewStrip(p.rgb, true, "", true) : ""}` : "";
     return activation + `<section class="card"><h3>${t.points}</h3>${style}
       <h3>${t.colorBar}</h3><div class="visual"><div class="colorbar" style="background:${cssGradient(points, mode)}"></div>${markers}</div>
       <h3>${t.graph}</h3><svg class="axis" viewBox="0 0 900 115" role="group" aria-label="${t.graph}">
@@ -1223,7 +1305,87 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       <line class="baseline" x1="30" y1="48" x2="870" y2="48"></line><line class="curve" x1="30" y1="48" x2="870" y2="48" stroke="url(#graph-gradient)"></line>
       ${graphPoints}</svg>${rows}<button data-add-point>${t.addPoint}</button>
       <div class="form-grid"><label>${t.simulate}${unitLabel}<input type="number" step="any" data-simulate value="${esc(this._simulateValue)}"></label>
-      <button data-preview-numeric>${t.simulator}</button></div>${preview}</section>`;
+      <button data-preview-numeric ${template && !this._canWrite() ? "disabled" : ""}>${t.simulator}</button></div>${preview}
+      ${template ? `<p class="muted">${t.simulationHelp}</p>` : ""}</section>`;
+  }
+
+  _numericPolicy() {
+    const t = this._t, r = this._draft, unit = this._unit();
+    return `${numericControls("activation", r.activation, t, unit, true)}
+      <div class="form-grid">${numberField(t.variability + (unit ? ` (${esc(unit)})` : ""), "minimum_change", draftValue(r, "minimum_change", 0), 'min="0" step="any"')}
+      ${numberField(t.interval, "minimum_interval", draftValue(r, "minimum_interval", 0), 'min="0" step="any"')}</div>`;
+  }
+
+  _previewStrip(rgb, active, animation = "", numeric = false) {
+    const brightness = this._draft.brightness / 255;
+    const effect = ["blink", "pulse"].includes(animation) ? `preview-${animation}` : "";
+    const period = Math.max(0.1, Math.min(3600, Number(this._draft.period) || 1));
+    return `<div class="template-strip" aria-hidden="true" ${numeric ? "data-preview-result" : ""}>
+      <span class="${effect}" style="--strip:${rgbToHex(rgb)};--preview-intensity:${active ? brightness : 0};--period:${period}s"></span></div>`;
+  }
+
+  _renderTemplate() {
+    const t = this._t, r = this._draft, items = this._selections, numeric = r.type === "numeric";
+    const sourceList = this._templateSources();
+    const source = sourceList.find((item) => item.entity_id === r.source);
+    const unit = this._unit();
+    const stateChoices = stateOptions(source, r.state).map((value) => [value, this._stateLabel(source, value)]);
+    const simulation = this._simulatedState ?? "";
+    const simValid = simulation && !["unknown", "unavailable"].includes(simulation);
+    const simulatedMatch = simValid && simulation === r.state;
+    const status = this._runtimeMessage();
+    const active = status || this._notice;
+    const brightness = Math.max(1, Math.round(r.brightness * 100 / 255));
+    const sources = sourceList.map((item) => ({ ...item, state: this._stateLabel(item, item.state) }));
+    return `<main class="template-editor">
+      <div class="toolbar"><button data-back>← ${t.back}</button>
+        ${status ? `<button data-reload ${this._saving || this._loading ? "disabled" : ""}>${t.checkStatus}</button>` : ""}</div>
+      <h1>${t[r.category]}</h1>
+      ${active ? `<p class="message" role="status">${esc(active)}</p>` : ""}
+      ${this._error ? `<p class="message error" role="alert">${esc(this._error)}</p>` : ""}
+      ${r.category === "security" ? `<p class="muted">${t.securityHelp}</p>` : ""}
+      <fieldset class="editor-fields" ${this._saving ? "disabled" : ""}>
+      <section class="card">${inputField(t.automationName, "name", r.name)}
+        <details class="template-source" data-admin-expanded="template-source">
+          <summary>${t.sensor} · ${esc(source?.name ?? (r.source || t.noSelectedSource))}</summary>
+          ${picker(t.sensor, "source", sources, r.source, t)}
+          ${sources.length ? "" : `<p class="muted">${t.noSources}</p>`}
+        </details>
+        ${numeric && unit ? `<p>${t.actualUnit} <strong>${esc(unit)}</strong></p>` : ""}
+        ${numeric && r.source_unit && source?.unit !== r.source_unit ? `<p role="alert">${t.rule_unit_changed}</p>` : ""}
+        ${numeric ? "" : selectField(t.activationState, "state", [["", t.choose], ...stateChoices], r.state)}
+      </section>
+      <section class="card"><h3>${t.targetSection}</h3><div class="form-grid">
+        ${this._targetSelect(t.zones, "zones", items.zones)}
+        ${this._targetSelect(t.individual, "entities", items.managed_lights)}
+      </div><label class="check"><input type="checkbox" data-target-all ${r.target_selection.all_managed ? "checked" : ""}>${t.allManaged}</label></section>
+      <section class="card"><h3>${t.colorSection}</h3>
+        ${numeric ? "" : `<label>${t.color}<input type="color" data-color value="${rgbToHex(r.rgb_color)}"></label>`}
+        <label><span>${t.brightness} <span data-template-brightness-label>${brightness}%</span></span>
+          <input type="range" min="1" max="100" value="${brightness}" data-template-brightness></label>
+        ${numeric ? "" : selectField(t.effect, "animation", ["fixed", "pulse", "blink"].map((key) => [key, t[key]]), r.animation)}
+      </section>
+      ${numeric ? this._renderNumeric(true) : `<section class="card"><h3>${t.stateSimulate}</h3>
+        <label>${t.stateSimulate}<select data-state-simulation>${[["", t.choose], ...stateChoices, ["unknown", t.stateUnknown], ["unavailable", t.stateUnavailable]].map(([value, label]) =>
+          `<option value="${esc(value)}" ${value === simulation ? "selected" : ""}>${esc(label)}</option>`).join("")}</select></label>
+        ${this._previewStrip(r.rgb_color, simulatedMatch, simulatedMatch ? r.animation : "")}
+        ${simulation ? `<p role="status">${!simValid ? t.stateUnknownResult : simulatedMatch ? t.stateActive : t.stateInactive}</p>` : ""}
+        <p class="muted">${t.simulationHelp}</p></section>`}
+      <details class="card" data-admin-expanded="template-advanced"><summary>${t.advancedOptions}</summary>
+        <div class="form-grid">
+          ${numberField(t.priority, "priority", r.priority, 'min="0" max="100" step="1"')}
+          ${numberField(t.transition, "transition", r.transition, 'min="0" max="300" step="any"')}
+          ${numberField(t.activationDelay, "for_seconds", r.for_seconds, 'min="0" max="604800" step="any"')}
+          ${numeric ? "" : numberField(t.releaseDelay, "release_seconds", r.release_seconds ?? 0, 'min="0" max="604800" step="any"')}
+          ${!numeric && r.animation !== "fixed" ? numberField(t.period, "period", r.period, 'min="0.1" max="3600" step="any"') : ""}
+        </div>
+        ${numeric ? this._numericPolicy() : `<p class="muted">${t.releaseHelp}</p>`}
+        <label class="check"><input type="checkbox" data-boolean="enabled" ${r.enabled ? "checked" : ""}>${t.enabled}</label>
+        <button data-full-editor>${t.compatibleEditor}</button>
+      </details>
+      </fieldset>
+      <div class="actions"><button data-discard>${t.cancel}</button>
+        <button class="primary" data-save ${this._canWrite() && this._validDraft() ? "" : "disabled"}>${this._saving ? t.saving : t.save}</button></div></main>`;
   }
 
   _focusPoint(index) {
@@ -1240,7 +1402,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       .map(([key, title]) => names(key) ? `<p data-preview-result>${title}: ${esc(names(key))}</p>` : "").join("");
     const status = this._runtimeMessage();
     const ruleError = this._selected?.target_error;
-    return `<main><div class="toolbar"><button data-back>← ${t.smartRules}</button>
+    return `<main><div class="toolbar"><button data-back>← ${this._fromSmartMenu ? t.smart : t.smartRules}</button>
       <button data-reload ${this._loading || this._saving || this._runtimeStatus === "offline" ? "disabled" : ""}>${t.checkStatus}</button></div>
       <h1>${esc(r.name || t.create)}</h1>
       ${status ? `<div class="message" role="status">${esc(status)}</div>` : ""}
@@ -1277,6 +1439,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       </div><p class="muted">${t.transitionHelp}</p></section>
       <section class="card"><h3>${t.policySection}</h3><div class="form-grid">
         ${numberField(t.priority, "priority", draftValue(r, "priority", 40), 'min="0" max="100"')}
+        ${r.type === "state" ? numberField(t.releaseDelay, "release_seconds", draftValue(r, "release_seconds", 0), 'min="0" max="604800" step="any"') : ""}
         ${r.type === "event" ? numberField(t.duration, "duration", draftValue(r, "duration", 5), 'min="0.1" step="0.1"') : ""}
       </div>${r.type === "event" ? `<p class="muted">${t.durationHelp}</p>` : ""}</section>
       <section class="card"><h3>${t.summarySection}</h3><p>${esc(r.name)} · ${esc(t[r.type])} · P${esc(r.priority ?? 40)}</p>
@@ -1297,8 +1460,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     }
     const content = this._adminDraft || ["lights", "zones", "modes", "settings"].includes(this._view)
       ? this._renderAdmin()
-      : this._draft ? this._renderEditor() : this._view === "rules" ? this._renderList() : this._renderHome();
-    this.shadowRoot.innerHTML = `<style>${this._styles()}${ADMIN_STYLES}</style>${content}${this._renderExitDialog()}`; this._bind();
+      : this._draft ? (this._templateEditor ? this._renderTemplate() : this._renderEditor())
+        : this._view === "rules" ? this._renderList()
+          : this._view === "home" ? this._renderHome() : renderSmartMenu(this._t, this._view);
+    this.shadowRoot.innerHTML = `<style>${this._styles()}${ADMIN_STYLES}${SMART_STYLES}</style>${content}${this._renderExitDialog()}`; this._bind();
     const dialog = this.shadowRoot.querySelector("[data-exit-dialog]");
     if (dialog?.isConnected) dialog.showModal();
     if (focus) {
@@ -1318,6 +1483,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
         element.addEventListener(event, (e) => handler(element, e)));
     const click = (selector, handler) => on(selector, "click", handler);
     click("[data-rules]", () => this._openRules());
+    click("[data-smart-menu]", () => this._openRules());
+    click("[data-smart-category]", (el) => this._openSmartCategory(el.dataset.smartCategory));
     click("[data-admin-view]", (el) => this._openView(el.dataset.adminView));
     click("[data-admin-create]", () => this._editAdmin());
     click("[data-admin-edit]", (el) => this._editAdmin(el.dataset.adminEdit));
@@ -1343,10 +1510,19 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     click("[data-delete]", (el) => {
       if (window.confirm(this._t.confirmDelete)) this._mutate("delete", { rule_id: el.dataset.delete });
     });
-    click("[data-back]", () => this._requestExit(this._editorList()));
+    click("[data-back]", () => this._requestExit(this._fromSmartMenu ? "smart" : this._editorList()));
     click("[data-restore]", () => { if (!this._saving) this._restore(); });
-    click("[data-discard]", () => this._requestExit(this._editorList()));
+    click("[data-discard]", () => this._requestExit(this._fromSmartMenu ? "smart" : this._editorList()));
     click("[data-save]", () => this._save());
+    click("[data-full-editor]", () => { this._templateEditor = false; this._render(); });
+    on("[data-state-simulation]", "change", (el) => { this._simulatedState = el.value; this._render(); });
+    on("[data-template-brightness]", "input", (el) => {
+      this._set("brightness", Math.round(Number(el.value) * 255 / 100), false);
+      root.querySelector("[data-template-brightness-label]").textContent = el.value + "%";
+      if (this._simulatedState === this._draft.state) {
+        root.querySelector(".template-strip span")?.style.setProperty("--preview-intensity", Number(el.value) / 100);
+      }
+    });
     click("[data-exit-continue]", () => this._closeExit());
     on("[data-exit-dialog]", "cancel", (_dialog, event) => {
       event.preventDefault();

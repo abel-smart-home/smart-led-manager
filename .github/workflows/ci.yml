@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        homeassistant: ["2026.11.0", "2026.11.2"]
+        homeassistant: ["2026.11.0", "2026.11.2", "2026.11.3"]
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

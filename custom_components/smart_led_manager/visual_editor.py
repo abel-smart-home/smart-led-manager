@@ -49,6 +49,7 @@ from .modules.admin_configuration import (
 from .modules.configuration import mutable_json, options_revision
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 from .modules.rule_schema import RuleCatalog, RuleValidationError
+from .modules.rule_templates import source_template, template_source_error
 from .modules.targeting import (
     AdvancedTargetError,
     AdvancedTargetResolver,
@@ -72,7 +73,7 @@ _DATA_RECEIPTS = "visual_editor_mutation_receipts"
 _DATA_SIDEBAR = "visual_editor_sidebar"
 _EVENT_ENTRY_STATUS = f"{DOMAIN}_editor_entry_status"
 _MAX_MUTATION_RECEIPTS = 32
-_PANEL_ASSETS_REVISION = "c2.2"
+_PANEL_ASSETS_REVISION = "c2.3"
 
 _TRANSITION_STATES = {
     ConfigEntryState.SETUP_IN_PROGRESS,
@@ -684,6 +685,12 @@ def _smart_rule_payload(
     return {
         "rule": raw,
         "source": source_detail,
+        "category": raw.get("category")
+        or (
+            source_template(state)
+            if isinstance(source, str) and (state := hass.states.get(source))
+            else None
+        ),
         "unit": unit,
         "targets": [
             _friendly_entity(hass, entity_id)
@@ -733,6 +740,11 @@ def _selection_catalog(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any
     return {
         "entities": entities,
         "devices": devices,
+        "template_sources": {
+            state.entity_id: category
+            for state in states
+            if (category := source_template(state)) is not None
+        },
         "managed_lights": [
             _friendly_entity(hass, entity_id)
             for entity_id in sorted(_authorized_targets(entry))
@@ -868,6 +880,13 @@ async def _async_prepare_rule_edit(hass, entry, msg):
         rules = catalog.snapshot()
     except (RuleValidationError, ValueError) as err:
         raise VisualEditorError(getattr(err, "code", "invalid_rule"), str(err)) from err
+    if (
+        result is not None
+        and operation in {"create", "update"}
+        and result.get("category")
+        and (issue := template_source_error(hass.states.get(result["source"]), result))
+    ):
+        raise VisualEditorError(issue, "Review the source and its calibration")
     if (result is not None and operation in {"create", "update", "duplicate"}) or (
         result is not None and operation == "toggle" and result["enabled"]
     ):

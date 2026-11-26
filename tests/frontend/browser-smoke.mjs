@@ -39,7 +39,19 @@ const waitFor = async (condition, message) => {
 };
 let rule, revision = "start", applied = "start", runtime = "ready", receipt;
 let conflict = false, failReload = false, loseResponse = false, mutations = 0;
-const selections = { managed_lights: [{ entity_id: "light.a", name: "Demo A" }] };
+const sensors = {
+  temperature: ["sensor.temperature", "Temperatura Oficina", "°C", "23"],
+  humidity: ["sensor.humidity", "Humedad Oficina", "%", "55"],
+  power: ["sensor.power", "Potencia Sala", "W", "220"],
+  energy: ["sensor.energy", "Energía acumulada Sala", "kWh", "8"],
+  security: ["binary_sensor.front_door", "Puerta de entrada", null, "on"],
+  presence: ["binary_sensor.living_motion", "Movimiento Sala", null, "on"],
+};
+const selections = {
+  managed_lights: [{ entity_id: "light.a", name: "Luz Oficina" }],
+  zones: [{id:"living",name:"Sala"}],
+  template_sources: Object.fromEntries(Object.entries(sensors).map(([category, [id]]) => [id, category])),
+};
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const connection = new EventTarget();
 connection.subscribeEvents = async () => () => {}; // Deliberately drop lifecycle events.
@@ -58,7 +70,10 @@ let modeCalls = 0;
 editor.panel = { config: { entry_id: "lab" } };
 editor.hass = {
   language: "es",
-  states: { "input_boolean.door": { state: "on", attributes: { friendly_name: "Puerta" } } },
+  states: { "input_boolean.door": { state: "on", attributes: { friendly_name: "Puerta" } },
+    ...Object.fromEntries(Object.entries(sensors).map(([category, [id, label, unit, state]]) =>
+      [id, {state, attributes:{friendly_name:label, unit_of_measurement:unit, device_class:category}}])),
+  },
   connection,
   callWS: async (message) => {
     if (message.type.endsWith("/status")) return {
@@ -67,6 +82,7 @@ editor.hass = {
       mutation: receipt?.id === message.mutation_id ? receipt : null,
     };
     if (message.type.endsWith("/admin/get")) return { revision, admin: structuredClone(admin) };
+    if (message.type.endsWith("/preview")) return { results: [{hex:"#800080",rgb:[128,0,128],lower:0,upper:100}] };
     if (message.type.endsWith("/get")) return { revision, selections, rules: rule ? [{ rule, targets: [] }] : [] };
     if (message.type.endsWith("/admin/mode")) {
       modeCalls++;
@@ -99,6 +115,7 @@ editor.hass = {
 };
 try {
   pick("[data-rules]").click();
+  pick('[data-smart-category="smartRules"]').click();
   await waitFor(() => pick("[data-create]") && !pick("[data-create]").disabled, "Catalog did not become ready");
   pick("[data-create]").click();
   const input = pick('[data-path="name"]');
@@ -166,6 +183,8 @@ try {
   connection.dispatchEvent(new Event("ready"));
   await waitFor(() => pick('[data-edit="one"]') && pick(".notice"), "Reconnect did not recover the receipt");
   check(mutations === sent && rule.priority === 66, "Reconnect resent or lost the mutation");
+  loseResponse = false;
+  pick("[data-smart-menu]").click();
   pick("[data-home]").click();
   check(root.querySelectorAll(".slm-tile").length === 5, "Expected exactly five home cards");
   pick('[data-admin-view="lights"]').click();
@@ -200,6 +219,46 @@ try {
   pick("[data-back]").click();
   pick("[data-exit-discard]").click();
   check(location.pathname === "/smart-led-manager-editor", "The panel left its route");
+  const openTemplate = async (category) => {
+    editor._openView("home");
+    pick("[data-rules]").click();
+    if (["power","energy"].includes(category)) pick('[data-smart-category="energyMenu"]').click();
+    pick('[data-smart-category="' + category + '"]').click();
+    await waitFor(() => pick(".template-editor"), "Template did not open: " + category);
+  };
+  const fillTemplate = (category) => {
+    const source = pick(".template-source");
+    source.open = true;
+    change('[data-path="name"]', sensors[category][1], "input");
+    change('[data-path="source"]', sensors[category][0]);
+    change('[data-add-choice="target_selection.zones"]', "living");
+    if (["security","presence"].includes(category)) change('[data-path="state"]', "on");
+  };
+  await openTemplate("security");
+  fillTemplate("security");
+  const beforeSimulation = mutations;
+  change('[data-state-simulation]', "on");
+  check(pick(".template-strip span").style.getPropertyValue("--preview-intensity") === "1", "State simulation did not light the preview");
+  change('[data-state-simulation]', "unavailable");
+  check(pick(".template-strip span").style.getPropertyValue("--preview-intensity") === "0", "Unavailable simulation kept the preview active");
+  check(mutations === beforeSimulation, "State simulation wrote to the catalog");
+  pick('[data-admin-expanded="template-advanced"]').open = true;
+  change('[data-path="release_seconds"]', "20", "input");
+  pick("[data-full-editor]").click();
+  check(pick('[data-path="release_seconds"]').value === "20", "Advanced editor dropped the delay");
+  await openTemplate("power");
+  check(pick('[data-path="source"] option[value="sensor.power"]') &&
+    !pick('[data-path="source"] option[value="sensor.energy"]'), "Energy leaked into the power selector");
+  fillTemplate("power");
+  check(root.textContent.includes("Unidad del sensor W"), "Power template did not bind the real unit");
+  change('[data-simulate]', "50", "input");
+  pick("[data-preview-numeric]").click();
+  await waitFor(() => pick(".template-strip[data-preview-result]"), "Numeric simulation did not render");
+  pick("[data-save]").click();
+  await tick();
+  check(rule.category === "power" && rule.source_unit === "W", "Template save lost its source unit");
+  runtime = "ready"; applied = revision;
+  await waitFor(() => pick(".notice") && pick("[data-edit]"), "Template save did not return to the common catalog");
   window.captureAdmin = async (name, theme) => {
     document.documentElement.dataset.theme = theme;
     admin = structuredClone(demo);
@@ -207,9 +266,15 @@ try {
     const view = { "edit-zone":"zones", "create-zone":"zones", "draft-exit":"zones",
       "create-mode":"modes", "edit-mode":"modes", "active-mode":"modes" }[name] ?? name;
     if (name === "active-mode") admin.status.living = {selected_mode_id:"cinema", state:"winner"};
-    if (name === "smart") {
+    if (name === "smart" || name === "automation-list") {
       pick("[data-rules]").click();
-      await waitFor(() => pick("[data-create]") && !pick("[data-create]").disabled, "Rule list did not load");
+      if (name === "automation-list") {
+        pick('[data-smart-category="smartRules"]').click();
+        await waitFor(() => pick("[data-create]") && !pick("[data-create]").disabled, "Rule list did not load");
+      }
+    } else if (Object.hasOwn(sensors, name)) {
+      await openTemplate(name);
+      fillTemplate(name);
     } else if (name !== "home") {
       pick('[data-admin-view="' + view + '"]').click();
       if (view !== "settings") await waitFor(() => !editor._loading && editor._admin, "Administration did not load");
@@ -234,7 +299,7 @@ try {
 </script>`;
 
 const server = createServer(async (request, response) => {
-  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views)\.mjs$/.exec(request.url);
+  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views|smart-views)\.mjs$/.exec(request.url);
   if (name) {
     const file = new URL(`../../custom_components/smart_led_manager/frontend/${name[1]}.mjs`, import.meta.url);
     response.setHeader("Content-Type", "text/javascript");
@@ -309,7 +374,11 @@ try {
   assert.equal(result, "BROWSER_SMOKE_PASSED");
   if (captures) {
     await mkdir(captures, { recursive: true });
-    const sets = [
+    const c23 = basename(captures) === "c23-evidence";
+    const sets = c23 ? [
+      { name: "desktop", theme: "light", width: 1280, height: 900, views: ["home","smart","automation-list","temperature","humidity","power","energy","security","presence"] },
+      { name: "mobile", theme: "dark", width: 390, height: 844, views: ["home","smart","temperature","energy","security","presence"] },
+    ] : [
       { name: "desktop", theme: "light", width: 1280, height: 900, views: ["home", "lights", "zones", "create-zone", "edit-zone", "draft-exit", "modes", "active-mode", "create-mode", "edit-mode", "smart", "settings"] },
       { name: "mobile", theme: "dark", width: 390, height: 844, views: ["home", "lights", "edit-zone", "modes", "create-mode"] },
     ];
@@ -326,7 +395,7 @@ try {
         assert.ok(prepared.result.value.heading);
         const saved = await send("Page.captureScreenshot", { format: "png", fromSurface: true });
         await writeFile(join(captures, name + "-" + view + ".png"), Buffer.from(saved.data, "base64"));
-        if (view === "create-mode") {
+        if (view === "create-mode" || c23 && ["temperature","humidity","power","energy","security","presence"].includes(view)) {
           const { cssContentSize } = await send("Page.getLayoutMetrics");
           const full = await send("Page.captureScreenshot", {
             format: "png", fromSurface: true, captureBeyondViewport: true,

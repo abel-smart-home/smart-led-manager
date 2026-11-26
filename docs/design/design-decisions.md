@@ -11,5 +11,13 @@ Cinco menús; modos como función central, escenas/efectos dentro de modos; cat�
 - Prioridades de ejemplo (modo 60, numérico 40, seguridad 80, presencia 50, avisos 70, horario/avanzada 45) no son migraciones ni sustituyen prioridades reales; revisar colisiones. General: motor existente default newest, intervalo 0.75 s, manual service_only. La política temporal actual usa 15 min.
 - Bloque D queda separado: reintentos/verificación física configurables, pausa/reanudación temporal, aliases de voz. Escenas por luz y efectos avanzados requieren diseño futuro; sin sexto menú.
 
+## Revisión de dimensiones aprobada por el propietario
+
+C.2.2 pasó las diez pruebas funcionales de VirtualBox. El propietario indicó
+que el menú principal ocupaba demasiado espacio. C.2.3 adopta el
+[inicio compacto](design-system.md#inicio-compacto-aprobado-para-c23) y conserva
+las cinco tarjetas, textos, orden, iconos, colores y jerarquía. El HTML v1.0
+permanece como referencia histórica. La validación visual final queda pendiente.
+
 ## No autorizado
 No modificar main, publicar release, etiquetar, cerrar PR, borrar ramas ni enviar a Marketplace sin permiso expreso. No elevar resultados simulados a HAOS o Zigbee. No declarar C.1 ni C.2 aprobados por la maqueta.

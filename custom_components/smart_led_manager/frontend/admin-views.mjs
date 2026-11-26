@@ -135,8 +135,8 @@ const ICONS = {
 
 const PALETTE = ["#6633ff", "#0000ff", "#00ffff", "#00cc66", "#ffcc80", "#ff8800", "#ff0000", "#ffffff"];
 
-function frame(title, content, t, status, back = "") {
-  return `<main class="slm-admin"><section class="slm-shell">
+function frame(title, content, t, status, back = "", home = false) {
+  return `<main class="slm-admin${home ? " slm-home" : ""}"><section class="slm-shell">
     ${back ? `<div class="slm-bar">${back}</div>` : ""}
     <h1>${esc(title)}</h1>${status}${content}
   </section></main>`;
@@ -153,7 +153,7 @@ export function renderAdminHome(t, version, status) {
     </button>`).join("");
   return frame("Smart LED Manager",
     `<p class="slm-sub">${t.admin}</p><div class="slm-grid">${cards}</div><p class="slm-version">${esc(version)}</p>`,
-    t, status);
+    t, status, "", true);
 }
 
 function targetPicker(t, title, lights, selected) {
@@ -339,4 +339,15 @@ export const ADMIN_STYLES = `
   @media(prefers-reduced-motion:reduce){.slm-strip.slm-blink,.slm-strip.slm-pulse{animation:none}}
   @media(max-width:800px){main.slm-admin{padding:16px}.slm-shell{padding:16px;border-radius:20px}.slm-shell h1{font-size:28px;margin-bottom:15px}.slm-sub{font-size:18px}.slm-tile{min-height:155px;padding:17px;gap:12px;border-radius:16px}.slm-tile strong{font-size:20px}.slm-tile span{font-size:16px}.slm-tile svg{width:32px;height:32px}}
   @media(max-width:520px){.slm-grid{grid-template-columns:1fr;gap:16px}.slm-tile{min-height:130px}.slm-form{padding:16px}.slm-mode-section{padding:10px}.slm-row-actions{grid-column:2}.slm-actions button{flex:1}.slm-mode-editor .slm-actions .danger{flex-basis:100%;margin:0}}
+  main.slm-home{max-width:1000px;margin-inline:auto;padding:20px}
+  .slm-home .slm-shell{padding:18px;border-radius:20px}
+  .slm-home h1{font-size:30px;margin:4px 0 10px}
+  .slm-home .slm-sub{font-size:18px;margin-bottom:16px}
+  .slm-home .slm-grid{gap:12px}
+  .slm-home .slm-tile{min-height:145px;padding:18px;gap:9px;border-radius:16px}
+  .slm-home .slm-tile-settings{min-height:100px}
+  .slm-home .slm-tile svg{width:28px;height:28px}
+  .slm-home .slm-tile strong{font-size:21px}
+  .slm-home .slm-tile span{font-size:16px}
+  @media(max-width:520px){main.slm-home{padding:12px}.slm-home .slm-shell{padding:14px}.slm-home .slm-tile{min-height:110px}.slm-home .slm-tile-settings{min-height:100px}}
 `;

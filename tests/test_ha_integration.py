@@ -235,6 +235,68 @@ async def test_editor_confirms_runtime_revision_after_real_reload(
     await client.close()
 
 
+async def test_template_unit_is_validated_and_persisted_through_the_existing_catalog(
+    hass, hass_ws_client
+) -> None:
+    hass.states.async_set(
+        "light.strip", STATE_OFF, {ATTR_SUPPORTED_COLOR_MODES: ["rgb"]}
+    )
+    hass.states.async_set(
+        "sensor.draw", "100", {"device_class": "power", "unit_of_measurement": "W"}
+    )
+    hass.states.async_set(
+        "sensor.total", "2", {"device_class": "energy", "unit_of_measurement": "kWh"}
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_LIGHTS: ["light.strip"]}, minor_version=2
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_ws_client()
+    request = {"entry_id": entry.entry_id, "type": f"{DOMAIN}/smart_rules/get"}
+    await client.send_json({**request, "id": 1})
+    catalog = (await client.receive_json())["result"]
+    assert catalog["selections"]["template_sources"] == {
+        "sensor.draw": "power",
+        "sensor.total": "energy",
+    }
+    rule = {
+        "name": "Power",
+        "type": "numeric",
+        "category": "power",
+        "source": "sensor.draw",
+        "source_unit": "kW",
+        "enabled": False,
+        "targets": ["light.strip"],
+        "points": [
+            {"value": 0, "rgb": [0, 0, 255]},
+            {"value": 400, "rgb": [255, 0, 0]},
+        ],
+        "activation": {"operator": "above", "threshold": 10, "hysteresis": 2},
+    }
+    mutate = {
+        **request,
+        "type": f"{DOMAIN}/smart_rules/mutate",
+        "operation": "create",
+        "revision": catalog["revision"],
+    }
+    await client.send_json({**mutate, "id": 2, "rule": rule})
+    assert (await client.receive_json())["error"]["code"] == "rule_unit_changed"
+    assert not entry.options.get(CONF_RULES)
+    rule["source_unit"] = "W"
+    await client.send_json({**mutate, "id": 3, "rule": rule})
+    saved = (await client.receive_json())["result"]
+    await hass.async_block_till_done()
+    assert entry.runtime_data.options_revision == saved["revision"]
+    await client.send_json({**request, "id": 4})
+    (persisted,) = (await client.receive_json())["result"]["rules"]
+    assert persisted["category"] == "power"
+    assert persisted["rule"]["id"] == saved["rule"]["id"]
+    assert persisted["rule"]["source_unit"] == "W"
+    assert persisted["rule"]["activation"]["hysteresis"] == 2
+    await client.close()
+
+
 async def test_admin_center_reuses_config_entry_and_exclusive_mode_engine(
     hass, hass_ws_client
 ) -> None:

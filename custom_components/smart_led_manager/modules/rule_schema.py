@@ -17,6 +17,7 @@ from ..core.conditions import (
 )
 from ..models import validate_rgb
 from .configuration import mutable_json
+from .rule_templates import NUMERIC_TEMPLATES, STATE_TEMPLATES
 from .targeting import normalize_target_definition
 
 
@@ -82,6 +83,43 @@ def normalize_rule(
     rule["for_seconds"] = _number(
         rule.get("for_seconds", 0), "for_seconds", minimum=0, maximum=604800
     )
+    if "release_seconds" in rule:
+        delay = _number(
+            rule["release_seconds"], "release_seconds", minimum=0, maximum=604800
+        )
+        if delay and kind != RULE_TYPE_STATE:
+            raise RuleValidationError(
+                "invalid_rule", "release delay is only supported for state rules"
+            )
+        rule["release_seconds"] = delay
+
+    categories = (
+        STATE_TEMPLATES
+        if kind == RULE_TYPE_STATE
+        else NUMERIC_TEMPLATES
+        if kind == RULE_TYPE_NUMERIC
+        else ()
+    )
+    if (category := rule.get("category")) is not None and (
+        not isinstance(category, str) or category not in categories
+    ):
+        raise RuleValidationError("invalid_rule", "incompatible rule category")
+    if "source_unit" in rule:
+        unit = rule["source_unit"]
+        if (
+            kind != RULE_TYPE_NUMERIC
+            or not isinstance(unit, str)
+            or not unit
+            or (
+                category in NUMERIC_TEMPLATES
+                and unit not in NUMERIC_TEMPLATES[category]
+            )
+        ):
+            raise RuleValidationError("rule_unit_changed", "incompatible rule unit")
+    elif category in NUMERIC_TEMPLATES:
+        raise RuleValidationError(
+            "rule_unit_changed", "a numeric template requires a source unit"
+        )
 
     if "target_selection" in rule:
         rule["target_selection"] = normalize_target_definition(rule["target_selection"])

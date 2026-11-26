@@ -9,7 +9,12 @@ from datetime import datetime, time, timedelta
 from time import monotonic
 from typing import Any
 
-from homeassistant.const import ATTR_ENTITY_ID, STATE_UNAVAILABLE, STATE_UNKNOWN
+from homeassistant.const import (
+    ATTR_ENTITY_ID,
+    ATTR_UNIT_OF_MEASUREMENT,
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+)
 from homeassistant.core import Context, Event, HomeAssistant, State, callback
 from homeassistant.helpers import area_registry as ar
 from homeassistant.helpers import device_registry as dr
@@ -40,6 +45,7 @@ from ..models import (
     Request,
     utc_now,
 )
+from .rule_templates import source_template
 from .targeting import AdvancedTargetError, AdvancedTargetResolver
 
 _LOGGER = logging.getLogger(__name__)
@@ -77,6 +83,8 @@ class RuleManager:
         self._schedule_unsubscribe: Callable[[], None] | None = None
         self._pending: dict[str, Callable[[], None]] = {}
         self._holds: dict[str, Callable[[], None]] = {}
+        self._release_timers: dict[str, Callable[[], None]] = {}
+        self._release_due: set[str] = set()
         self._dwell_ready: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
         self._activated_at: dict[str, datetime] = {}
@@ -150,10 +158,16 @@ class RuleManager:
         if self._schedule_unsubscribe is not None:
             self._schedule_unsubscribe()
             self._schedule_unsubscribe = None
-        for unsubscribe in (*self._pending.values(), *self._holds.values()):
+        for unsubscribe in (
+            *self._pending.values(),
+            *self._holds.values(),
+            *self._release_timers.values(),
+        ):
             unsubscribe()
         self._pending.clear()
         self._holds.clear()
+        self._release_timers.clear()
+        self._release_due.clear()
         self._dwell_ready.clear()
         tasks = tuple(self._tasks)
         for task in tasks:
@@ -343,18 +357,37 @@ class RuleManager:
         targets: frozenset[str] | None = None,
         targets_changed: bool = False,
     ) -> None:
-        del targets_changed
         state = self._hass.states.get(str(rule["source"]))
-        if state is None or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE}:
+        if (
+            state is None
+            or state.state in {STATE_UNKNOWN, STATE_UNAVAILABLE}
+            or (rule.get("category") and rule["category"] != source_template(state))
+        ):
             await self._release(rule)
             return
         expected = str(rule.get("state", ""))
         matched = state.state == expected
         if rule.get("operator", "equals") == "not_equals":
             matched = not matched
-        if not matched or not self._extra_conditions_match(rule):
+        conditions = self._extra_conditions_result(rule)
+        if conditions is ConditionResult.UNKNOWN:
             await self._release(rule)
             return
+        rule_id = str(rule["id"])
+        if not matched or conditions is ConditionResult.FALSE:
+            delay = float(rule.get("release_seconds", 0))
+            if (
+                not delay
+                or rule_id not in self._activated_at
+                or rule_id in self._release_due
+            ):
+                await self._release(rule)
+                return
+            self._schedule_release(rule, delay)
+            if not targets_changed:
+                return
+        else:
+            self._cancel_release(rule_id)
         if not self._dwell_is_ready(rule):
             return
         resolved = targets or self._targets.resolve_rule(rule).targets
@@ -372,7 +405,16 @@ class RuleManager:
         rule_id = str(rule["id"])
         state = self._hass.states.get(str(rule["source"]))
         numeric = parse_numeric_state(state.state if state else None)
-        if state is None or numeric is None:
+        if (
+            state is None
+            or numeric is None
+            or (rule.get("category") and rule["category"] != source_template(state))
+            or (
+                "source_unit" in rule
+                and rule["source_unit"]
+                != state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+            )
+        ):
             self._numeric_activation.pop(rule_id, None)
             self._last_numeric.pop(rule_id, None)
             await self._release(rule)
@@ -543,7 +585,10 @@ class RuleManager:
         )
 
     def _extra_conditions_match(self, rule: Mapping[str, Any]) -> bool:
-        """Evaluate optional conditions and schedule as one logical AND."""
+        return self._extra_conditions_result(rule) is ConditionResult.TRUE
+
+    def _extra_conditions_result(self, rule: Mapping[str, Any]) -> ConditionResult:
+        """Evaluate the conditions and distinguish unsafe data from a normal exit."""
 
         try:
             condition = validate_condition_tree(rule.get("conditions"))
@@ -555,14 +600,40 @@ class RuleManager:
             )
         except (ConditionValidationError, TypeError):
             _LOGGER.exception("Invalid conditions in rule %s", rule.get("id"))
-            return False
+            return ConditionResult.UNKNOWN
         now_local = dt_util.now()
-        return all(
+        results = {
             evaluate_condition(item, self._hass.states.get, now_local)
-            is ConditionResult.TRUE
             for item in (condition, schedule)
             if item is not None
-        )
+        }
+        if ConditionResult.UNKNOWN in results:
+            return ConditionResult.UNKNOWN
+        if ConditionResult.FALSE in results:
+            return ConditionResult.FALSE
+        return ConditionResult.TRUE
+
+    def _cancel_release(self, rule_id: str) -> None:
+        if unsubscribe := self._release_timers.pop(rule_id, None):
+            unsubscribe()
+        self._release_due.discard(rule_id)
+
+    def _schedule_release(self, rule: Mapping[str, Any], delay: float) -> None:
+        rule_id = str(rule["id"])
+        if rule_id in self._release_timers:
+            return
+
+        @callback
+        def _run(_now: datetime) -> None:
+            self._release_timers.pop(rule_id, None)
+            if not self._stopped:
+                self._release_due.add(rule_id)
+                self._create_task(
+                    self._async_evaluate(rule),
+                    f"smart_led_manager_release_rule_{rule_id}",
+                )
+
+        self._release_timers[rule_id] = async_call_later(self._hass, delay, _run)
 
     def _dwell_is_ready(self, rule: Mapping[str, Any]) -> bool:
         """Apply minimum dwell to the final continuous-rule result."""
@@ -776,6 +847,7 @@ class RuleManager:
 
     async def _release(self, rule: Mapping[str, Any]) -> None:
         rule_id = str(rule["id"])
+        self._cancel_release(rule_id)
         for collection in (self._pending, self._holds):
             pending = collection.pop(rule_id, None)
             if pending is not None:

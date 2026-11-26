@@ -37,6 +37,19 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Editor de modos con color, brillo, efectos compatibles, vista previa local
   e interruptor opcional. La selección activa y el guardado usan el coordinador
   y la revisión aplicada de la única entrada.
+- El propietario aprobó Q-01–Q-10 en HAOS VirtualBox con Core 2026.11.3.
+  Indicó que el inicio ocupaba demasiado espacio. [Resultado funcional y observación visual](docs/haos-test-plan.md#resultado-de-c22-en-virtualbox).
+
+### Añadido — C.2.3
+
+- Inicio compacto centrado con las cinco tarjetas y sus accesos.
+- Iluminación inteligente agrupa el catálogo y las plantillas de temperatura,
+  humedad, potencia, energía acumulada, seguridad y presencia. Las reglas
+  heredadas conservan el editor compatible.
+- Las plantillas numéricas guardan la unidad exacta de calibración. Si
+  cambia, liberan la solicitud y requieren recalibrar los valores.
+- Las reglas de estado pueden esperar antes de finalizar. Recuperar la
+  condición cancela la espera. La pérdida del sensor libera la solicitud.
 
 ### Añadido — Bloque A
 

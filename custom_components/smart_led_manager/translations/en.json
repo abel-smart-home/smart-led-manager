@@ -568,6 +568,9 @@
       "no_rules": "There are no configured rules",
       "rule_not_found": "The selected rule no longer exists",
       "invalid_rule": "The selected rule type is not supported",
+      "rule_unit_changed": "Recalibrate the points and thresholds for the current sensor unit in the administration panel.",
+      "incompatible_template_source": "Select a source compatible with this template in the administration panel.",
+      "invalid_template_state": "Choose a valid activation state in the administration panel.",
       "configuration_changed": "Configuration changed while this form was open. Reopen Options and try again.",
       "no_zones": "Create a zone first",
       "no_modes": "There are no configured modes"

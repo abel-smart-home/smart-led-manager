@@ -120,9 +120,82 @@ class RuleManagerTests(unittest.IsolatedAsyncioTestCase):
             "sensor.temperature", "unknown"
         )
         await manager._async_evaluate_numeric(rule)
-
         self.assertEqual(self.submitted[0].command.color, (128, 0, 128))
         self.assertEqual(self.cancelled, ["rule:temperature"])
+
+    async def test_state_release_wait_restarts_after_recovery_and_ends_on_unknown(
+        self,
+    ) -> None:
+        entity = "binary_sensor.door"
+        rule = {
+            "id": "door",
+            "type": "state",
+            "source": entity,
+            "state": "on",
+            "targets": ["light.strip"],
+            "release_seconds": 12,
+        }
+        hass = _Hass({entity: State(entity, "on")})
+        manager = RuleManager(
+            hass, [rule], frozenset({"light.strip"}), self.submit, self.cancel
+        )
+        timers = []
+
+        def schedule(_hass, delay, callback):
+            unsubscribe = Mock()
+            timers.append((delay, callback, unsubscribe))
+            return unsubscribe
+
+        async def update(value):
+            hass.states.values[entity] = State(entity, value)
+            await manager._async_evaluate(rule)
+
+        with patch(
+            "custom_components.smart_led_manager.modules.rules.async_call_later",
+            side_effect=schedule,
+        ):
+            await update("on")
+            await update("off")
+            await update("off")
+            self.assertEqual([timer[0] for timer in timers], [12])
+            self.assertFalse(self.cancelled)
+            await update("on")
+            timers[0][2].assert_called_once()
+            await update("off")
+            self.assertEqual(len(timers), 2)
+            timers[-1][1](utc_now())
+            await asyncio.sleep(0)
+            self.assertEqual(self.cancelled, ["rule:door"])
+            await update("on")
+            await update("off")
+            await update("unavailable")
+            timers[-1][2].assert_called_once()
+            self.assertEqual(self.cancelled, ["rule:door", "rule:door"])
+
+    async def test_rule_releases_when_calibrated_unit_changes_and_recovers(
+        self,
+    ) -> None:
+        entity = "sensor.demo"
+        rule = {
+            "id": "power",
+            "type": "numeric",
+            "source": entity,
+            "source_unit": "W",
+            "rgb_color": [255, 0, 0],
+            "targets": ["light.strip"],
+        }
+        hass = _Hass({entity: State(entity, "8", {"unit_of_measurement": "W"})})
+        manager = RuleManager(
+            hass, [rule], frozenset({"light.strip"}), self.submit, self.cancel
+        )
+        await manager._async_evaluate(rule)
+        hass.states.values[entity] = State(entity, "8", {"unit_of_measurement": "kW"})
+        await manager._async_evaluate(rule)
+        self.assertEqual(len(self.submitted), 1)
+        self.assertEqual(self.cancelled, ["rule:power"])
+        hass.states.values[entity] = State(entity, "8", {"unit_of_measurement": "W"})
+        await manager._async_evaluate(rule)
+        self.assertEqual(len(self.submitted), 2)
 
     async def test_secondary_condition_is_reevaluated_and_unknown_not_is_safe(
         self,

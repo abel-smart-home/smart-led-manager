@@ -52,6 +52,7 @@ from .modules.native_rule_controls import (
     selector_clock,
 )
 from .modules.rule_schema import RuleValidationError, normalize_rule
+from .modules.rule_templates import template_source_error
 from .modules.targeting import (
     AdvancedTargetError,
     AdvancedTargetResolver,
@@ -1439,7 +1440,12 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
     def _prepare_rule_input(
         self, user_input: Mapping[str, Any], current: Mapping[str, Any]
     ) -> dict[str, Any]:
-        rule = dict(user_input)
+        rule = {
+            key: current[key]
+            for key in ("category", "source_unit", "release_seconds")
+            if key in current
+        }
+        rule.update(user_input)
         rule.pop("conditions_preserved", None)
         conditions = rule.get("conditions")
         if isinstance(conditions, list):
@@ -1612,6 +1618,14 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
 
     def _validated_rule(self, rule: Mapping[str, Any]) -> dict[str, Any]:
         normalized = normalize_rule(rule)
+        if normalized.get("category") and (
+            issue := template_source_error(
+                self.hass.states.get(normalized["source"]), normalized
+            )
+        ):
+            raise RuleValidationError(
+                issue, "Review the source in the administration panel"
+            )
         AdvancedTargetResolver(
             self.hass, self._lights(), self._zones(), audit=False
         ).resolve_rule(normalized)

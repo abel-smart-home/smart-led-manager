@@ -125,13 +125,13 @@ Assistant. Las etapas son internas a `0.1.0-alpha.3` y comparten una rama.
 | --- | --- |
 | C.2.0 | Consolidación documental y de Git. [Base y respaldo](design/consolidacion-c2.md). |
 | C.2.1 | Estabilidad, guardado confirmado, recarga, concurrencia y borradores. P-01–P-06 aprobadas por el propietario en VirtualBox con `cf2f371353dc6321baaef67c0ca8858e6d564110`. [Resultado](haos-test-plan.md#resultado-de-c21-en-virtualbox). |
-| C.2.2 | Centro de cinco secciones, luces administradas, zonas y modos. Escenas y efectos dentro de Modos. [Comparación visual](design/c22-evidence/README.md). [Validación práctica](haos-c22-checks.md) pendiente. |
-| C.2.3 | Plantillas de temperatura, humedad, energía, seguridad y presencia. Espera al finalizar en reglas compatibles. |
+| C.2.2 | Centro de cinco secciones, luces administradas, zonas y modos. Escenas y efectos dentro de Modos. 10/10 pruebas funcionales aprobadas en HAOS VirtualBox, Core 2026.11.3. Observación visual sobre el tamaño del inicio. [Registro del propietario](haos-test-plan.md#resultado-de-c22-en-virtualbox). |
+| C.2.3 | Inicio compacto, catálogo y plantillas de temperatura, humedad, energía, seguridad y presencia. Espera al finalizar en reglas de estado compatibles. Validación práctica y visual pendientes. |
 | C.2.4 | Catálogo persistente de avisos y acción por ID con selección amigable, horarios sin sensor y reglas activadas sólo por condiciones. |
 | C.2.5 | Configuración y diagnóstico. |
 | C.2.6 | Estabilización integral, comparación visual por pantalla y recorrido práctico U-01–U-06. |
 
-La implementación autorizada llega a C.2.2. C-01–C-20 y las repeticiones
+La implementación autorizada llega a C.2.3. C-01–C-20 y las repeticiones
 Zigbee conservan su estado en el [plan HAOS](haos-test-plan.md).
 El Bloque D mantiene la recuperación configurable, la pausa/reanudación y la
 verificación física. Las animaciones multicolor avanzadas, secuencias

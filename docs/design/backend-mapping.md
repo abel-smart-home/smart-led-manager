@@ -18,3 +18,20 @@ Fuente revisada: `a0df3c48711f8b40fe48f8ded122d5a572906c83`. Verificar nuevament
 `visual_editor.py` contiene registro del panel, WebSocket autenticado, revisión optimista y mutación de reglas. Investigar causa de `Smart LED Manager config entry is not loaded` durante recarga/configuración. No eludir permisos o validaciones. Mantener coordinador, PriorityEngine, catálogo, Store, entry_id, entity IDs y lógica de recuperación. Toda mutación debe revalidar autorización y evitar listeners/tareas duplicadas o comandos obsoletos. Deduplicar destinos y mantener rate limit por luz. No introducir backend paralelo ni dependencias externas innecesarias.
 
 El HTML usa datos ficticios y funciones directas; no son contratos de API. Implementar usando API asíncrona oficial de HA y traducciones en/es. No asumir que un selector dinámico de avisos ya existe. Registrar capacidades nuevas como pendientes hasta validar.
+
+## Contrato de reglas de C.2.3
+
+Las plantillas usan el mismo catálogo WebSocket, opciones y motor. La
+clasificación procede del tipo de entidad, clase y unidad publicados por
+Home Assistant. Las reglas guardadas desde las plantillas pueden incluir
+`category` y `source_unit`. La unidad queda vinculada a los puntos y umbrales.
+Un cambio de unidad requiere confirmación y recalibración. El motor libera la
+solicitud mientras las unidades difieran.
+
+`release_seconds` es opcional para reglas de estado y equivale a cero cuando
+falta. Es independiente de `for_seconds`, que retrasa la activación. El
+temporizador vive en memoria, se cancela cuando vuelve a cumplirse la
+condición y se limpia al descargar. Un origen no disponible o desconocido
+libera la solicitud. Tras reiniciar o recargar se reevalúan las fuentes
+vigentes. Los campos opcionales no requieren reescritura de las reglas
+heredadas ni cambio de versión de ConfigEntry.

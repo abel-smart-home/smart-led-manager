@@ -110,11 +110,14 @@ class _Hass:
         self.states = SimpleNamespace(
             get=lambda entity_id: (
                 SimpleNamespace(
+                    entity_id=entity_id,
                     name="Temperatura del salón",
                     attributes={"unit_of_measurement": "°C"},
                 )
                 if entity_id == "sensor.temperature"
-                else SimpleNamespace(name="Tira del salón", attributes={})
+                else SimpleNamespace(
+                    entity_id=entity_id, name="Tira del salón", attributes={}
+                )
                 if entity_id == "light.strip"
                 else None
             )

@@ -568,6 +568,9 @@
       "no_rules": "No hay reglas configuradas",
       "rule_not_found": "La regla seleccionada ya no existe",
       "invalid_rule": "El tipo de regla seleccionado no es compatible",
+      "rule_unit_changed": "Recalibra los puntos y umbrales para la unidad actual del sensor en el panel de administración.",
+      "incompatible_template_source": "Selecciona un origen compatible con esta plantilla en el panel de administración.",
+      "invalid_template_state": "Elige un estado de activación válido en el panel de administración.",
       "configuration_changed": "La configuración cambió mientras este formulario estaba abierto. Vuelve a abrir Opciones e inténtalo de nuevo.",
       "no_zones": "Primero crea una zona",
       "no_modes": "No hay modos configurados"

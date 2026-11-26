@@ -81,10 +81,10 @@ export function stateOptions(entity, current) {
   const domain = entity?.entity_id.split(".")[0];
   const known = {
     binary_sensor: ["on", "off"], input_boolean: ["on", "off"],
-    light: ["on", "off"], switch: ["on", "off"],
+    light: ["on", "off"], switch: ["on", "off"], lock: ["locked", "unlocked"],
     person: ["home", "not_home"], device_tracker: ["home", "not_home"],
     sun: ["above_horizon", "below_horizon"],
-    alarm_control_panel: ["disarmed", "armed_home", "armed_away", "armed_night", "triggered"],
+    alarm_control_panel: ["disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass", "pending", "arming", "disarming", "triggered"],
   };
   return [...new Set([...(Array.isArray(entity?.options) ? entity.options : known[domain] ?? []),
     entity?.state, current].filter((value) => value && !INVALID_STATES.has(value)))];

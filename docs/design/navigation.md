@@ -26,4 +26,9 @@ Smart LED Manager
 
 Guardar correctamente vuelve al listado pertinente y muestra confirmación. Atrás o Cancelar con cambios abre el diálogo con **Continuar editando**, **Descartar cambios y salir** y **Guardar y salir**. Sin cambios, la navegación es directa. Ante un error de validación o del servidor, el formulario conserva el borrador. La ruta del panel se mantiene. Las escenas y los efectos forman parte de Modos de iluminación.
 
-C.2.2 incorpora la eliminación de zonas con comprobación de dependencias. **Iluminación inteligente** abre el catálogo existente, incluida la duplicación de reglas compatibles. **Configuración** abre **Configuración nativa**. El árbol superior conserva el diseño previsto para las etapas siguientes. [Comparación visual C.2.2](c22-evidence/README.md).
+C.2.3 abre **Iluminación inteligente** con las nueve entradas del árbol.
+**Energía** ofrece potencia instantánea y energía acumulada por separado.
+**Mis automatizaciones** usa el catálogo común. **Notificaciones** enlaza
+a las acciones de Home Assistant, **Horarios** ofrece el horario del editor
+compatible y **Regla avanzada** abre ese mismo editor. **Configuración**
+conserva el acceso a **Configuración nativa**.

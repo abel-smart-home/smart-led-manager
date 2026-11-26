@@ -1,5 +1,9 @@
 # Instalar y probar Smart LED Manager C.2.2 en VirtualBox
 
+El propietario aprobó Q-01–Q-10, **10/10 funcionales**, con Core 2026.11.3 y
+el SHA de esta guía. La comprobación visual quedó con una observación sobre
+el tamaño del menú principal. [Registro del propietario](haos-test-plan.md#resultado-de-c22-en-virtualbox).
+
 Usa la máquina de laboratorio con Home Assistant OS y entra como
 administrador. La versión sigue siendo **0.1.0-alpha.3**. El código que se
 debe instalar es `7a0fc49c2eda8a15e9b0e658e10b6da2efaede29`.
