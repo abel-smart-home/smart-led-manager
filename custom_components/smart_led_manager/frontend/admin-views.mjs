@@ -11,8 +11,10 @@ export const ADMIN_TEXT = {
     settings: "Configuración", settingsHint: "Ajustes y diagnóstico",
     lightsHelp: "Elige las luces que Smart LED Manager puede controlar.",
     lightsLimit: "Sólo las luces seleccionadas estarán autorizadas.",
-    zonesHelp: "Organiza las luces por habitación o espacio.",
-    modesHelp: "Crea ambientes para cada zona y actívalos cuando quieras.",
+    zonesHelp: "Organiza las luces por habitación.",
+    modesHelp: "Crea ambientes para cada habitación y actívalos cuando quieras.",
+    modesExclusive: "Cada zona admite un modo activo a la vez. Activar otro lo reemplaza.",
+    searchLight: "Buscar luz…",
     zoneLights: "Luces de la zona", modeLights: "Luces del modo",
     lightChoices: "Luces disponibles", selectedLights: "seleccionadas",
     invalidLights: "Selecciona al menos una luz.",
@@ -71,6 +73,8 @@ export const ADMIN_TEXT = {
     lightsLimit: "Only the lights you select will be authorized.",
     zonesHelp: "Organize your lights by room or space.",
     modesHelp: "Create ambiences for each zone and activate them whenever you like.",
+    modesExclusive: "Each zone supports one active mode at a time. Activating another replaces it.",
+    searchLight: "Search lights…",
     zoneLights: "Zone lights", modeLights: "Mode lights",
     lightChoices: "Available lights", selectedLights: "selected",
     invalidLights: "Select at least one light.",
@@ -158,7 +162,7 @@ function targetPicker(t, title, lights, selected) {
   return `<div class="slm-form-row">${title ? `<strong>${title}</strong>` : ""}
     <details class="slm-picker" data-admin-expanded="lights" open>
       <summary>${t.lightChoices} · ${selected.length} ${t.selectedLights}</summary>
-      <label class="slm-search">${t.search}<input type="search" data-admin-search></label>
+      <input class="slm-search" type="search" aria-label="${t.searchLight}" placeholder="${t.searchLight}" data-admin-search>
       <div class="slm-choices">${ids.map((id) => `<label class="slm-check" data-choice-label="true">
         <input type="checkbox" data-admin-target="${esc(id)}" ${selected.includes(id) ? "checked" : ""}>
         <span>${esc(names.get(id) ?? id)}</span>
@@ -166,8 +170,8 @@ function targetPicker(t, title, lights, selected) {
     </details></div>`;
 }
 
-function formActions(t, canSave, saving, deleting = "") {
-  return `<div class="slm-actions">${deleting}<button data-discard>${t.cancel}</button>
+function formActions(t, canSave, saving, deleting = "", cancel = t.cancel) {
+  return `<div class="slm-actions">${deleting}<button data-discard>${cancel}</button>
     <button data-save class="primary" ${canSave ? "" : "disabled"}>${saving ? t.saving : t.save}</button></div>`;
 }
 
@@ -179,7 +183,7 @@ function adminEditor({ kind, draft, data, t, status, ready, canSave, saving, eff
     return frame(t.lights, `<p>${t.lightsHelp}</p><div class="slm-form">
         <fieldset ${lock}>${targetPicker(t, "", data.lights, draft.targets)}
         <p class="muted">${t.lightsLimit}</p></fieldset>
-        ${formActions(t, canSave, saving)}</div>`, t, status, back);
+        ${formActions(t, canSave, saving, "", t.back)}</div>`, t, status, back);
   }
   if (kind === "zone") {
     const areas = data.areas.map((area) => [area.id, area.name]);
@@ -210,7 +214,7 @@ function adminEditor({ kind, draft, data, t, status, ready, canSave, saving, eff
         <div><strong>${t.color}</strong><div class="slm-palette">${palette}</div>
           <input aria-label="${t.color}" type="color" data-admin-color-input value="${color}">
           ${draft.rgb_color === null ? `<small class="muted">${t.colorUnset}</small>` : ""}</div>
-        <label>${t.brightness} <span data-admin-brightness>${draft.brightness === null ? t.brightnessUnset : percent + "%"}</span>
+        <label><span>${t.brightness} <span data-admin-brightness>${draft.brightness === null ? t.brightnessUnset : percent + "%"}</span></span>
           <input type="range" min="1" max="100" value="${percent}" data-admin-brightness-input></label>
         ${selectField(t.effect, "animation", ["fixed", "pulse", "blink"].map((id) => [id, t[id]]), animation)}
         <div class="slm-preview"><div class="slm-strip ${effect ? "slm-" + animation : ""}"
@@ -252,7 +256,7 @@ function modeGroups(data, t, ready) {
         return `<article class="slm-row slm-mode-row ${on ? "slm-active" : ""}">
           <span class="slm-mode-swatch" style="--swatch:${mode.rgb_color ? rgbToHex(mode.rgb_color) : "var(--divider-color)"}" aria-hidden="true"></span>
           <div><strong>${esc(mode.name)}</strong>${on ? `<span class="slm-active-label">${t.active}</span>` : ""}
-          <small class="muted">${esc(t[mode.animation ?? "fixed"])} · P${esc(mode.priority)}
+          <small class="muted">${mode.brightness === null ? t.brightnessUnset : `${t.brightness} ${Math.max(1, Math.round(mode.brightness * 100 / 255))}%`} · ${esc(t[mode.animation ?? "fixed"])}${mode.expose_switch ? " · " + t.external : ""}
             ${on ? ` · ${esc(state)}${online > 0 && online < mode.targets.length ? " · " + t.partialAvailability : ""}` : ""}</small></div>
           <div class="slm-row-actions"><button class="${on ? "" : "primary"}" data-mode-active="${esc(mode.mode_id)}"
             data-on="${on}" ${ready ? "" : "disabled"}>${on ? t.deactivate : t.activate}</button>
@@ -281,21 +285,21 @@ export function renderAdministration(model) {
     `<p class="muted">${t.zoneFirst}</p><button data-admin-view="zones">${t.zones}</button>`;
   return frame(t.modes, `<div class="slm-list-top"><p>${t.modesHelp}</p>
       ${data.zones.length ? `<button class="primary" data-admin-create ${ready ? "" : "disabled"}>+ ${t.newMode}</button>` : ""}
-      </div>${content}`, t, status, homeButton(t));
+      </div>${content}${data.zones.length ? `<p class="muted">${t.modesExclusive}</p>` : ""}`, t, status, homeButton(t));
 }
 
 export const ADMIN_STYLES = `
   main.slm-admin{max-width:1600px;padding:34px}
   .slm-shell{border:2px solid var(--divider-color,#ddd);border-radius:32px;padding:24px}
-  .slm-shell h1{font-size:38px;font-weight:650;line-height:1.25;margin:10px 0 16px}
-  .slm-sub{font-size:18px;color:var(--secondary-text-color);margin:0 0 18px}
-  .slm-bar{margin-bottom:17px}.slm-bar button{border-radius:999px}
+  .slm-shell h1{font-size:38px;font-weight:650;line-height:1.25;margin:5px 0 26px}
+  .slm-sub{font-size:26px;color:var(--secondary-text-color);margin:0 0 24px}
+  .slm-bar{margin-bottom:24px}.slm-bar button{border-radius:9px}
   .slm-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .slm-tile{background:var(--card-background-color);border:2px solid var(--divider-color);border-radius:24px;min-height:220px;padding:24px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:22px}
+  .slm-tile{background:var(--secondary-background-color,var(--card-background-color));border:2px solid var(--divider-color);border-radius:24px;min-height:220px;padding:24px;display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:22px}
   .slm-tile:hover,.slm-link:hover{border-color:var(--primary-color)}
   .slm-tile svg{width:44px;height:44px}.slm-tile strong{font-size:30px;font-weight:650;line-height:1.25}.slm-tile span{font-size:26px}
   .slm-tile span,.slm-version{color:var(--secondary-text-color)}
-  .slm-tile-settings{grid-column:1/-1;min-height:150px;gap:8px}.slm-tile-settings svg{color:#84909d}
+  .slm-tile-settings{grid-column:1/-1;min-height:150px}.slm-tile-settings svg{color:#84909d}
   .slm-tile-lights svg{color:#d5a13b}.slm-tile-zones svg{color:#438aca}
   .slm-tile-modes svg{color:#8b5cce}.slm-tile-smart svg{color:#299b65}
   .slm-version{margin:14px 0 0;font-size:12px}
@@ -304,34 +308,35 @@ export const ADMIN_STYLES = `
   .slm-form fieldset{display:grid;gap:17px;border:0;min-width:0;margin:0;padding:0}
   .slm-form label,.slm-form-row{display:flex;flex-direction:column;gap:7px}
   .slm-form label.slm-check{font-weight:400;flex-direction:row;align-items:center;gap:8px}
-  .slm-form input[type=checkbox]{width:auto;accent-color:var(--primary-color)}
+  .slm-form input:is([type=checkbox],[type=range]){accent-color:var(--primary-color)}
+  .slm-form input[type=checkbox]{width:20px;height:20px}
   .slm-form input:not([type=checkbox]),.slm-form select{padding:12px;border-radius:8px}
   .slm-form :is(input,select,summary,button):focus-visible,.slm-shell button:focus-visible{outline:3px solid var(--primary-color);outline-offset:2px}
   .slm-picker,.slm-mode-section{border:1px solid var(--divider-color);border-radius:12px;padding:12px;min-width:0}
   .slm-picker summary,.slm-mode-section summary{cursor:pointer;font-weight:600}
-  .slm-picker input[type=search]{margin:0;width:100%}.slm-search{margin:10px 0}
+  .slm-picker input[type=search]{margin:10px 0;width:100%}
   .slm-choices{display:grid;gap:8px;max-height:260px;overflow:auto;padding:0 2px}.slm-choices [hidden]{display:none!important}
   .slm-actions{display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:20px}
-  .slm-row{width:100%;border:1px solid var(--divider-color);border-radius:13px;background:var(--card-background-color);padding:14px;text-align:left;margin:9px 0}
+  .slm-row{width:100%;border:1px solid var(--divider-color);border-radius:13px;background:var(--card-background-color);padding:18px;text-align:left;margin:9px 0}
   .slm-link{position:relative;display:grid;padding-right:36px;gap:4px;color:var(--primary-text-color);text-decoration:none}
   .slm-link small,.slm-mode-row small{display:block;color:var(--secondary-text-color)}
   .slm-link span{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:20px}
   .slm-create{margin-top:12px}.slm-list-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-  .slm-zone-group{margin:18px 0}.slm-mode-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:13px}.slm-mode-row.slm-active{border-color:var(--primary-color)}
-  .slm-mode-swatch{width:31px;height:31px;border-radius:8px;background:var(--swatch);border:1px solid var(--divider-color)}
+  .slm-zone-group{margin:24px 0}.slm-mode-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:14px}.slm-mode-row.slm-active{border-color:var(--primary-color)}
+  .slm-mode-swatch{width:44px;height:44px;border-radius:10px;background:var(--swatch);border:1px solid var(--divider-color)}
   .slm-row-actions,.slm-palette,.slm-preview-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .slm-active-label{margin-inline-start:8px;color:var(--primary-color);font-weight:600}
   .slm-mode-section{display:grid;gap:13px;padding:15px}.slm-mode-section:not([open])>summary{list-style-position:inside}
   .slm-mode-section:not([open])>summary~*{display:none}.slm-mode-section h2{font-size:18px;margin:0}
-  .slm-palette{margin:8px 0}.slm-color{width:29px;height:29px;padding:0;border-radius:50%;background:var(--swatch)}
+  .slm-palette{margin:8px 0}.slm-color{width:38px;height:38px;padding:0;border-radius:50%;background:var(--swatch)}
   .slm-color[aria-pressed=true]{outline:2px solid var(--primary-color);outline-offset:2px}
-  .slm-form input[type=color]{width:100%;padding:4px;height:31px}
+  .slm-form input[type=color]{width:100%;padding:3px;height:44px}
   .slm-preview{height:134px;border-radius:13px;background:#14161b;display:grid;place-items:center}
   .slm-strip{width:84%;height:9px;border-radius:12px;background:var(--strip);box-shadow:0 0 20px var(--strip);opacity:var(--intensity)}
   .slm-strip.slm-blink{animation:slm-fade var(--period) steps(1,end) infinite}
   .slm-strip.slm-pulse{animation:slm-fade var(--period) ease-in-out infinite}
   @keyframes slm-fade{0%,100%{opacity:var(--intensity)}50%{opacity:.07}}
   @media(prefers-reduced-motion:reduce){.slm-strip.slm-blink,.slm-strip.slm-pulse{animation:none}}
-  @media(max-width:800px){main.slm-admin{padding:16px}.slm-shell{padding:16px;border-radius:20px}.slm-shell h1{font-size:30px}.slm-tile{min-height:155px;padding:17px;gap:12px;border-radius:16px}.slm-tile strong{font-size:20px}.slm-tile span{font-size:16px}.slm-tile svg{width:32px;height:32px}}
-  @media(max-width:520px){.slm-grid{grid-template-columns:1fr;gap:11px}.slm-tile{min-height:130px}.slm-shell h1{font-size:27px}.slm-form{padding:13px}.slm-mode-section{padding:10px}.slm-row-actions{grid-column:2}.slm-actions button{flex:1}.slm-mode-editor .slm-actions .danger{flex-basis:100%;margin:0}}
+  @media(max-width:800px){main.slm-admin{padding:16px}.slm-shell{padding:16px;border-radius:20px}.slm-shell h1{font-size:28px;margin-bottom:15px}.slm-sub{font-size:18px}.slm-tile{min-height:155px;padding:17px;gap:12px;border-radius:16px}.slm-tile strong{font-size:20px}.slm-tile span{font-size:16px}.slm-tile svg{width:32px;height:32px}}
+  @media(max-width:520px){.slm-grid{grid-template-columns:1fr;gap:16px}.slm-tile{min-height:130px}.slm-form{padding:16px}.slm-mode-section{padding:10px}.slm-row-actions{grid-column:2}.slm-actions button{flex:1}.slm-mode-editor .slm-actions .danger{flex-basis:100%;margin:0}}
 `;
