@@ -6,6 +6,8 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+from homeassistant.config_entries import ConfigEntryState
+
 from custom_components.smart_led_manager import async_migrate_entry
 from custom_components.smart_led_manager.const import CONF_ZONES
 from custom_components.smart_led_manager.diagnostics import (
@@ -64,8 +66,19 @@ class HomeAssistantHelperTests(unittest.IsolatedAsyncioTestCase):
         entry = SimpleNamespace(
             version=1,
             minor_version=0,
+            state=ConfigEntryState.LOADED,
             data={"lights": ["light.strip"], "password": "entry-secret"},
-            options={"tie_breaker": "newest"},
+            options={
+                "tie_breaker": "newest",
+                "rules": [
+                    {
+                        "trigger": {
+                            "event_data": {"opaque-value": "secret"},
+                            "Authorization": "private",
+                        }
+                    }
+                ],
+            },
             runtime_data=coordinator,
         )
 
@@ -74,6 +87,9 @@ class HomeAssistantHelperTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["entry"]["data"]["password"], "**REDACTED**")
         self.assertEqual(result["runtime"]["access_token"], "**REDACTED**")
         self.assertEqual(result["runtime"]["status"], "active")
+        trigger = result["entry"]["options"]["rules"][0]["trigger"]
+        self.assertEqual(trigger["event_data"], "**REDACTED**")
+        self.assertEqual(trigger["Authorization"], "**REDACTED**")
 
     async def test_status_sensor_reports_bounded_runtime_state(self) -> None:
         remove_listener = object()

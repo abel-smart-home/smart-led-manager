@@ -329,10 +329,17 @@ try {
   await waitFor(() => pick('[data-save]:enabled'), "Priorities did not load");
   check(pick('[data-path="tie_breaker"]').value === "oldest", "Saved policy was replaced by the default");
   check(!pick('[data-admin-expanded="network"]').open, "Network protection expanded by default");
+  admin.preferences.tie_breaker = "lexical";
+  revision = applied = "native-settings";
+  await editor._load();
+  check(pick('[data-path="tie_breaker"]').value === "lexical", "An unchanged form did not refresh from native options");
   pick('[data-admin-expanded="network"]').open = true;
   change('[data-path="min_command_interval"]', "0.53", "input");
   check(pick('[data-save]').disabled && !pick('[data-interval-error]').hidden, "Off-step interval was accepted");
   pick('[data-reset-preferences]').click();
+  admin.preferences.tie_breaker = "oldest";
+  revision = applied = "native-settings-again";
+  await editor._load();
   check(pick('[data-path="tie_breaker"]').value === "newest" && admin.preferences.tie_breaker === "oldest", "Reset changed persistence");
   pick('[data-discard]').click();
   pick('[data-exit-discard]').click();

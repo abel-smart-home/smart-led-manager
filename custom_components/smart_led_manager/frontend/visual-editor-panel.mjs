@@ -275,6 +275,16 @@ const selectionFor = (rule) => rule.target_selection
 const draftValue = (rule, key, fallback) => Object.hasOwn(rule, key) ? rule[key] : fallback;
 
 const RUNTIME_READ_DELAYS = [0, 150, 450, 1000, 2000];
+// Home Assistant rebuilds a custom panel when its sidebar metadata changes.
+// Keep the editor session in this document while the replacement is mounted.
+const detachedEditors = new WeakMap();
+const EDITOR_SESSION_FIELDS = [
+  "_view", "_rules", "_selections", "_selected", "_draft", "_original", "_admin", "_adminDraft", "_adminExpanded",
+  "_revision", "_catalogRevision", "_pendingMutation", "_creating", "_notice", "_error", "_exitView", "_exitFocus",
+  "_templateEditor", "_planEditor", "_fromSmartMenu", "_searches", "_pointInput", "_eventPairs", "_triggerKind",
+  "_deviceId", "_deviceChoice", "_deviceTriggers", "_simulatedState", "_simulateValue", "_planAt", "_planValues",
+  "_recoveryState", "_diagnostics", "_diagError",
+];
 
 class SmartLEDManagerVisualEditor extends HTMLElement {
   constructor() {
@@ -357,11 +367,20 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   set route(value) { this._route = value; }
   set narrow(value) { this._narrow = value; }
   connectedCallback() {
+    this._detached = false;
     window.addEventListener("beforeunload", this._beforeUnload);
     this._subscribeStatus();
     this._render();
   }
   disconnectedCallback() {
+    this._detached = true;
+    const connection = this._hass?.connection;
+    if (connection && this._entryId && window.location.pathname === "/smart-led-manager-editor") {
+      detachedEditors.set(connection, this);
+      setTimeout(() => {
+        if (detachedEditors.get(connection) === this) detachedEditors.delete(connection);
+      }, 5000);
+    }
     clearTimeout(this._noticeTimer);
     this._noticeTimer = undefined;
     window.removeEventListener("beforeunload", this._beforeUnload);
@@ -384,6 +403,13 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _subscribeStatus() {
     const connection = this._hass?.connection;
     if (!this._entryId || !connection || connection === this._statusConnection) return;
+    const previous = detachedEditors.get(connection);
+    if (previous?._entryId === this._entryId) {
+      detachedEditors.delete(connection);
+      if (previous !== this) {
+        for (const field of EDITOR_SESSION_FIELDS) this[field] = previous[field];
+      }
+    }
     this._detachStatus();
     this._statusConnection = connection;
     this._onReconnect = () => {
@@ -437,7 +463,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   }
 
   async _load() {
-    if (!this._hass || !this._entryId || this._runtimeStatus === "offline") return;
+    if (this._detached || !this._hass || !this._entryId || this._runtimeStatus === "offline") return;
     if (this._loading || this._sending) {
       this._loadAgain = true;
       return;
@@ -508,10 +534,15 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       if (this._view === "lights" && !this._draft) {
         this._setAdminDraft("lights", { targets: [...this._admin.managed] }, false);
       }
-      if (PREFERENCE_VIEWS.includes(this._view) && !this._draft) {
+      if (PREFERENCE_VIEWS.includes(this._view) && (!this._draft ||
+          (this._revision !== response.revision && !this._dirty() && !this._pendingMutation))) {
         const keys = this._view === "general" ? ["show_sidebar"] : Object.keys(this._admin.engine_defaults);
         const draft = Object.fromEntries(keys.map((key) => [key, this._admin.preferences[key]]));
-        this._setAdminDraft(this._view, draft, false);
+        if (this._draft) {
+          this._draft = draft;
+          this._original = deepClone(draft);
+        } else this._setAdminDraft(this._view, draft, false);
+        this._revision = response.revision;
       }
     } else {
       this._rules = response.rules;

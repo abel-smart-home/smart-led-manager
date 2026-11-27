@@ -313,6 +313,7 @@ class DiagnosticSurfaceTests(unittest.IsolatedAsyncioTestCase):
     async def test_downloadable_diagnostics_contains_runtime(self) -> None:
         runtime = {"status": "idle", "history": []}
         entry = _Entry()
+        entry.state = ConfigEntryState.LOADED
         entry.runtime_data = SimpleNamespace(
             async_diagnostics=AsyncMock(return_value=runtime)
         )
@@ -322,6 +323,10 @@ class DiagnosticSurfaceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["runtime"], runtime)
         self.assertEqual(result["entry"]["version"], 1)
         self.assertEqual(result["entry"]["data"], entry.data)
+        entry.state = ConfigEntryState.NOT_LOADED
+        unavailable = await async_get_config_entry_diagnostics(None, entry)
+        self.assertIsNone(unavailable["runtime"])
+        entry.runtime_data.async_diagnostics.assert_awaited_once()
 
 
 if __name__ == "__main__":
