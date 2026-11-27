@@ -1,0 +1,33 @@
+# Decisiones y pendientes de alcance
+
+## Validadas preliminarmente en el prototipo
+Cinco menús; modos como función central, escenas/efectos dentro de modos; catálogo unificado; plantillas numéricas y de estado; selección buscable integrada; avisos, horarios, condiciones simples, configuración. Diálogo de borrador y navegación sin guardado obligatorio. Los comentarios del propietario validan el diseño en general, no cada valor predeterminado ni pruebas físicas.
+
+## Propuestas que requieren confirmación o comprobación
+- C.2 priorizar estabilidad y fidelidad, corregir `entry_not_loaded`. El roadmap actual reserva módulos gráficos para beta.1; adelantar plantillas a C.2 requiere aprobación explícita y actualizar roadmap. Proponer C.2a estabilidad/centro de administración, C.2b adaptación de plantillas compatibles y ampliaciones acordadas, sin cambiar la versión oficial todavía.
+- Eliminar zonas: confirmar y bloquear si referencias activas o exigir reasignación explícita; preservar identificadores. Duplicar reglas: ID nuevo, deshabilitada por defecto (plan C-03).
+- Destinos por área, etiqueta y grupo: controles avanzados y vista previa de exclusiones; conservar capacidades existentes. Histéresis, permanencia, condiciones anidadas y disparadores avanzados no representados por completo: no eliminar ni aplanar datos. Definir diseño complementario antes de exponerlos.
+- Prioridades de ejemplo (modo 60, numérico 40, seguridad 80, presencia 50, avisos 70, horario/avanzada 45) no son migraciones ni sustituyen prioridades reales; revisar colisiones. General: motor existente default newest, intervalo 0.75 s, manual service_only. La política temporal actual usa 15 min.
+- Bloque D queda separado: reintentos/verificación física configurables, pausa/reanudación temporal, aliases de voz. Escenas por luz y efectos avanzados requieren diseño futuro; sin sexto menú.
+
+## Revisión de dimensiones aprobada por el propietario
+
+C.2.2 pasó las diez pruebas funcionales de VirtualBox. El propietario indicó
+que el menú principal ocupaba demasiado espacio. C.2.3 adopta el
+[inicio compacto](design-system.md#inicio-compacto-aprobado-para-c23) y conserva
+las cinco tarjetas, textos, orden, iconos, colores y jerarquía. El HTML v1.0
+permanece como referencia histórica. El propietario aprobó el inicio
+compacto y el resultado visual de C.2.3 en Core 2026.11.3. Con ello cerró la
+observación de tamaño de C.2.2. [Registro completo](../haos-test-plan.md#resultado-de-c23-en-virtualbox).
+
+## Selector de avisos de C.2.4
+
+El editor gráfico nativo de Home Assistant permite elegir el aviso por su
+nombre y guarda el ID estable. Tras cambiar el catálogo, el editor abierto
+requiere recargar la página. La actualización automática dentro de ese editor
+queda pendiente de soporte de HA o una decisión de producto. El catálogo,
+los horarios y las condiciones comparten la navegación del prototipo.
+[Experimento de navegador y contrato del selector](backend-mapping.md#selector-nativo-de-avisos).
+
+## No autorizado
+No modificar main, publicar release, etiquetar, cerrar PR, borrar ramas ni enviar a Marketplace sin permiso expreso. No elevar resultados simulados a HAOS o Zigbee. No declarar C.1 ni C.2 aprobados por la maqueta.

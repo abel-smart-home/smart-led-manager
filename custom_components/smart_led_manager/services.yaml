@@ -1,0 +1,274 @@
+activate:
+  fields:
+    request_id:
+      required: false
+      selector:
+        text:
+    name:
+      required: false
+      selector:
+        text:
+    targets:
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    priority:
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    rgb_color:
+      required: false
+      selector:
+        color_rgb:
+    brightness:
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: slider
+    transition:
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 0.1
+          mode: box
+          unit_of_measurement: s
+    duration:
+      required: false
+      selector:
+        number:
+          min: 0.1
+          max: 86400
+          step: 0.1
+          mode: box
+          unit_of_measurement: s
+    allow_turn_on:
+      required: false
+      default: true
+      selector:
+        boolean:
+    persistent:
+      required: false
+      default: false
+      selector:
+        boolean:
+
+deactivate:
+  fields:
+    request_id:
+      required: true
+      selector:
+        text:
+
+run_notice:
+  fields:
+    notice_id:
+      required: true
+      selector:
+        select:
+          options: []
+          mode: dropdown
+
+notify:
+  fields:
+    request_id:
+      required: false
+      selector:
+        text:
+    name:
+      required: false
+      selector:
+        text:
+    targets:
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    priority:
+      required: false
+      default: 70
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    rgb_color:
+      required: true
+      selector:
+        color_rgb:
+    brightness:
+      required: false
+      default: 255
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: slider
+    duration:
+      required: false
+      default: 5
+      selector:
+        number:
+          min: 0.5
+          max: 86400
+          step: 0.5
+          mode: box
+          unit_of_measurement: s
+    animation:
+      required: false
+      default: fixed
+      selector:
+        select:
+          options:
+            - fixed
+            - blink
+            - pulse
+          translation_key: animation
+    period:
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 0.5
+          max: 60
+          step: 0.1
+          mode: box
+          unit_of_measurement: s
+
+set_scene:
+  fields:
+    request_id:
+      required: false
+      selector:
+        text:
+    name:
+      required: false
+      selector:
+        text:
+    targets:
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    priority:
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    rgb_color:
+      required: false
+      selector:
+        color_rgb:
+    brightness:
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: slider
+    transition:
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 0
+          max: 300
+          step: 0.1
+          mode: box
+          unit_of_measurement: s
+
+cancel:
+  fields:
+    request_id:
+      required: true
+      selector:
+        text:
+
+clear_notifications:
+  fields:
+    targets:
+      required: false
+      selector:
+        entity:
+          domain: light
+          multiple: true
+
+set_manual_override:
+  fields:
+    enabled:
+      required: true
+      selector:
+        boolean:
+    targets:
+      required: true
+      selector:
+        entity:
+          domain: light
+          multiple: true
+    rgb_color:
+      required: false
+      selector:
+        color_rgb:
+    brightness:
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 255
+          step: 1
+          mode: slider
+    priority:
+      required: false
+      default: 60
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+
+activate_mode:
+  fields:
+    mode_id:
+      required: true
+      selector:
+        text:
+
+deactivate_mode:
+  fields:
+    mode_id:
+      required: true
+      selector:
+        text:
+
+set_zone_mode:
+  fields:
+    zone_id:
+      required: true
+      selector:
+        text:
+    mode_id:
+      required: false
+      selector:
+        text:

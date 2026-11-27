@@ -1,0 +1,919 @@
+{
+  "title": "Smart LED Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configurar Smart LED Manager",
+        "description": "Selecciona únicamente las luces LED físicas que Smart LED Manager podrá controlar.",
+        "data": {
+          "lights": "Luces LED administradas"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Selecciona al menos una luz",
+      "group_not_authorized": "Selecciona luces individuales. Los grupos no se pueden autorizar como luces."
+    },
+    "abort": {
+      "already_configured": "Smart LED Manager ya está configurado"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Administrar Smart LED Manager",
+        "menu_options": {
+          "admin_center": "Centro de administración",
+          "lights": "Luces administradas",
+          "zones": "Zonas",
+          "modes": "Modos de iluminación",
+          "rules": "Reglas inteligentes",
+          "advanced": "Ajustes avanzados"
+        }
+      },
+      "admin_center": {
+        "title": "Centro de administración",
+        "description": "[Abrir el Centro de administración]({path}) en esta ventana. Home Assistant no ofrece una redirección automática pública desde el Options Flow; el enlace interno y la barra lateral son los accesos compatibles.",
+        "data": {
+          "show_sidebar": "Mostrar Smart LED Manager en la barra lateral"
+        }
+      },
+      "lights": {
+        "title": "Luces LED administradas",
+        "description": "La integración solo puede enviar órdenes a las luces seleccionadas.",
+        "data": {
+          "lights": "Luces LED administradas"
+        }
+      },
+      "settings": {
+        "title": "Ajustes del motor",
+        "data": {
+          "tie_breaker": "Desempate de igual prioridad",
+          "min_command_interval": "Intervalo mínimo por luz",
+          "manual_policy": "Política de control manual directo"
+        }
+      },
+      "advanced": {
+        "title": "Ajustes avanzados",
+        "data": {
+          "tie_breaker": "Desempate de igual prioridad",
+          "min_command_interval": "Intervalo mínimo por luz",
+          "manual_policy": "Política de control manual directo"
+        }
+      },
+      "zones": {
+        "title": "Administrar zonas",
+        "menu_options": {
+          "add_zone": "Crear zona",
+          "edit_zone": "Editar zona",
+          "delete_zone": "Eliminar zona"
+        }
+      },
+      "add_zone": {
+        "title": "Crear zona",
+        "description": "Cada luz física solo puede pertenecer a una zona.",
+        "data": {
+          "name": "Nombre",
+          "targets": "Luces de la zona",
+          "area_id": "Área opcional de Home Assistant"
+        }
+      },
+      "edit_zone": {
+        "title": "Elegir zona",
+        "data": {
+          "zone_id": "Zona"
+        }
+      },
+      "edit_zone_form": {
+        "title": "Editar zona",
+        "data": {
+          "name": "Nombre",
+          "targets": "Luces de la zona",
+          "area_id": "Área opcional de Home Assistant"
+        }
+      },
+      "delete_zone": {
+        "title": "Eliminar zona",
+        "description": "Primero elimina los modos de la zona.",
+        "data": {
+          "zone_id": "Zona"
+        }
+      },
+      "modes": {
+        "title": "Administrar modos",
+        "menu_options": {
+          "add_mode": "Crear modo",
+          "edit_mode": "Editar modo",
+          "delete_mode": "Eliminar modo"
+        }
+      },
+      "add_mode": {
+        "title": "Crear modo de iluminación",
+        "description": "El modo participa como solicitud persistente del motor de prioridades.",
+        "data": {
+          "zone_id": "Zona",
+          "name": "Nombre",
+          "targets": "Luces del modo",
+          "priority": "Prioridad",
+          "rgb_color": "Color opcional",
+          "brightness": "Brillo opcional",
+          "transition": "Transición opcional",
+          "allow_turn_on": "Permitir encendido",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "expose_switch": "Crear interruptor para paneles y puentes"
+        }
+      },
+      "edit_mode": {
+        "title": "Elegir modo",
+        "data": {
+          "mode_id": "Modo"
+        }
+      },
+      "edit_mode_form": {
+        "title": "Editar modo de iluminación",
+        "data": {
+          "zone_id": "Zona",
+          "name": "Nombre",
+          "targets": "Luces del modo",
+          "priority": "Prioridad",
+          "rgb_color": "Color opcional",
+          "brightness": "Brillo opcional",
+          "transition": "Transición opcional",
+          "allow_turn_on": "Permitir encendido",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "expose_switch": "Crear interruptor para paneles y puentes"
+        }
+      },
+      "delete_mode": {
+        "title": "Eliminar modo",
+        "data": {
+          "mode_id": "Modo"
+        }
+      },
+      "rules": {
+        "title": "Reglas inteligentes",
+        "menu_options": {
+          "open_visual_editor": "Abrir editor gráfico avanzado",
+          "add_state_rule": "Agregar regla de estado",
+          "add_numeric_rule": "Agregar regla numérica",
+          "add_event_rule": "Agregar regla de evento",
+          "edit_rule": "Editar regla existente",
+          "duplicate_rule": "Duplicar regla",
+          "toggle_rule": "Activar o desactivar regla",
+          "delete_rule": "Eliminar regla"
+        }
+      },
+      "open_visual_editor": {
+        "title": "Editor gráfico avanzado",
+        "description": "[Abrir el Centro de administración]({path}). Este panel local administra reglas de estado, numéricas y de eventos. El editor nativo sigue disponible aquí."
+      },
+      "add_state_rule": {
+        "title": "Agregar regla de estado",
+        "description": "La solicitud permanece activa mientras se cumpla la condición.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Entidad de origen",
+          "operator": "Condición",
+          "state": "Valor del estado",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)"
+        }
+      },
+      "add_numeric_rule": {
+        "title": "Agregar regla de color numérica",
+        "description": "Configura la regla y continúa al editor visual de puntos de color.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Origen numérico",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "mode": "Cálculo del color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "minimum_change": "Variación numérica mínima",
+          "minimum_interval": "Intervalo mínimo de actualización",
+          "enabled": "Habilitada",
+          "activation": "Umbral e histéresis",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)",
+          "activation_operator": "Activación numérica",
+          "activation_threshold": "Umbral",
+          "activation_lower": "Límite inferior",
+          "activation_upper": "Límite superior",
+          "activation_hysteresis": "Histéresis",
+          "rgb_color": "Color RGB fijo"
+        }
+      },
+      "add_event_rule": {
+        "title": "Agregar regla de evento",
+        "description": "Usa un disparador oficial de Home Assistant. La solicitud luminosa resultante siempre es temporal.",
+        "data": {
+          "name": "Nombre de la regla",
+          "trigger": "Disparador de Home Assistant",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "duration": "Duración",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración."
+        }
+      },
+      "edit_rule": {
+        "title": "Elegir regla para editar",
+        "data": {
+          "rule_id": "Regla"
+        }
+      },
+      "duplicate_rule": {
+        "title": "Elegir regla para duplicar",
+        "description": "La copia recibe un identificador nuevo y comienza deshabilitada.",
+        "data": {
+          "rule_id": "Regla"
+        }
+      },
+      "toggle_rule": {
+        "title": "Activar o desactivar regla",
+        "data": {
+          "rule_id": "Regla"
+        }
+      },
+      "edit_state_rule": {
+        "title": "Editar regla de estado",
+        "description": "Se conserva el identificador estable de la regla.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Entidad de origen",
+          "operator": "Condición",
+          "state": "Valor del estado",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)"
+        }
+      },
+      "duplicate_state_rule": {
+        "title": "Revisar copia de regla de estado",
+        "description": "La regla nueva comienza deshabilitada y puede editarse antes de guardar.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Entidad de origen",
+          "operator": "Condición",
+          "state": "Valor del estado",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)"
+        }
+      },
+      "edit_numeric_rule": {
+        "title": "Editar regla numérica",
+        "description": "Continúa para revisar visualmente los puntos antes de guardar.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Origen numérico",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "mode": "Cálculo del color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "minimum_change": "Variación numérica mínima",
+          "minimum_interval": "Intervalo mínimo de actualización",
+          "enabled": "Habilitada",
+          "activation": "Umbral e histéresis",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)",
+          "activation_operator": "Activación numérica",
+          "activation_threshold": "Umbral",
+          "activation_lower": "Límite inferior",
+          "activation_upper": "Límite superior",
+          "activation_hysteresis": "Histéresis",
+          "rgb_color": "Color RGB fijo"
+        }
+      },
+      "duplicate_numeric_rule": {
+        "title": "Revisar copia de regla numérica",
+        "description": "La regla nueva comienza deshabilitada. Continúa para revisar sus puntos.",
+        "data": {
+          "name": "Nombre de la regla",
+          "source": "Origen numérico",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "mode": "Cálculo del color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "minimum_change": "Variación numérica mínima",
+          "minimum_interval": "Intervalo mínimo de actualización",
+          "enabled": "Habilitada",
+          "activation": "Umbral e histéresis",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "for_seconds": "Permanencia mínima",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración.",
+          "dwell": "Permanencia mínima (horas, minutos y segundos)",
+          "activation_operator": "Activación numérica",
+          "activation_threshold": "Umbral",
+          "activation_lower": "Límite inferior",
+          "activation_upper": "Límite superior",
+          "activation_hysteresis": "Histéresis",
+          "rgb_color": "Color RGB fijo"
+        }
+      },
+      "edit_event_rule": {
+        "title": "Editar regla de evento",
+        "description": "Se conserva el identificador estable de la regla.",
+        "data": {
+          "name": "Nombre de la regla",
+          "trigger": "Disparador de Home Assistant",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "duration": "Duración",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración."
+        }
+      },
+      "duplicate_event_rule": {
+        "title": "Revisar copia de regla de evento",
+        "description": "La copia recibe un identificador nuevo y comienza deshabilitada.",
+        "data": {
+          "name": "Nombre de la regla",
+          "trigger": "Disparador de Home Assistant",
+          "targets": "Luces administradas",
+          "priority": "Prioridad",
+          "rgb_color": "Color",
+          "brightness": "Brillo",
+          "transition": "Transición",
+          "duration": "Duración",
+          "enabled": "Habilitada",
+          "target_zones": "Zonas de Smart LED Manager",
+          "target_areas": "Áreas de Home Assistant",
+          "target_labels": "Etiquetas de Home Assistant",
+          "target_groups": "Grupos de luces transparentes",
+          "all_managed": "Todas las luces administradas",
+          "conditions": "Árbol de condiciones adicional",
+          "schedule": "Horario local",
+          "animation": "Animación",
+          "period": "Periodo de animación",
+          "schedule_enabled": "Limitar por horario",
+          "schedule_after": "Hora de inicio",
+          "schedule_before": "Hora de fin",
+          "schedule_days": "Días de la semana",
+          "conditions_preserved": "Se conservan las condiciones existentes. Edítalas en el centro de administración."
+        }
+      },
+      "numeric_points": {
+        "title": "Puntos de color visuales",
+        "description": "Unidad del sensor: {unit}\n\nPuntos actuales:\n{points}\n\nNada se aplica hasta elegir Guardar regla.",
+        "menu_options": {
+          "add_numeric_point": "Agregar punto",
+          "edit_numeric_point": "Editar punto",
+          "delete_numeric_point": "Eliminar punto",
+          "save_numeric_rule": "Guardar regla",
+          "cancel_numeric_rule": "Descartar cambios"
+        }
+      },
+      "add_numeric_point": {
+        "title": "Agregar punto de color",
+        "data": {
+          "value": "Valor numérico",
+          "rgb": "Color"
+        }
+      },
+      "edit_numeric_point": {
+        "title": "Elegir punto para editar",
+        "data": {
+          "point_index": "Punto de color"
+        }
+      },
+      "edit_numeric_point_form": {
+        "title": "Editar punto de color",
+        "data": {
+          "value": "Valor numérico",
+          "rgb": "Color"
+        }
+      },
+      "delete_numeric_point": {
+        "title": "Eliminar punto de color",
+        "data": {
+          "point_index": "Punto de color"
+        }
+      },
+      "save_numeric_rule": {
+        "title": "Faltan puntos de color",
+        "description": "Una regla numérica requiere al menos dos puntos únicos. Regresa al editor para agregar otro punto."
+      },
+      "cancel_numeric_rule": {
+        "title": "Descartar cambios de la regla numérica"
+      },
+      "delete_rule": {
+        "title": "Eliminar regla",
+        "description": "La eliminación permanente libera la solicitud de la regla después de recargar la entrada.",
+        "data": {
+          "rule_id": "Regla"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Selecciona al menos una luz",
+      "at_least_one_target": "Selecciona al menos una luz administrada",
+      "invalid_sidebar_preference": "Selecciona si el panel aparece en la barra lateral.",
+      "invalid_engine_preference": "Elige opciones válidas de desempate y control manual.",
+      "invalid_command_interval": "Introduce entre 0,10 y 10 segundos en pasos de 0,05.",
+      "target_not_managed": "Todos los destinos deben ser luces administradas",
+      "invalid_color_points": "Usa entradas valor:R,G,B separadas por punto y coma, con al menos dos valores únicos",
+      "invalid_or_duplicate_color_point": "Usa un valor finito y un color RGB que no duplique otro punto",
+      "at_least_two_color_points": "Agrega al menos dos puntos de color únicos antes de guardar",
+      "zones_use_removed_lights": "Una zona todavía usa una de las luces que intentas quitar",
+      "zone_without_targets": "Selecciona al menos una luz para la zona",
+      "target_in_multiple_zones": "Una luz física no puede pertenecer a varias zonas",
+      "duplicate_zone": "Los nombres e identificadores de zona deben ser únicos",
+      "mode_without_targets": "Selecciona al menos una luz para el modo",
+      "mode_target_outside_zone": "Todas las luces del modo deben pertenecer a su zona",
+      "duplicate_mode_name": "El nombre del modo debe ser único dentro de la zona",
+      "zone_has_modes": "Elimina primero los modos de esta zona",
+      "zone_has_rules": "Modifica primero las reglas que usan esta zona",
+      "rules_use_removed_lights": "Modifica primero las reglas que usan las luces retiradas",
+      "invalid_mode": "La definición del modo no es válida",
+      "invalid_zone": "La definición de la zona no es válida",
+      "area_not_found": "El área seleccionada de Home Assistant ya no existe",
+      "reserved_mode_name": "Ese nombre está reservado por la opción Sin modo del selector de zona",
+      "group_not_authorized": "Selecciona luces individuales. Los grupos no se pueden autorizar como luces.",
+      "unsupported_condition": "Usa los tipos de condición compatibles o edita esta regla en el centro de administración."
+    },
+    "abort": {
+      "no_rules": "No hay reglas configuradas",
+      "rule_not_found": "La regla seleccionada ya no existe",
+      "invalid_rule": "El tipo de regla seleccionado no es compatible",
+      "rule_edit_in_panel": "Abre el panel de Smart LED Manager para editar esta regla.",
+      "rule_unit_changed": "Recalibra los puntos y umbrales para la unidad actual del sensor en el panel de administración.",
+      "incompatible_template_source": "Selecciona un origen compatible con esta plantilla en el panel de administración.",
+      "invalid_template_state": "Elige un estado de activación válido en el panel de administración.",
+      "configuration_changed": "La configuración cambió mientras este formulario estaba abierto. Vuelve a abrir Opciones e inténtalo de nuevo.",
+      "no_zones": "Primero crea una zona",
+      "no_modes": "No hay modos configurados"
+    }
+  },
+  "selector": {
+    "tie_breaker": {
+      "options": {
+        "newest": "Gana la solicitud más reciente",
+        "oldest": "Gana la solicitud más antigua",
+        "lexical": "Orden del identificador"
+      }
+    },
+    "manual_policy": {
+      "options": {
+        "service_only": "Solo mediante la acción manual explícita",
+        "respect": "Respetar cambios físicos detectados",
+        "temporary": "Cambio físico temporal"
+      }
+    },
+    "state_operator": {
+      "options": {
+        "equals": "El estado es igual a",
+        "not_equals": "El estado es diferente de"
+      }
+    },
+    "numeric_mode": {
+      "options": {
+        "interpolate": "Interpolación gradual",
+        "ranges": "Rango inferior más cercano",
+        "fixed": "Color fijo"
+      }
+    },
+    "animation": {
+      "options": {
+        "fixed": "Fijo",
+        "blink": "Parpadeo",
+        "pulse": "Pulsación"
+      }
+    },
+    "mode_animation": {
+      "options": {
+        "fixed": "Fijo",
+        "blink": "Parpadeo",
+        "pulse": "Pulsación"
+      }
+    },
+    "activation_operator": {
+      "options": {
+        "none": "Siempre",
+        "above": "Por encima",
+        "below": "Por debajo",
+        "inside": "Dentro",
+        "outside": "Fuera"
+      }
+    },
+    "rule_weekdays": {
+      "options": {
+        "mon": "Lunes",
+        "tue": "Martes",
+        "wed": "Miércoles",
+        "thu": "Jueves",
+        "fri": "Viernes",
+        "sat": "Sábado",
+        "sun": "Domingo"
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "zone_mode": {
+        "name": "Modo",
+        "state": {
+          "none": "Sin modo"
+        }
+      }
+    },
+    "sensor": {
+      "engine_status": {
+        "name": "Estado del motor",
+        "state": {
+          "idle": "Inactivo",
+          "active": "Activo",
+          "stopped": "Detenido",
+          "error": "Error"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "notice_not_found": { "message": "El aviso guardado ya no existe." },
+    "notice_disabled": { "message": "El aviso guardado está deshabilitado." },
+    "notice_invalid": { "message": "Revisa el aviso y sus destinos autorizados." },
+    "notice_entry_not_ready": { "message": "Espera a que Smart LED Manager aplique la configuración actual." },
+    "managed_notice_request": { "message": "El identificador pertenece al catálogo de avisos guardados." },
+    "not_configured": {
+      "message": "Smart LED Manager no está configurado."
+    },
+    "unmanaged_targets": {
+      "message": "Estas luces no están autorizadas para Smart LED Manager: {targets}"
+    },
+    "at_least_one_target": {
+      "message": "Selecciona al menos una luz administrada."
+    },
+    "mode_not_found": {
+      "message": "No existe el modo {mode_id}."
+    },
+    "zone_not_found": {
+      "message": "No existe la zona {zone_id}."
+    },
+    "mode_not_in_zone": {
+      "message": "El modo seleccionado no pertenece a esta zona."
+    },
+    "managed_mode_request": {
+      "message": "Las solicitudes internas de modo solo pueden modificarse con las acciones de modos."
+    }
+  },
+  "services": {
+    "activate": {
+      "name": "Activar solicitud",
+      "description": "Crea o actualiza una solicitud priorizada para luces administradas.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador estable para actualizar después la misma solicitud."
+        },
+        "name": {
+          "name": "Nombre",
+          "description": "Nombre visible en diagnósticos y actividad."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente que afecta la solicitud."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Los valores mayores ganan de forma independiente en cada destino."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB que se adapta a las capacidades de cada luz."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo de 1 a 255."
+        },
+        "transition": {
+          "name": "Transición",
+          "description": "Duración de la transición en segundos, si está disponible."
+        },
+        "duration": {
+          "name": "Duración",
+          "description": "Vigencia opcional en segundos antes de que expire la solicitud."
+        },
+        "allow_turn_on": {
+          "name": "Permitir encendido",
+          "description": "Permite que la solicitud encienda una luz apagada."
+        },
+        "persistent": {
+          "name": "Conservar tras reinicios",
+          "description": "Guarda la solicitud para recuperarla después de un reinicio."
+        }
+      }
+    },
+    "deactivate": {
+      "name": "Desactivar solicitud",
+      "description": "Desactiva una solicitud y conserva su definición.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador de la solicitud que se desactivará."
+        }
+      }
+    },
+    "run_notice": {
+      "name": "Ejecutar aviso guardado",
+      "description": "Ejecuta un aviso luminoso guardado por su identificador estable.",
+      "fields": {
+        "notice_id": {
+          "name": "Aviso",
+          "description": "Elige un aviso guardado por nombre."
+        }
+      }
+    },
+    "notify": {
+      "name": "Notificación luminosa",
+      "description": "Crea una solicitud temporal de notificación.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador estable opcional para reemplazar esta notificación."
+        },
+        "name": {
+          "name": "Nombre",
+          "description": "Nombre descriptivo de la notificación."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente usadas en la notificación."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Prioridad de la notificación en cada destino."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB de la notificación."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo de la notificación, de 1 a 255."
+        },
+        "duration": {
+          "name": "Duración",
+          "description": "Vigencia de la notificación en segundos."
+        },
+        "animation": {
+          "name": "Animación",
+          "description": "Animación por software fija, parpadeo o pulsación."
+        },
+        "period": {
+          "name": "Periodo de animación",
+          "description": "Duración de un ciclo de animación en segundos."
+        }
+      }
+    },
+    "set_scene": {
+      "name": "Establecer escena administrada",
+      "description": "Crea o actualiza una escena mediante el motor de prioridades.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador estable para actualizar la misma escena."
+        },
+        "name": {
+          "name": "Nombre",
+          "description": "Nombre descriptivo de la solicitud de escena."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente que afecta la escena."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Prioridad de la escena en cada destino."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB opcional de la escena."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo opcional de la escena, de 1 a 255."
+        },
+        "transition": {
+          "name": "Transición",
+          "description": "Duración de la transición en segundos, si está disponible."
+        }
+      }
+    },
+    "cancel": {
+      "name": "Cancelar solicitud",
+      "description": "Elimina una solicitud por su identificador estable.",
+      "fields": {
+        "request_id": {
+          "name": "ID de solicitud",
+          "description": "Identificador de la solicitud que se eliminará."
+        }
+      }
+    },
+    "clear_notifications": {
+      "name": "Borrar notificaciones",
+      "description": "Elimina las notificaciones, opcionalmente de luces seleccionadas.",
+      "fields": {
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Si se indica, elimina solo notificaciones que afecten estas luces."
+        }
+      }
+    },
+    "set_manual_override": {
+      "name": "Establecer control manual",
+      "description": "Activa o desactiva el control manual respetando prioridades.",
+      "fields": {
+        "enabled": {
+          "name": "Activado",
+          "description": "Activa o elimina la solicitud manual."
+        },
+        "targets": {
+          "name": "Luces administradas",
+          "description": "Luces autorizadas explícitamente que afecta la solicitud manual."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Color RGB opcional; si se omite se usa el estado actual."
+        },
+        "brightness": {
+          "name": "Brillo",
+          "description": "Brillo opcional; si se omite se usa el estado actual."
+        },
+        "priority": {
+          "name": "Prioridad",
+          "description": "Prioridad de la solicitud manual en cada destino."
+        }
+      }
+    },
+    "activate_mode": {
+      "name": "Activar modo",
+      "description": "Selecciona un modo persistente en su zona.",
+      "fields": {
+        "mode_id": {
+          "name": "ID de modo",
+          "description": "Identificador inmutable del modo configurado."
+        }
+      }
+    },
+    "deactivate_mode": {
+      "name": "Desactivar modo",
+      "description": "Libera el modo si continúa seleccionado en su zona.",
+      "fields": {
+        "mode_id": {
+          "name": "ID de modo",
+          "description": "Identificador inmutable del modo configurado."
+        }
+      }
+    },
+    "set_zone_mode": {
+      "name": "Establecer modo de zona",
+      "description": "Reemplaza atómicamente el modo de una zona; omite el modo para elegir Sin modo.",
+      "fields": {
+        "zone_id": {
+          "name": "ID de zona",
+          "description": "Identificador inmutable de la zona configurada."
+        },
+        "mode_id": {
+          "name": "ID de modo",
+          "description": "Modo de la zona; déjalo vacío para liberar la solicitud de modo."
+        }
+      }
+    }
+  }
+}

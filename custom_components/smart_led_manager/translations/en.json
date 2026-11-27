@@ -1,0 +1,919 @@
+{
+  "title": "Smart LED Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Smart LED Manager",
+        "description": "Choose only the physical LED lights that Smart LED Manager is allowed to control.",
+        "data": {
+          "lights": "Managed LED lights"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Select at least one light",
+      "group_not_authorized": "Select individual lights. Groups cannot be authorized as lights."
+    },
+    "abort": {
+      "already_configured": "Smart LED Manager is already configured"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage Smart LED Manager",
+        "menu_options": {
+          "admin_center": "Administration center",
+          "lights": "Managed lights",
+          "zones": "Zones",
+          "modes": "Lighting modes",
+          "rules": "Smart rules",
+          "advanced": "Advanced settings"
+        }
+      },
+      "admin_center": {
+        "title": "Administration center",
+        "description": "[Open the administration center]({path}) in this window. Home Assistant does not expose a public automatic redirect from an Options Flow; this internal link and the sidebar are the supported entry points.",
+        "data": {
+          "show_sidebar": "Show Smart LED Manager in the sidebar"
+        }
+      },
+      "lights": {
+        "title": "Managed LED lights",
+        "description": "Only selected lights can receive commands from this integration.",
+        "data": {
+          "lights": "Managed LED lights"
+        }
+      },
+      "settings": {
+        "title": "Engine settings",
+        "data": {
+          "tie_breaker": "Equal-priority tie-breaker",
+          "min_command_interval": "Minimum interval per light",
+          "manual_policy": "Direct manual-control policy"
+        }
+      },
+      "advanced": {
+        "title": "Advanced settings",
+        "data": {
+          "tie_breaker": "Equal-priority tie-breaker",
+          "min_command_interval": "Minimum interval per light",
+          "manual_policy": "Direct manual-control policy"
+        }
+      },
+      "zones": {
+        "title": "Manage zones",
+        "menu_options": {
+          "add_zone": "Create zone",
+          "edit_zone": "Edit zone",
+          "delete_zone": "Delete zone"
+        }
+      },
+      "add_zone": {
+        "title": "Create zone",
+        "description": "Each physical light can belong to only one zone.",
+        "data": {
+          "name": "Name",
+          "targets": "Zone lights",
+          "area_id": "Optional Home Assistant area"
+        }
+      },
+      "edit_zone": {
+        "title": "Choose zone",
+        "data": {
+          "zone_id": "Zone"
+        }
+      },
+      "edit_zone_form": {
+        "title": "Edit zone",
+        "data": {
+          "name": "Name",
+          "targets": "Zone lights",
+          "area_id": "Optional Home Assistant area"
+        }
+      },
+      "delete_zone": {
+        "title": "Delete zone",
+        "description": "Delete the zone's modes first.",
+        "data": {
+          "zone_id": "Zone"
+        }
+      },
+      "modes": {
+        "title": "Manage modes",
+        "menu_options": {
+          "add_mode": "Create mode",
+          "edit_mode": "Edit mode",
+          "delete_mode": "Delete mode"
+        }
+      },
+      "add_mode": {
+        "title": "Create lighting mode",
+        "description": "The mode participates as a persistent priority-engine request.",
+        "data": {
+          "zone_id": "Zone",
+          "name": "Name",
+          "targets": "Mode lights",
+          "priority": "Priority",
+          "rgb_color": "Optional color",
+          "brightness": "Optional brightness",
+          "transition": "Optional transition",
+          "allow_turn_on": "Allow turn on",
+          "animation": "Animation",
+          "period": "Animation period",
+          "expose_switch": "Create switch for dashboards and bridges"
+        }
+      },
+      "edit_mode": {
+        "title": "Choose mode",
+        "data": {
+          "mode_id": "Mode"
+        }
+      },
+      "edit_mode_form": {
+        "title": "Edit lighting mode",
+        "data": {
+          "zone_id": "Zone",
+          "name": "Name",
+          "targets": "Mode lights",
+          "priority": "Priority",
+          "rgb_color": "Optional color",
+          "brightness": "Optional brightness",
+          "transition": "Optional transition",
+          "allow_turn_on": "Allow turn on",
+          "animation": "Animation",
+          "period": "Animation period",
+          "expose_switch": "Create switch for dashboards and bridges"
+        }
+      },
+      "delete_mode": {
+        "title": "Delete mode",
+        "data": {
+          "mode_id": "Mode"
+        }
+      },
+      "rules": {
+        "title": "Smart rules",
+        "menu_options": {
+          "open_visual_editor": "Open advanced visual editor",
+          "add_state_rule": "Add state rule",
+          "add_numeric_rule": "Add numeric rule",
+          "add_event_rule": "Add event rule",
+          "edit_rule": "Edit existing rule",
+          "duplicate_rule": "Duplicate rule",
+          "toggle_rule": "Enable or disable rule",
+          "delete_rule": "Delete rule"
+        }
+      },
+      "open_visual_editor": {
+        "title": "Advanced visual editor",
+        "description": "[Open the administration center]({path}). This supported local panel manages state, numeric, and event rules. The native editor remains available here."
+      },
+      "add_state_rule": {
+        "title": "Add state rule",
+        "description": "The request remains active while the state condition is true.",
+        "data": {
+          "name": "Rule name",
+          "source": "Source entity",
+          "operator": "Condition",
+          "state": "State value",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)"
+        }
+      },
+      "add_numeric_rule": {
+        "title": "Add numeric color rule",
+        "description": "Configure the rule, then continue to the visual color-point editor.",
+        "data": {
+          "name": "Rule name",
+          "source": "Numeric source",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "mode": "Color calculation",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "minimum_change": "Minimum numeric change",
+          "minimum_interval": "Minimum update interval",
+          "enabled": "Enabled",
+          "activation": "Threshold and hysteresis",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)",
+          "activation_operator": "Numeric activation",
+          "activation_threshold": "Threshold",
+          "activation_lower": "Lower limit",
+          "activation_upper": "Upper limit",
+          "activation_hysteresis": "Hysteresis",
+          "rgb_color": "Fixed RGB color"
+        }
+      },
+      "add_event_rule": {
+        "title": "Add event rule",
+        "description": "Use an official Home Assistant trigger. The resulting light request is always temporary.",
+        "data": {
+          "name": "Rule name",
+          "trigger": "Home Assistant trigger",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "duration": "Duration",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel."
+        }
+      },
+      "edit_rule": {
+        "title": "Choose rule to edit",
+        "data": {
+          "rule_id": "Rule"
+        }
+      },
+      "duplicate_rule": {
+        "title": "Choose rule to duplicate",
+        "description": "The copy receives a new identifier and starts disabled.",
+        "data": {
+          "rule_id": "Rule"
+        }
+      },
+      "toggle_rule": {
+        "title": "Enable or disable rule",
+        "data": {
+          "rule_id": "Rule"
+        }
+      },
+      "edit_state_rule": {
+        "title": "Edit state rule",
+        "description": "The stable rule identifier is preserved.",
+        "data": {
+          "name": "Rule name",
+          "source": "Source entity",
+          "operator": "Condition",
+          "state": "State value",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)"
+        }
+      },
+      "duplicate_state_rule": {
+        "title": "Review state-rule copy",
+        "description": "The new rule starts disabled and can be edited before saving.",
+        "data": {
+          "name": "Rule name",
+          "source": "Source entity",
+          "operator": "Condition",
+          "state": "State value",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)"
+        }
+      },
+      "edit_numeric_rule": {
+        "title": "Edit numeric rule",
+        "description": "Continue to review its visual color points before saving.",
+        "data": {
+          "name": "Rule name",
+          "source": "Numeric source",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "mode": "Color calculation",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "minimum_change": "Minimum numeric change",
+          "minimum_interval": "Minimum update interval",
+          "enabled": "Enabled",
+          "activation": "Threshold and hysteresis",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)",
+          "activation_operator": "Numeric activation",
+          "activation_threshold": "Threshold",
+          "activation_lower": "Lower limit",
+          "activation_upper": "Upper limit",
+          "activation_hysteresis": "Hysteresis",
+          "rgb_color": "Fixed RGB color"
+        }
+      },
+      "duplicate_numeric_rule": {
+        "title": "Review numeric-rule copy",
+        "description": "The new rule starts disabled. Continue to review its color points.",
+        "data": {
+          "name": "Rule name",
+          "source": "Numeric source",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "mode": "Color calculation",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "minimum_change": "Minimum numeric change",
+          "minimum_interval": "Minimum update interval",
+          "enabled": "Enabled",
+          "activation": "Threshold and hysteresis",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "for_seconds": "Minimum dwell",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel.",
+          "dwell": "Minimum dwell (hours, minutes and seconds)",
+          "activation_operator": "Numeric activation",
+          "activation_threshold": "Threshold",
+          "activation_lower": "Lower limit",
+          "activation_upper": "Upper limit",
+          "activation_hysteresis": "Hysteresis",
+          "rgb_color": "Fixed RGB color"
+        }
+      },
+      "edit_event_rule": {
+        "title": "Edit event rule",
+        "description": "The stable rule identifier is preserved.",
+        "data": {
+          "name": "Rule name",
+          "trigger": "Home Assistant trigger",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "duration": "Duration",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel."
+        }
+      },
+      "duplicate_event_rule": {
+        "title": "Review event-rule copy",
+        "description": "The copy receives a new identifier and starts disabled.",
+        "data": {
+          "name": "Rule name",
+          "trigger": "Home Assistant trigger",
+          "targets": "Managed lights",
+          "priority": "Priority",
+          "rgb_color": "Color",
+          "brightness": "Brightness",
+          "transition": "Transition",
+          "duration": "Duration",
+          "enabled": "Enabled",
+          "target_zones": "Smart LED Manager zones",
+          "target_areas": "Home Assistant areas",
+          "target_labels": "Home Assistant labels",
+          "target_groups": "Transparent light groups",
+          "all_managed": "All managed lights",
+          "conditions": "Additional condition tree",
+          "schedule": "Local schedule",
+          "animation": "Animation",
+          "period": "Animation period",
+          "schedule_enabled": "Limit to schedule",
+          "schedule_after": "Start time",
+          "schedule_before": "End time",
+          "schedule_days": "Days of the week",
+          "conditions_preserved": "Existing conditions are kept. Edit them in the administration panel."
+        }
+      },
+      "numeric_points": {
+        "title": "Visual color points",
+        "description": "Sensor unit: {unit}\n\nCurrent points:\n{points}\n\nNothing is applied until Save rule is selected.",
+        "menu_options": {
+          "add_numeric_point": "Add point",
+          "edit_numeric_point": "Edit point",
+          "delete_numeric_point": "Delete point",
+          "save_numeric_rule": "Save rule",
+          "cancel_numeric_rule": "Discard changes"
+        }
+      },
+      "add_numeric_point": {
+        "title": "Add color point",
+        "data": {
+          "value": "Numeric value",
+          "rgb": "Color"
+        }
+      },
+      "edit_numeric_point": {
+        "title": "Choose point to edit",
+        "data": {
+          "point_index": "Color point"
+        }
+      },
+      "edit_numeric_point_form": {
+        "title": "Edit color point",
+        "data": {
+          "value": "Numeric value",
+          "rgb": "Color"
+        }
+      },
+      "delete_numeric_point": {
+        "title": "Delete color point",
+        "data": {
+          "point_index": "Color point"
+        }
+      },
+      "save_numeric_rule": {
+        "title": "More color points required",
+        "description": "A numeric rule requires at least two unique points. Return to the editor to add another point."
+      },
+      "cancel_numeric_rule": {
+        "title": "Discard numeric-rule changes"
+      },
+      "delete_rule": {
+        "title": "Delete rule",
+        "description": "Permanent deletion releases the rule request after the entry reloads.",
+        "data": {
+          "rule_id": "Rule"
+        }
+      }
+    },
+    "error": {
+      "at_least_one_light": "Select at least one light",
+      "at_least_one_target": "Select at least one managed light",
+      "invalid_sidebar_preference": "Choose whether the panel appears in the sidebar.",
+      "invalid_engine_preference": "Choose valid tie-break and manual control options.",
+      "invalid_command_interval": "Enter 0.10 to 10 seconds in increments of 0.05.",
+      "target_not_managed": "Every target must be a managed light",
+      "invalid_color_points": "Use value:R,G,B entries separated by semicolons, with at least two unique values",
+      "invalid_or_duplicate_color_point": "Use one finite value and an RGB color that does not duplicate another point",
+      "at_least_two_color_points": "Add at least two unique color points before saving",
+      "zones_use_removed_lights": "A zone still uses one of the lights you are removing",
+      "zone_without_targets": "Select at least one light for the zone",
+      "target_in_multiple_zones": "A physical light cannot belong to multiple zones",
+      "duplicate_zone": "Zone names and identifiers must be unique",
+      "mode_without_targets": "Select at least one light for the mode",
+      "mode_target_outside_zone": "Every mode light must belong to its zone",
+      "duplicate_mode_name": "The mode name must be unique within the zone",
+      "zone_has_modes": "Delete this zone's modes first",
+      "zone_has_rules": "Update the rules that use this zone first",
+      "rules_use_removed_lights": "Update the rules that use the removed lights first",
+      "invalid_mode": "The mode definition is invalid",
+      "invalid_zone": "The zone definition is invalid",
+      "area_not_found": "The selected Home Assistant area no longer exists",
+      "reserved_mode_name": "That name is reserved by the zone selector's No mode option",
+      "group_not_authorized": "Select individual lights. Groups cannot be authorized as lights.",
+      "unsupported_condition": "Use the supported condition types or edit this rule in the administration panel."
+    },
+    "abort": {
+      "no_rules": "There are no configured rules",
+      "rule_not_found": "The selected rule no longer exists",
+      "invalid_rule": "The selected rule type is not supported",
+      "rule_edit_in_panel": "Open the Smart LED Manager panel to edit this rule.",
+      "rule_unit_changed": "Recalibrate the points and thresholds for the current sensor unit in the administration panel.",
+      "incompatible_template_source": "Select a source compatible with this template in the administration panel.",
+      "invalid_template_state": "Choose a valid activation state in the administration panel.",
+      "configuration_changed": "Configuration changed while this form was open. Reopen Options and try again.",
+      "no_zones": "Create a zone first",
+      "no_modes": "There are no configured modes"
+    }
+  },
+  "selector": {
+    "tie_breaker": {
+      "options": {
+        "newest": "Newest request wins",
+        "oldest": "Oldest request wins",
+        "lexical": "Request identifier order"
+      }
+    },
+    "manual_policy": {
+      "options": {
+        "service_only": "Only explicit manual action",
+        "respect": "Respect detected physical changes",
+        "temporary": "Temporary detected override"
+      }
+    },
+    "state_operator": {
+      "options": {
+        "equals": "State equals",
+        "not_equals": "State does not equal"
+      }
+    },
+    "numeric_mode": {
+      "options": {
+        "interpolate": "Gradual interpolation",
+        "ranges": "Nearest lower range",
+        "fixed": "Fixed color"
+      }
+    },
+    "animation": {
+      "options": {
+        "fixed": "Fixed",
+        "blink": "Blink",
+        "pulse": "Pulse"
+      }
+    },
+    "mode_animation": {
+      "options": {
+        "fixed": "Fixed",
+        "blink": "Blink",
+        "pulse": "Pulse"
+      }
+    },
+    "activation_operator": {
+      "options": {
+        "none": "Always",
+        "above": "Above",
+        "below": "Below",
+        "inside": "Inside",
+        "outside": "Outside"
+      }
+    },
+    "rule_weekdays": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "zone_mode": {
+        "name": "Mode",
+        "state": {
+          "none": "No mode"
+        }
+      }
+    },
+    "sensor": {
+      "engine_status": {
+        "name": "Engine status",
+        "state": {
+          "idle": "Idle",
+          "active": "Active",
+          "stopped": "Stopped",
+          "error": "Error"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "notice_not_found": { "message": "The saved notice no longer exists." },
+    "notice_disabled": { "message": "The saved notice is disabled." },
+    "notice_invalid": { "message": "Check the notice and its authorized targets." },
+    "notice_entry_not_ready": { "message": "Wait for Smart LED Manager to apply the current configuration." },
+    "managed_notice_request": { "message": "This request ID belongs to the saved notice catalog." },
+    "not_configured": {
+      "message": "Smart LED Manager is not configured."
+    },
+    "unmanaged_targets": {
+      "message": "These lights are not authorized for Smart LED Manager: {targets}"
+    },
+    "at_least_one_target": {
+      "message": "Select at least one managed light."
+    },
+    "mode_not_found": {
+      "message": "Mode {mode_id} does not exist."
+    },
+    "zone_not_found": {
+      "message": "Zone {zone_id} does not exist."
+    },
+    "mode_not_in_zone": {
+      "message": "The selected mode does not belong to this zone."
+    },
+    "managed_mode_request": {
+      "message": "Internal mode requests can only be changed with mode actions."
+    }
+  },
+  "services": {
+    "activate": {
+      "name": "Activate request",
+      "description": "Create or update a priority request for managed lights.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Stable identifier used to update the same request later."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Friendly name shown in diagnostics and activity."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights affected by this request."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Higher values win independently on each target."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "RGB color to project onto each light's capabilities."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Brightness from 1 to 255."
+        },
+        "transition": {
+          "name": "Transition",
+          "description": "Transition duration in seconds when supported."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Optional lifetime in seconds before the request expires."
+        },
+        "allow_turn_on": {
+          "name": "Allow turn on",
+          "description": "Allow this request to turn on a light that is off."
+        },
+        "persistent": {
+          "name": "Persist across restarts",
+          "description": "Store this request for recovery after a restart."
+        }
+      }
+    },
+    "deactivate": {
+      "name": "Deactivate request",
+      "description": "Deactivate a request while retaining its definition.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Identifier of the request to deactivate."
+        }
+      }
+    },
+    "run_notice": {
+      "name": "Run saved notice",
+      "description": "Play a saved light notice by its stable ID.",
+      "fields": {
+        "notice_id": {
+          "name": "Notice",
+          "description": "Choose a saved notice by name."
+        }
+      }
+    },
+    "notify": {
+      "name": "Light notification",
+      "description": "Create a temporary notification request.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Optional stable identifier for replacing this notification."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Friendly notification name."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights used for the notification."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Notification priority on each target."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Notification RGB color."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Notification brightness from 1 to 255."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "Notification lifetime in seconds."
+        },
+        "animation": {
+          "name": "Animation",
+          "description": "Fixed, blink, or pulse software animation."
+        },
+        "period": {
+          "name": "Animation period",
+          "description": "Length of one animation cycle in seconds."
+        }
+      }
+    },
+    "set_scene": {
+      "name": "Set managed scene",
+      "description": "Create or update a scene request through the priority engine.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Stable identifier used to update the same scene request."
+        },
+        "name": {
+          "name": "Name",
+          "description": "Friendly scene request name."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights affected by the scene."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Scene priority on each target."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Optional RGB scene color."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Optional scene brightness from 1 to 255."
+        },
+        "transition": {
+          "name": "Transition",
+          "description": "Transition duration in seconds when supported."
+        }
+      }
+    },
+    "cancel": {
+      "name": "Cancel request",
+      "description": "Remove a request by its stable identifier.",
+      "fields": {
+        "request_id": {
+          "name": "Request ID",
+          "description": "Identifier of the request to remove."
+        }
+      }
+    },
+    "clear_notifications": {
+      "name": "Clear notifications",
+      "description": "Remove notification requests, optionally for selected lights.",
+      "fields": {
+        "targets": {
+          "name": "Managed lights",
+          "description": "If supplied, clear only notifications affecting these lights."
+        }
+      }
+    },
+    "set_manual_override": {
+      "name": "Set manual override",
+      "description": "Enable or disable priority-aware manual control.",
+      "fields": {
+        "enabled": {
+          "name": "Enabled",
+          "description": "Enable or remove the manual request."
+        },
+        "targets": {
+          "name": "Managed lights",
+          "description": "Explicitly authorized lights affected by the manual request."
+        },
+        "rgb_color": {
+          "name": "Color",
+          "description": "Optional RGB color; current state is used when omitted."
+        },
+        "brightness": {
+          "name": "Brightness",
+          "description": "Optional brightness; current state is used when omitted."
+        },
+        "priority": {
+          "name": "Priority",
+          "description": "Manual request priority on each target."
+        }
+      }
+    },
+    "activate_mode": {
+      "name": "Activate mode",
+      "description": "Select a persistent mode in its zone.",
+      "fields": {
+        "mode_id": {
+          "name": "Mode ID",
+          "description": "Immutable identifier of the configured mode."
+        }
+      }
+    },
+    "deactivate_mode": {
+      "name": "Deactivate mode",
+      "description": "Release the mode if it is still selected in its zone.",
+      "fields": {
+        "mode_id": {
+          "name": "Mode ID",
+          "description": "Immutable identifier of the configured mode."
+        }
+      }
+    },
+    "set_zone_mode": {
+      "name": "Set zone mode",
+      "description": "Atomically replace a zone mode; omit mode to select No mode.",
+      "fields": {
+        "zone_id": {
+          "name": "Zone ID",
+          "description": "Immutable identifier of the configured zone."
+        },
+        "mode_id": {
+          "name": "Mode ID",
+          "description": "Mode in the zone; leave empty to release mode intent."
+        }
+      }
+    }
+  }
+}

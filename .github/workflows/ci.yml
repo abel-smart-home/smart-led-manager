@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        homeassistant: ["2026.11.0", "2026.11.2", "2026.11.3"]
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements_test.txt
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements_test.txt
+          python -m pip install --upgrade --force-reinstall "homeassistant==${{ matrix.homeassistant }}" "pytest-homeassistant==${{ matrix.homeassistant }}"
+      - name: Lint
+        run: ruff check .
+      - name: Test
+        run: pytest --cov --cov-report=term-missing --cov-report=xml
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Test frontend model
+        run: node --test tests/frontend/*.test.mjs
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Start a disposable Home Assistant instance
+        run: |
+          mkdir -p "$RUNNER_TEMP/slm-ha/.storage"
+          printf 'default_config:\nautomation: !include automations.yaml\n' > "$RUNNER_TEMP/slm-ha/configuration.yaml"
+          printf '[]\n' > "$RUNNER_TEMP/slm-ha/automations.yaml"
+          printf '{"version":4,"minor_version":1,"key":"onboarding","data":{"done":["core_config","integration","analytics"]}}\n' > "$RUNNER_TEMP/slm-ha/.storage/onboarding"
+          docker run --detach --name slm-ha --publish 127.0.0.1:8123:8123 \
+            --volume "$RUNNER_TEMP/slm-ha:/config" \
+            --volume "$GITHUB_WORKSPACE/custom_components:/config/custom_components:ro" \
+            ghcr.io/home-assistant/home-assistant:2026.11.3
+      - name: Capture the installed panel
+        run: node tests/frontend/ha-browser.mjs "$(command -v google-chrome)" "$RUNNER_TEMP/slm-captures"
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v7
+        with:
+          name: ha-core-panel-c25
+          path: ${{ runner.temp }}/slm-captures
+          if-no-files-found: error
+      - name: Inspect Home Assistant on failure
+        if: failure()
+        run: docker logs --tail 80 slm-ha
