@@ -49,13 +49,21 @@ from .core.conditions import (
     evaluate_activation,
     validate_condition_tree,
 )
+from .diagnostics import async_get_config_entry_diagnostics
 from .modules.admin_configuration import (
     validate_managed_lights,
     validate_mode,
     validate_zone,
     validate_zone_removal,
 )
-from .modules.configuration import mutable_json, options_revision
+from .modules.configuration import (
+    ENGINE_DEFAULTS,
+    PreferenceError,
+    mutable_json,
+    options_revision,
+    read_preferences,
+    validate_preferences,
+)
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 from .modules.rule_schema import RuleCatalog, RuleValidationError
 from .modules.rule_templates import source_template, template_source_error
@@ -82,7 +90,7 @@ _DATA_RECEIPTS = "visual_editor_mutation_receipts"
 _DATA_SIDEBAR = "visual_editor_sidebar"
 _EVENT_ENTRY_STATUS = f"{DOMAIN}_editor_entry_status"
 _MAX_MUTATION_RECEIPTS = 32
-_PANEL_ASSETS_REVISION = "c2.4"
+_PANEL_ASSETS_REVISION = "c2.5"
 
 _TRANSITION_STATES = {
     ConfigEntryState.SETUP_IN_PROGRESS,
@@ -114,6 +122,7 @@ async def async_setup_visual_editor(hass: HomeAssistant) -> None:
         websocket_api.async_register_command(hass, websocket_preview_targets)
         websocket_api.async_register_command(hass, websocket_editor_status)
         websocket_api.async_register_command(hass, websocket_admin_get)
+        websocket_api.async_register_command(hass, websocket_admin_diagnostics)
         websocket_api.async_register_command(hass, websocket_admin_mutate)
         websocket_api.async_register_command(hass, websocket_admin_mode)
         domain_data[_DATA_COMMANDS] = True
@@ -330,13 +339,19 @@ def _editor_runtime_status(hass: HomeAssistant, entry: ConfigEntry) -> dict[str,
 
 
 def _entry(
-    hass: HomeAssistant, entry_id: str, *, revision: str | None = None
+    hass: HomeAssistant,
+    entry_id: str,
+    *,
+    revision: str | None = None,
+    require_ready: bool = True,
 ) -> ConfigEntry:
     entry = hass.config_entries.async_get_entry(entry_id)
     if entry is None or entry.domain != DOMAIN:
         raise VisualEditorError(
             "entry_not_found", "Smart LED Manager config entry was not found"
         )
+    if not require_ready:
+        return entry
     runtime = _editor_runtime_status(hass, entry)
     if revision is not None and runtime["revision"] != revision:
         raise VisualEditorError(
@@ -1102,6 +1117,8 @@ def websocket_admin_get(hass, connection, msg) -> None:
         payload = {
             "revision": runtime.options_revision,
             "admin": {
+                "preferences": read_preferences(entry.options),
+                "engine_defaults": ENGINE_DEFAULTS,
                 "managed": sorted(managed),
                 "lights": _available_lights(hass, managed),
                 "areas": [
@@ -1136,6 +1153,25 @@ def websocket_admin_get(hass, connection, msg) -> None:
 
 @websocket_api.websocket_command(
     {
+        probatio.Required("type"): "smart_led_manager/admin/diagnostics",
+        probatio.Required("entry_id"): str,
+    }
+)
+@websocket_api.require_admin
+@websocket_api.async_response
+async def websocket_admin_diagnostics(hass, connection, msg) -> None:
+    """Read the same redacted diagnostic snapshot as the native download."""
+    try:
+        entry = _entry(hass, msg["entry_id"], require_ready=False)
+        payload = await async_get_config_entry_diagnostics(hass, entry)
+    except VisualEditorError as err:
+        _send_editor_error(connection, msg["id"], err)
+        return
+    connection.send_result(msg["id"], payload)
+
+
+@websocket_api.websocket_command(
+    {
         probatio.Required("type"): "smart_led_manager/admin/mutate",
         probatio.Required("entry_id"): str,
         probatio.Required("revision"): str,
@@ -1157,6 +1193,14 @@ async def _async_prepare_admin_edit(hass, entry, msg):
     kind = msg["kind"]
     operation = msg["operation"]
     item = msg.get("item", {})
+    if kind in {"general", "priorities"} and operation == "save":
+        try:
+            updates = validate_preferences(kind, item)
+        except PreferenceError as err:
+            raise VisualEditorError(
+                str(err), "Invalid configuration preference"
+            ) from err
+        return updates, {"item": updates}, {}
     managed = _authorized_targets(entry)
     zones = _configured_definitions(entry, CONF_ZONES)
     modes = _configured_definitions(entry, CONF_MODES)

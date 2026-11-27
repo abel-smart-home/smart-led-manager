@@ -1,5 +1,8 @@
 # Instalar y probar Smart LED Manager C.2.4 en VirtualBox
 
+El propietario aprobó S-01–S-08, la revisión visual y las dos comprobaciones
+adicionales de ejecución real en la VM. [Registro del propietario](haos-test-plan.md#resultado-de-c24-en-virtualbox).
+
 Usa tu máquina de laboratorio con HAOS y Home Assistant Core 2026.11.3.
 La versión visible sigue siendo **0.1.0-alpha.3**. Instala el SHA
 `05e0674c941f8b67f7b3a21bd66eb32a998eae68`.
@@ -67,4 +70,4 @@ error y si se conservó el borrador. Omite secretos al compartir los registros.
 Codex comprueba en CI la concurrencia de guardado, WebSocket, vencimiento,
 prioridad, cambios de hora local, esquemas y compatibilidad. El recorrido de
 VirtualBox y los resultados físicos se registran al recibir la confirmación
-del propietario. [Plan de pruebas](haos-test-plan.md#validación-pendiente-de-c24-en-virtualbox).
+del propietario. [Plan de pruebas](haos-test-plan.md#resultado-de-c24-en-virtualbox).

@@ -38,10 +38,12 @@ from .const import (
     MODULE_MANUAL,
     MODULE_NOTIFICATION,
     RULE_TYPE_NOTICE,
+    VERSION,
 )
 from .controllers.base import ApplyStatus, UnsupportedLightCommandError
 from .controllers.rgb import RGBLightController
 from .core.engine import PriorityEngine
+from .core.priority import choose_winner
 from .core.scheduler import AnimationScheduler, DeadlineScheduler
 from .core.targets import TargetResolver
 from .models import (
@@ -126,6 +128,7 @@ class SmartLEDCoordinator:
         self.manual_policy = str(options.get(CONF_MANUAL_POLICY, DEFAULT_MANUAL_POLICY))
         self.history: deque[dict[str, Any]] = deque(maxlen=MAX_ACTIVITY_ITEMS)
         self.last_error: str | None = catalog_error
+        self._diagnostic_issue = {"kind": "invalid_catalog"} if catalog_error else None
         self.status = "idle"
         self.request_count = 0
         self._winners: dict[str, str] = {}
@@ -169,8 +172,9 @@ class SmartLEDCoordinator:
                     continue
                 authorized.append(request)
             if rejected:
-                self.last_error = (
-                    f"Ignored {rejected} invalid or unauthorized stored request(s)"
+                self._set_issue(
+                    "invalid_storage",
+                    f"Ignored {rejected} invalid or unauthorized stored request(s)",
                 )
             try:
                 reconciled, modes_changed = self.modes.reconcile_requests(authorized)
@@ -180,7 +184,9 @@ class SmartLEDCoordinator:
                 )
             except (TypeError, ValueError):
                 storage_changed = True
-                self.last_error = "Stored requests were invalid and were ignored"
+                self._set_issue(
+                    "invalid_storage", "Stored requests were invalid and were ignored"
+                )
                 _LOGGER.exception("Unable to restore Smart LED Manager requests")
         self._persisted_request_ids = {
             str(item["request_id"])
@@ -390,19 +396,43 @@ class SmartLEDCoordinator:
     async def async_diagnostics(self) -> dict[str, Any]:
         """Return bounded, non-secret runtime diagnostics."""
         requests = await self.engine.async_requests()
+        now = utc_now()
+        active = [request for request in requests if request.is_valid(now)]
+        targets = sorted(self.targets.authorized)
+        policy = self.engine.tie_breaker
+        winners = {
+            target: winner.request_id
+            for target in targets
+            if (winner := choose_winner(active, target, policy, now=now)) is not None
+        }
+        decisions = {}
+        for request in active:
+            eligible = self.targets.authorized.intersection(request.targets)
+            winning = {
+                target
+                for target in eligible
+                if winners.get(target) == request.request_id
+            }
+            decisions[request.request_id] = {
+                "winning_targets": sorted(winning),
+                "masked_targets": sorted(eligible.difference(winning)),
+            }
         return {
+            "version": VERSION,
+            "captured_at": now.isoformat(),
             "status": self.status,
-            "managed_targets": sorted(self.targets.authorized),
-            "tie_breaker": self.engine.tie_breaker.value,
+            "managed_targets": targets,
+            "tie_breaker": policy.value,
             "minimum_command_interval": self.controller.minimum_interval,
             "manual_policy": self.manual_policy,
             "request_count": len(requests),
             "requests": [request.to_dict() for request in requests],
-            "mode_catalog": self.mode_snapshot(),
-            "winners": dict(sorted(self._winners.items())),
+            "request_decisions": decisions,
+            "mode_catalog": self.modes.snapshot(winners),
+            "winners": winners,
             "animation_targets": sorted(self.animations.active_targets),
             "pending_controller_targets": sorted(self.controller.pending_targets),
-            "last_error": self.last_error,
+            "last_error": self._diagnostic_issue if self.last_error else None,
             "history": list(self.history),
         }
 
@@ -493,8 +523,10 @@ class SmartLEDCoordinator:
                     )
                 except (HomeAssistantError, TimeoutError) as err:
                     self.controller.invalidate_applied_state(change.target)
-                    self.last_error = (
-                        f"{change.target}: send failed: {type(err).__name__}: {err}"
+                    self._set_issue(
+                        "send_failed",
+                        f"{change.target}: send failed: {type(err).__name__}: {err}",
+                        change.target,
                     )
                     self.status = "error"
                     _LOGGER.warning(
@@ -510,13 +542,19 @@ class SmartLEDCoordinator:
                     )
                     return
                 except (UnsupportedLightCommandError, ValueError) as err:
-                    self.last_error = f"{change.target}: {err}"
+                    self._set_issue(
+                        "unsupported_command", f"{change.target}: {err}", change.target
+                    )
                     self.status = "error"
                     _LOGGER.error("Unable to apply %s: %s", change.target, err)
                     return
                 if result.status is ApplyStatus.OFFLINE:
                     if result.detail is not None:
-                        self.last_error = f"{change.target}: {result.detail}"
+                        self._set_issue(
+                            "target_unavailable",
+                            f"{change.target}: {result.detail}",
+                            change.target,
+                        )
                         self.status = "error"
                         _LOGGER.warning(
                             "Unable to apply current intent to %s: %s; intent retained",
@@ -658,6 +696,7 @@ class SmartLEDCoordinator:
         )
         if self.last_error is not None and self.last_error.startswith(error_prefixes):
             self.last_error = None
+            self._diagnostic_issue = None
             self.status = "active" if self._winners else "idle"
             self._notify_listeners()
         _LOGGER.info(
@@ -669,9 +708,20 @@ class SmartLEDCoordinator:
 
     def _record_recovery_error(self, target: str, operation: str, detail: str) -> None:
         """Expose a contained recovery failure through runtime diagnostics."""
-        self.last_error = f"{target}: recovery failed during {operation}: {detail}"
+        self._set_issue(
+            "recovery_failed",
+            f"{target}: recovery failed during {operation}: {detail}",
+            target,
+        )
         self.status = "error"
         self._notify_listeners()
+
+    def _set_issue(self, kind: str, detail: str, target: str | None = None) -> None:
+        """Keep exception details local and expose only a safe diagnostic code."""
+        self.last_error = detail
+        self._diagnostic_issue = {"kind": kind}
+        if target is not None:
+            self._diagnostic_issue["target"] = target
 
     async def _async_cancel_recovery(self, target: str) -> None:
         """Cancel and await one target's recovery task."""

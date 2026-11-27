@@ -26,6 +26,6 @@ queda inactiva. La intención de fondo de una luz depende de las solicitudes
 vigentes del motor. El inicio mantiene las dimensiones aprobadas en C.2.3.
 [Comparación del inicio](../c23-evidence/README.md).
 
-La comparación automatizada cubre las tres pantallas. La revisión del
-propietario en HAOS y la ejecución física están pendientes.
-[Recorrido en VirtualBox](../../haos-c24-checks.md).
+La comparación automatizada cubre las tres pantallas. El propietario aprobó
+la revisión visual en HAOS VirtualBox. Las pruebas físicas conservan su
+registro separado. [Resultado en VirtualBox](../../haos-test-plan.md#resultado-de-c24-en-virtualbox).

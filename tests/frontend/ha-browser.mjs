@@ -310,6 +310,139 @@ try {
   }
   const storedAutomation = await api(automationPath);
   assert.equal(storedAutomation.actions[0].data.notice_id, saved.id);
+
+  const ws = (type, fields = {}) => run(`document.querySelector('home-assistant').hass.callWS(${JSON.stringify({
+    type: `smart_led_manager/${type}`, entry_id: entryId, ...fields,
+  })})`);
+  async function applied(revision) {
+    return waitFor(async () => {
+      const status = await ws("editor/status");
+      return status.status === "ready" && (!revision || status.applied_revision === revision) && status;
+    }, "the applied settings revision");
+  }
+  async function openPanel() {
+    await send("Page.navigate", { url: panelUrl });
+    await waitFor(() => run("typeof pick === 'function' && !!pick('.slm-tile')"), "the administration center");
+  }
+  async function openSettings(view) {
+    await openPanel();
+    await run("click('[data-admin-view=settings]')");
+    if (view === "settings") return;
+    await run(`click('[data-settings-view=${view}]')`);
+    if (view === "general" || view === "priorities") {
+      await waitFor(() => run("!!pick('[data-save]:enabled')"), `the ${view} preferences`);
+    } else if (view === "diagnostics") {
+      await waitFor(() => run("!!pick('[data-refresh-diagnostics]:enabled') && !!panel()._diagnostics?.runtime"), "the loaded diagnostics");
+    }
+  }
+  const optionsFlowUrl = "/api/config/config_entries/options/flow";
+  const nativeFlow = await api(optionsFlowUrl, { handler: entryId });
+  const nativeForm = optionsFlowUrl + "/" + nativeFlow.flow_id;
+  assert.equal((await api(nativeForm, {next_step_id:"advanced"})).step_id, "advanced");
+  const prefs = {tie_breaker:"oldest",manual_policy:"service_only",min_command_interval:0.5};
+  assert.equal((await api(nativeForm, prefs)).type, "create_entry");
+  await applied();
+  await openSettings("priorities");
+  assert.equal(await run("pick('[data-path=tie_breaker]').value"), "oldest");
+  assert.equal(await run("pick('[data-path=min_command_interval]').value"), "0.5");
+  assert.equal(await run("pick('[data-admin-expanded=network]').open"), false);
+  await run(`pick('[data-admin-expanded=network]').open = true;
+    change('[data-path=min_command_interval]', '0.53', 'input')`);
+  assert.ok(await run("pick('[data-save]').disabled && !pick('[data-interval-error]').hidden"));
+  await run("click('[data-reset-preferences]')");
+  assert.equal(await run("pick('[data-path=tie_breaker]').value"), "newest");
+  assert.equal((await ws("admin/get")).admin.preferences.tie_breaker, "oldest");
+  await run("click('[data-discard]'); click('[data-exit-continue]')");
+  assert.equal(await run("pick('[data-path=min_command_interval]').value"), "0.75");
+  await run("click('[data-discard]'); click('[data-exit-discard]')");
+  await run("click('[data-settings-view=priorities]')");
+  await waitFor(() => run("!!pick('[data-save]:enabled')"), "persisted preferences after discard");
+  assert.equal(await run("pick('[data-path=tie_breaker]').value"), "oldest");
+  await run("change('[data-path=tie_breaker]', 'lexical', 'change'); click('[data-save]')");
+  await waitFor(() => run("!!pick('.notice') && !!pick('[data-settings-view=priorities]')"), "confirmed save of priorities");
+  assert.equal((await ws("admin/get")).admin.preferences.tie_breaker, "lexical");
+
+  await run("click('[data-settings-view=general]')");
+  await waitFor(() => run("!!pick('[data-save]:enabled')"), "the general settings");
+  assert.ok(await run("pick('[data-admin-boolean=show_sidebar]').checked"));
+  await run("click('[data-admin-boolean=show_sidebar]'); click('[data-save]')");
+  await waitFor(() => run("!!pick('.notice') && !!pick('[data-settings-view=general]')"), "confirmed sidebar change");
+  assert.equal((await ws("admin/get")).admin.preferences.show_sidebar, false);
+  assert.equal(await run("document.querySelector('home-assistant').hass.panels['smart-led-manager-editor'].title"), null);
+  await run("click('[data-settings-view=nativeSettings]'); click('.slm-native-action')");
+  await waitFor(() => run("location.pathname === '/config/integrations/integration/smart_led_manager'"), "the native integration page");
+  const centerFlow = await api(optionsFlowUrl, { handler: entryId });
+  const centerFormUrl = optionsFlowUrl + "/" + centerFlow.flow_id;
+  const centerForm = await api(centerFormUrl, {next_step_id:"admin_center"});
+  assert.equal(centerForm.description_placeholders.path, "/smart-led-manager-editor");
+  await openPanel();
+  assert.equal(await run("panel()._entryId"), entryId);
+  assert.equal((await api(centerFormUrl, {show_sidebar:true})).type, "create_entry");
+  await applied();
+  console.log("Settings shared the native entry, retained drafts, and confirmed panel writes");
+
+  await api("/api/states/" + light, {state:"unavailable",attributes:{friendly_name:"Luz Oficina",supported_color_modes:["rgb"]}});
+  async function saveAdmin(kind, item) {
+    const {applied_revision: revision} = await applied();
+    const response = await ws("admin/mutate", {revision, kind, operation:"create", item});
+    await applied(response.revision);
+    return response.item;
+  }
+  const zone = await saveAdmin("zone", {name:"Oficina",targets:[light]});
+  const mode = await saveAdmin("mode", {name:"Cine",zone_id:zone.zone_id,targets:[light],rgb_color:[102,51,255],brightness:64,priority:60});
+  await ws("admin/mode", {revision:(await applied()).applied_revision, mode_id:mode.mode_id, active:true});
+  await mutate("create", {rule:{type:"state",name:"Entrada cerrada",source:sources.security[0],state:"off",targets:[light],rgb_color:[255,100,0]}});
+  await api("/api/services/smart_led_manager/notify", {request_id:"sample-alert",name:"Aviso de prueba",targets:[light],rgb_color:[255,204,128],priority:80,duration:150});
+
+  const settingsViews = ["settings", "general", "priorities", "recovery", "diagnostics", "nativeSettings"];
+  async function captureSetting(device, view) {
+    const screenshot = await send("Page.captureScreenshot", {format:"png",fromSurface:true});
+    await writeFile(join(output, `${device}-${view}.png`), Buffer.from(screenshot.data, "base64"));
+  }
+  for (const [device, theme, width, height] of [["desktop", "light", 1280, 900], ["mobile", "dark", 390, 844]]) {
+    await send("Emulation.setDeviceMetricsOverride", {width,height,deviceScaleFactor:1,mobile:false});
+    await send("Emulation.setEmulatedMedia", {features:[{name:"prefers-color-scheme",value:theme}]});
+    for (const view of settingsViews) {
+      await openSettings(view);
+      await run("document.fonts.ready.then(() => true)");
+      await delay(400);
+      assert.ok(await run("pick('main').scrollWidth <= pick('main').clientWidth + 1"), `Horizontal overflow in ${view}`);
+      await captureSetting(device, view);
+      console.log(device, view, await run("pick('h1').textContent"));
+      if (view === "recovery") {
+        const catalogBefore = await ws("admin/get");
+        const lightBefore = await api("/api/states/" + light);
+        await run("click('[data-recovery-step=lost]')");
+        assert.match(await run("pick('.slm-recovery-preview').textContent"), /desconectada/);
+        await run("click('[data-recovery-step=restored]')");
+        assert.match(await run("pick('.slm-recovery-preview').textContent"), /Lectura vigente/);
+        await run("click('[data-recovery-step=available]')");
+        assert.equal((await ws("admin/get")).revision, catalogBefore.revision);
+        assert.deepEqual(await api("/api/states/" + light), lightBefore);
+      }
+      if (view === "diagnostics") {
+        assert.match(await run("pick('.slm-diagnostic-list').textContent"), /Aviso de prueba[\s\S]*80|80[\s\S]*Aviso de prueba/);
+        const readAt = await run("panel()._diagnostics.runtime.captured_at");
+        await run("click('[data-refresh-diagnostics]')");
+        await waitFor(() => run(`!!pick('[data-refresh-diagnostics]:enabled') && panel()._diagnostics.runtime.captured_at !== ${JSON.stringify(readAt)}`), "the refreshed diagnostics");
+        await run("pick('[data-download-diagnostics]').scrollIntoView({block:'end'})");
+        await captureSetting(device, "diagnostics-activity");
+        if (device === "desktop") {
+          const downloads = join(profile, "downloads");
+          await send("Browser.setDownloadBehavior", {behavior:"allow",downloadPath:downloads});
+          await run("click('[data-download-diagnostics]')");
+          const diagnostic = await waitFor(async () => {
+            try {
+              return JSON.parse(await readFile(join(downloads, "smart-led-manager-diagnostics.json"), "utf8"));
+            } catch (error) { if (error.code !== "ENOENT") throw error; }
+          }, "the downloaded diagnostics");
+          assert.equal(diagnostic.data.runtime.winners[light], "sample-alert");
+          assert.equal(diagnostic.data.runtime.version, "0.1.0-alpha.3");
+          console.log("Native diagnostic download verified with its current winner and version");
+        }
+      }
+    }
+  }
 } finally {
   if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ id: 999999, method: "Browser.close" }));
   socket?.close();

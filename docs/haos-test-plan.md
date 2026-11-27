@@ -524,7 +524,7 @@ tamaño del inicio y la validación visual de C.2.3, sin observaciones.
 
 C-01–C-20, U-01–U-06 y las pruebas físicas conservan sus estados.
 
-## Validación pendiente de C.2.4 en VirtualBox
+## Resultado de C.2.4 en VirtualBox
 
 SHA funcional `05e0674c941f8b67f7b3a21bd66eb32a998eae68`.
 Linux pasó 253 pruebas por versión de Core (`2026.11.0`, `2026.11.2` y
@@ -534,7 +534,32 @@ instalada en Core 2026.11.3.
 [CI](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45897281530) ·
 [Validadores de HA](https://github.com/abel-smart-home/smart-led-manager/actions/runs/45897281548).
 
-Los casos S-01–S-08, la revisión visual en HAOS y la ejecución en luces
-físicas quedan pendientes de confirmación del propietario.
+El propietario aprobó **8/8 casos y la revisión visual** con ese SHA en
+HAOS VirtualBox, Core 2026.11.3.
+
+| Caso | Prueba | Resultado |
+| --- | --- | --- |
+| S-01 | Catálogo de avisos | Aprobada |
+| S-02 | Simulación y ejecución de avisos | Aprobada |
+| S-03 | Selector nativo de Home Assistant | Aprobada |
+| S-04 | Horario diurno | Aprobada |
+| S-05 | Horario nocturno y reinicio | Aprobada |
+| S-06 | Reglas avanzadas | Aprobada |
+| S-07 | Guardado, borradores y persistencia | Aprobada |
+| S-08 | Revisión visual | Aprobada |
+
+El propietario informó inicialmente que las simulaciones funcionaban y
+quiso comprobar la ejecución real de horarios y condiciones. Las dos
+comprobaciones adicionales se realizaron con el mismo código.
+
+| Comprobación real en HAOS VirtualBox | Resultado |
+| --- | --- |
+| A · Ejecución de un horario | Funcionó correctamente |
+| B · Ejecución de una regla por condiciones | Funcionó correctamente |
+
+Resultado adicional **2/2**. Observación final «todo correcto». Las
+comprobaciones establecieron el funcionamiento en ese entorno y la causa
+de la duda inicial quedó indeterminada. C-01–C-20, U-01–U-06 y las pruebas
+físicas pendientes conservan sus estados.
 [Guía de instalación, recuperación y recorrido](haos-c24-checks.md) ·
 [Comparación visual y capturas de Core](design/c24-evidence/README.md).

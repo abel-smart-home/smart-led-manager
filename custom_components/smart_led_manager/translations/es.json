@@ -543,6 +543,9 @@
     "error": {
       "at_least_one_light": "Selecciona al menos una luz",
       "at_least_one_target": "Selecciona al menos una luz administrada",
+      "invalid_sidebar_preference": "Selecciona si el panel aparece en la barra lateral.",
+      "invalid_engine_preference": "Elige opciones válidas de desempate y control manual.",
+      "invalid_command_interval": "Introduce entre 0,10 y 10 segundos en pasos de 0,05.",
       "target_not_managed": "Todos los destinos deben ser luces administradas",
       "invalid_color_points": "Usa entradas valor:R,G,B separadas por punto y coma, con al menos dos valores únicos",
       "invalid_or_duplicate_color_point": "Usa un valor finito y un color RGB que no duplique otro punto",

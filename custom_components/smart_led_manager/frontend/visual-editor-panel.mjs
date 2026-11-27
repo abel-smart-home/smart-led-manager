@@ -3,6 +3,7 @@ import {
 } from "./admin-views.mjs";
 import { NUMERIC_CATEGORIES, SMART_STYLES, SMART_TEXT, renderSmartMenu } from "./smart-views.mjs";
 import { PLAN_TEXT, planTitle, renderPlan, simpleConditions } from "./plan-views.mjs";
+import { PREFERENCE_VIEWS, SETTINGS_STYLES, SETTINGS_TEXT, SETTINGS_VIEWS, validInterval } from "./settings-views.mjs";
 import {
   cssGradient,
   deepClone,
@@ -346,6 +347,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       this._rules = [];
       this._selections = {};
       this._admin = undefined;
+      this._diagnostics = undefined;
       this._runtimeStatus = "checking";
       this._error = this._draft ? this._t.missingEntry : undefined;
       this._notice = undefined;
@@ -422,10 +424,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   get _t() {
     const language = this._hass?.locale?.language ?? this._hass?.language ?? "en";
     const locale = String(language).toLowerCase().startsWith("es") ? "es" : "en";
-    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale], ...SMART_TEXT[locale], ...PLAN_TEXT[locale] };
+    return { ...TEXT[locale], ...CONTROL_TEXT[locale], ...ADMIN_TEXT[locale], ...SMART_TEXT[locale], ...PLAN_TEXT[locale], ...SETTINGS_TEXT[locale] };
   }
 
-  _readsCatalog() { return ["rules", "notifications", "lights", "zones", "modes"].includes(this._view); }
+  _readsCatalog() { return ["rules", "notifications", "lights", "zones", "modes", ...PREFERENCE_VIEWS].includes(this._view); }
 
   _dirty() {
     return this._pointInput.size > 0 ||
@@ -506,6 +508,11 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       if (this._view === "lights" && !this._draft) {
         this._setAdminDraft("lights", { targets: [...this._admin.managed] }, false);
       }
+      if (PREFERENCE_VIEWS.includes(this._view) && !this._draft) {
+        const keys = this._view === "general" ? ["show_sidebar"] : Object.keys(this._admin.engine_defaults);
+        const draft = Object.fromEntries(keys.map((key) => [key, this._admin.preferences[key]]));
+        this._setAdminDraft(this._view, draft, false);
+      }
     } else {
       this._rules = response.rules;
       this._selections = response.selections ?? {};
@@ -567,8 +574,56 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     this._exitEditor(view);
     this._notice = undefined;
     this._revision = undefined;
+    if (view === "recovery") this._recoveryState = "available";
+    if (view === "diagnostics") {
+      this._diagnostics = undefined;
+      this._diagError = undefined;
+      this._diagBusy = false;
+    }
     this._render();
+    if (view === "diagnostics") this._getDiagnostics();
     if (load && this._readsCatalog()) this._load();
+  }
+
+  async _getDiagnostics(download = false) {
+    if (this._diagBusy) return;
+    const generation = this._loadGeneration;
+    const entryId = this._entryId;
+    const isCurrent = () => this.isConnected && this._view === "diagnostics" &&
+      this._loadGeneration === generation && this._entryId === entryId;
+    this._diagBusy = true;
+    this._diagError = undefined;
+    this._render();
+    try {
+      let file;
+      if (download) {
+        const path = `/api/diagnostics/config_entry/${encodeURIComponent(entryId)}`;
+        const response = await this._hass.fetchWithAuth?.(path);
+        if (response?.ok) file = await response.blob();
+        else if (response && response.status !== 404) throw Error(this._t.downloadFailed);
+      }
+      if (!file) {
+        const payload = await this._hass.callWS({ type: "smart_led_manager/admin/diagnostics", entry_id: entryId });
+        if (!isCurrent()) return;
+        this._diagnostics = payload;
+        if (download) file = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      }
+      if (file && isCurrent()) {
+        const url = URL.createObjectURL(file);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "smart-led-manager-diagnostics.json";
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+    } catch {
+      if (isCurrent()) this._diagError = download ? this._t.downloadFailed : this._t.diagnosticsFailed;
+    } finally {
+      if (isCurrent()) {
+        this._diagBusy = false;
+        this._render();
+      }
+    }
   }
 
   _openSmartCategory(category) {
@@ -584,6 +639,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _editorList() {
     if (this._adminDraft === "lights") return "home";
+    if (SETTINGS_VIEWS.includes(this._view)) return "settings";
     return this._adminDraft || this._view === "notifications" ? this._view : "rules";
   }
   _goHome() { this._requestExit("home"); }
@@ -782,7 +838,7 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     if (this._adminDraft) {
       const kind = this._adminDraft;
       const itemId = this._draft[`${kind}_id`];
-      const operation = kind === "lights" ? "save" : itemId ? "update" : "create";
+      const operation = kind === "lights" || PREFERENCE_VIEWS.includes(kind) ? "save" : itemId ? "update" : "create";
       await this._mutate(operation, { item_id: itemId, item: deepClone(this._draft) }, destination, kind);
       return;
     }
@@ -803,6 +859,9 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
 
   _validDraft() {
     const draft = this._draft;
+    if (this._adminDraft === "general") return typeof draft.show_sidebar === "boolean";
+    if (this._adminDraft === "priorities") return validInterval(draft.min_command_interval) &&
+      Object.hasOwn(this._t.tieChoices, draft.tie_breaker) && Object.hasOwn(this._t.manualChoices, draft.manual_policy);
     if (this._adminDraft === "lights") return draft.targets.length > 0;
     if (this._adminDraft === "zone") return Boolean(draft.name.trim() && draft.targets.length);
     if (this._adminDraft === "mode") return Boolean(draft.name.trim() && draft.zone_id &&
@@ -918,6 +977,8 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
   _refreshSave() {
     const button = this.shadowRoot.querySelector("[data-save]");
     if (button) button.disabled = !this._canWrite() || !this._validDraft();
+    const intervalError = this.shadowRoot.querySelector("[data-interval-error]");
+    if (intervalError) intervalError.hidden = validInterval(this._draft.min_command_interval);
   }
 
   _filterPicker(input) {
@@ -1155,7 +1216,10 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
       view: this._view, t: this._t, kind: this._adminDraft, draft: this._draft,
       data: this._admin, ready: this._canWrite(), canSave: this._canWrite() && this._validDraft(),
       saving: this._saving, effect: this._effectPreview,
-      status: this._adminStatus(this._view !== "settings"),
+      version: this._version, recoveryState: this._recoveryState,
+      diagnostics: this._diagnostics, diagError: this._diagError, diagBusy: Boolean(this._diagBusy),
+      friendly: (id) => this._hass?.states?.[id]?.attributes?.friendly_name ?? id,
+      status: this._adminStatus(this._readsCatalog()),
     });
   }
 
@@ -1606,12 +1670,12 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     for (const details of this.shadowRoot.querySelectorAll("[data-admin-expanded]")) {
       this._adminExpanded.set(details.dataset.adminExpanded, details.open);
     }
-    const content = this._adminDraft || ["lights", "zones", "modes", "settings"].includes(this._view)
+    const content = this._adminDraft || ["lights", "zones", "modes", "settings", ...SETTINGS_VIEWS].includes(this._view)
       ? this._renderAdmin()
       : this._draft ? (this._planEditor ? this._renderPlan() : this._templateEditor ? this._renderTemplate() : this._renderEditor())
         : ["rules", "notifications"].includes(this._view) ? this._renderList()
           : this._view === "home" ? this._renderHome() : renderSmartMenu(this._t, this._view);
-    this.shadowRoot.innerHTML = `<style>${this._styles()}${ADMIN_STYLES}${SMART_STYLES}</style>${content}${this._renderExitDialog()}`; this._bind();
+    this.shadowRoot.innerHTML = `<style>${this._styles()}${ADMIN_STYLES}${SMART_STYLES}${SETTINGS_STYLES}</style>${content}${this._renderExitDialog()}`; this._bind();
     const dialog = this.shadowRoot.querySelector("[data-exit-dialog]");
     if (dialog?.isConnected) dialog.showModal();
     if (focus) {
@@ -1634,6 +1698,22 @@ class SmartLEDManagerVisualEditor extends HTMLElement {
     click("[data-smart-menu]", () => this._openRules());
     click("[data-smart-category]", (el) => this._openSmartCategory(el.dataset.smartCategory));
     click("[data-admin-view]", (el) => this._openView(el.dataset.adminView));
+    click("[data-settings-view]", (el) => this._openView(el.dataset.settingsView));
+    click("[data-reset-preferences]", () => {
+      if (!this._canWrite()) return;
+      this._draft = deepClone(this._admin.engine_defaults);
+      this._notice = undefined;
+      this._render();
+    });
+    click("[data-recovery-step]", (el) => {
+      this._recoveryState = el.dataset.recoveryStep;
+      this._render();
+      if (el.disabled || this._recoveryState !== "available") {
+        this.shadowRoot.querySelector(`[data-recovery-step="${this._recoveryState === "lost" ? "restored" : "lost"}"]`)?.focus({ preventScroll: true });
+      }
+    });
+    click("[data-refresh-diagnostics]", () => this._getDiagnostics());
+    click("[data-download-diagnostics]", () => this._getDiagnostics(true));
     click("[data-admin-create]", () => this._editAdmin());
     click("[data-admin-edit]", (el) => this._editAdmin(el.dataset.adminEdit));
     click("[data-admin-delete]", (el) => {

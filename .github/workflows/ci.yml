@@ -73,7 +73,7 @@ jobs:
       - name: Upload screenshots
         uses: actions/upload-artifact@v7
         with:
-          name: ha-core-panel-c24
+          name: ha-core-panel-c25
           path: ${{ runner.temp }}/slm-captures
           if-no-files-found: error
       - name: Inspect Home Assistant on failure

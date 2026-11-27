@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 from datetime import timedelta
 from unittest.mock import patch
@@ -21,6 +22,7 @@ from homeassistant.const import (
     SERVICE_TURN_ON,
     STATE_OFF,
     STATE_ON,
+    STATE_UNAVAILABLE,
 )
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ServiceValidationError
@@ -40,6 +42,7 @@ from custom_components.smart_led_manager.const import (
     CONF_MIN_COMMAND_INTERVAL,
     CONF_MODES,
     CONF_RULES,
+    CONF_SHOW_SIDEBAR,
     CONF_TIE_BREAKER,
     CONF_ZONES,
     DOMAIN,
@@ -48,7 +51,7 @@ from custom_components.smart_led_manager.const import (
     SERVICE_RUN_NOTICE,
 )
 from custom_components.smart_led_manager.coordinator import SmartLEDCoordinator
-from custom_components.smart_led_manager.models import utc_now
+from custom_components.smart_led_manager.models import LightCommand, Request, utc_now
 from custom_components.smart_led_manager.modules.configuration import options_revision
 from custom_components.smart_led_manager.modules.rules import RuleManager
 from custom_components.smart_led_manager.registry import (
@@ -346,6 +349,173 @@ async def test_notice_definition_updates_action_schema_and_renews_one_request(
     with pytest.raises(ServiceValidationError) as rejected:
         await run(notice_id)
     assert rejected.value.translation_key == "notice_not_found"
+    await client.close()
+
+
+async def test_panel_and_native_preferences_share_revision_and_live_ranking(
+    hass, hass_ws_client
+) -> None:
+    """Apply preferences on both surfaces and read the real engine decisions."""
+    panels = hass.data.setdefault(frontend.DATA_PANELS, {})
+    for light in ("light.strip", "light.side"):
+        hass.states.async_set(light, STATE_UNAVAILABLE)
+    rules = [
+        {
+            "id": "saved-notice",
+            "type": "notice",
+            "name": "Aviso guardado",
+            "targets": ["light.strip"],
+            "duration": 3,
+        }
+    ]
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_LIGHTS: ["light.strip", "light.side"]},
+        options={
+            CONF_RULES: rules,
+            CONF_SHOW_SIDEBAR: False,
+            CONF_TIE_BREAKER: "oldest",
+            CONF_MANUAL_POLICY: "respect",
+            CONF_MIN_COMMAND_INTERVAL: 0.45,
+            "apiToken": "sensitive-value-from-options",
+        },
+        minor_version=2,
+    )
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    client = await hass_ws_client()
+    message_id = 0
+
+    async def command(command_type, **values):
+        nonlocal message_id
+        message_id += 1
+        await client.send_json(
+            {
+                "id": message_id,
+                "type": f"{DOMAIN}/{command_type}",
+                "entry_id": entry.entry_id,
+                **values,
+            }
+        )
+        return await client.receive_json()
+
+    async def read(command_type):
+        response = await command(command_type)
+        assert response["success"], response
+        return response["result"]
+
+    async def save(kind, item, revision):
+        return await command(
+            "admin/mutate", kind=kind, operation="save", item=item, revision=revision
+        )
+
+    initial = await read("admin/get")
+    assert initial["admin"]["preferences"] == {
+        CONF_SHOW_SIDEBAR: False,
+        CONF_TIE_BREAKER: "oldest",
+        CONF_MANUAL_POLICY: "respect",
+        CONF_MIN_COMMAND_INTERVAL: 0.45,
+    }
+    assert panels[PANEL_PATH].sidebar_title is None
+    now = utc_now() - timedelta(seconds=10)
+    for index, (request_id, targets, priority) in enumerate(
+        [
+            ("z-early", ["light.strip"], 80),
+            ("a-middle", ["light.strip", "light.side"], 80),
+            ("y-late", ["light.strip"], 80),
+            ("0-low", ["light.strip"], 40),
+        ]
+    ):
+        activated = now + timedelta(seconds=index)
+        await entry.runtime_data.async_submit(
+            Request(
+                request_id=request_id,
+                source="test",
+                module="scene",
+                name=request_id,
+                targets=frozenset(targets),
+                priority=priority,
+                persistent=True,
+                command=LightCommand(color=(255, 120, 0)),
+                activated_at=activated,
+                updated_at=activated,
+                metadata={"arbitrary": "sensitive-from-metadata"},
+            )
+        )
+    entry.runtime_data._record_recovery_error(
+        "light.side", "test", "sensitive-error-message"
+    )
+    diagnostics = await read("admin/diagnostics")
+    runtime = diagnostics["runtime"]
+    assert runtime["winners"] == {"light.strip": "z-early", "light.side": "a-middle"}
+    assert runtime["request_decisions"]["a-middle"] == {
+        "winning_targets": ["light.side"],
+        "masked_targets": ["light.strip"],
+    }
+    assert runtime["request_decisions"]["0-low"]["masked_targets"] == ["light.strip"]
+    assert runtime["last_error"] == {"kind": "recovery_failed", "target": "light.side"}
+    assert runtime["history"]
+    assert "sensitive-" not in json.dumps(diagnostics)
+    assert diagnostics["entry"]["options"]["apiToken"] == "**REDACTED**"
+
+    flow = await hass.config_entries.options.async_init(entry.entry_id)
+    native = await hass.config_entries.options.async_configure(
+        flow["flow_id"], {"next_step_id": "advanced"}
+    )
+    assert native["step_id"] == "advanced"
+    desired = {
+        CONF_TIE_BREAKER: "newest",
+        CONF_MANUAL_POLICY: "temporary",
+        CONF_MIN_COMMAND_INTERVAL: 1.05,
+    }
+    invalid = await save(
+        "priorities", {**desired, CONF_MIN_COMMAND_INTERVAL: 1.04}, initial["revision"]
+    )
+    assert invalid["error"]["code"] == "invalid_command_interval"
+    changed = await save("priorities", {**desired, CONF_RULES: []}, initial["revision"])
+    assert changed["success"], changed
+    await hass.async_block_till_done()
+    assert entry.runtime_data.options_revision == changed["result"]["revision"]
+    assert entry.options[CONF_RULES] == rules
+    assert not entry.options[CONF_SHOW_SIDEBAR]
+    assert (await read("admin/diagnostics"))["runtime"]["winners"][
+        "light.strip"
+    ] == "y-late"
+    stale_native = await hass.config_entries.options.async_configure(
+        flow["flow_id"], desired
+    )
+    assert stale_native["reason"] == "configuration_changed"
+    stale_panel = await save("general", {CONF_SHOW_SIDEBAR: True}, initial["revision"])
+    assert stale_panel["error"]["code"] == "conflict"
+
+    native_flow = await hass.config_entries.options.async_init(entry.entry_id)
+    await hass.config_entries.options.async_configure(
+        native_flow["flow_id"], {"next_step_id": "advanced"}
+    )
+    invalid_native = await hass.config_entries.options.async_configure(
+        native_flow["flow_id"], {**desired, CONF_MIN_COMMAND_INTERVAL: 1.06}
+    )
+    assert invalid_native["errors"]["base"] == "invalid_command_interval"
+    saved_native = await hass.config_entries.options.async_configure(
+        native_flow["flow_id"], {**desired, CONF_TIE_BREAKER: "lexical"}
+    )
+    assert saved_native["type"] is FlowResultType.CREATE_ENTRY
+    await hass.async_block_till_done()
+    current = await read("admin/get")
+    assert current["admin"]["preferences"][CONF_TIE_BREAKER] == "lexical"
+    assert (await read("admin/diagnostics"))["runtime"]["winners"][
+        "light.strip"
+    ] == "a-middle"
+    general = await save(
+        "general",
+        {CONF_SHOW_SIDEBAR: True, CONF_TIE_BREAKER: "newest"},
+        current["revision"],
+    )
+    assert general["success"], general
+    await hass.async_block_till_done()
+    assert panels[PANEL_PATH].sidebar_title == "Smart LED Manager"
+    assert entry.options[CONF_TIE_BREAKER] == "lexical"
+    assert entry.options[CONF_RULES] == rules
     await client.close()
 
 

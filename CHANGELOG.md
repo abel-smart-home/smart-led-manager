@@ -62,6 +62,17 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
 - Horarios independientes y reglas continuas basadas sólo en condiciones.
   La simulación evalúa el borrador localmente sin enviar órdenes a luces.
 - [Guía de instalación y validación práctica en VirtualBox](docs/haos-c24-checks.md).
+- El propietario aprobó S-01–S-08 y la revisión visual. El horario y la regla
+  por condiciones funcionaron en dos comprobaciones adicionales en HAOS
+  VirtualBox con el mismo SHA. [Registro](docs/haos-test-plan.md#resultado-de-c24-en-virtualbox).
+
+### Añadido — C.2.5
+
+- Configuración reúne General, Prioridades, Recuperación, Diagnóstico y
+  Configuración nativa. Las preferencias usan la misma entrada y validación
+  que Options Flow. El restablecimiento de prioridades prepara un borrador.
+- El diagnóstico muestra las solicitudes vigentes y la ganadora por luz,
+  con descarga redactada. Recuperación incluye una demostración en pantalla.
 
 ### Añadido — Bloque A
 

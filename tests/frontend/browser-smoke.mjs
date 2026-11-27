@@ -64,6 +64,8 @@ const demo = {
   modes: [{...baseMode,mode_id:"cinema",zone_id:"living",name:"Cine",targets:["light.living"],rgb_color:[102,51,255],brightness:64},
           {...baseMode,mode_id:"reading",zone_id:"living",name:"Lectura",targets:["light.living"],rgb_color:[255,204,128],brightness:204}],
   status:{},
+  engine_defaults: {tie_breaker:"newest",manual_policy:"service_only",min_command_interval:0.75},
+  preferences: {show_sidebar:true,tie_breaker:"oldest",manual_policy:"temporary",min_command_interval:0.5},
 };
 let admin = structuredClone(demo);
 let modeCalls = 0;
@@ -82,6 +84,14 @@ editor.hass = {
       mutation: receipt?.id === message.mutation_id ? receipt : null,
     };
     if (message.type.endsWith("/admin/get")) return { revision, admin: structuredClone(admin) };
+    if (message.type.endsWith("/admin/diagnostics")) return {
+      runtime:{version:"0.1.0-alpha.3", status:"active", managed_targets:admin.managed, winners:{"light.living":"sample"},
+        requests:[{request_id:"sample",name:"Cine",priority:60}],
+        request_decisions:{sample:{winning_targets:["light.living"],masked_targets:[]}},
+        animation_targets:[],pending_controller_targets:[],history:[],last_error:null,
+        mode_catalog:{modes:admin.modes,selected:{living:"cinema"}}},
+      entry:{options:{zones:admin.zones,rules:[{enabled:true},{type:"notice",enabled:true}]}},
+    };
     if (message.type.endsWith("/preview_activation")) return { result: "true" };
     if (message.type.endsWith("/preview")) return { results: [{
       hex:"#800080", rgb:[128,0,128], lower:message.points[0].value, upper:message.points.at(-1).value,
@@ -98,6 +108,8 @@ editor.hass = {
         admin.managed = message.item.targets;
       } else if (message.kind === "zone" && message.operation === "update") {
         admin.zones = admin.zones.map((zone) => zone.zone_id === message.item_id ? message.item : zone);
+      } else if (["general", "priorities"].includes(message.kind) && message.operation === "save") {
+        Object.assign(admin.preferences, message.item);
       } else throw new Error("Unexpected admin mutation");
       revision = applied = "r" + (++mutations);
       return { revision, item: message.item };
@@ -311,6 +323,38 @@ try {
   change('[data-path="conditions.conditions.0.state"]', "on", "input");
   change('[data-path="conditions.type"]', "or");
   check(pick('[data-path="conditions.conditions.0.entity_id"]').value === "input_boolean.door", "Changing all/any dropped the conditions");
+  editor._openView("home");
+  pick('[data-admin-view="settings"]').click();
+  pick('[data-settings-view="priorities"]').click();
+  await waitFor(() => pick('[data-save]:enabled'), "Priorities did not load");
+  check(pick('[data-path="tie_breaker"]').value === "oldest", "Saved policy was replaced by the default");
+  check(!pick('[data-admin-expanded="network"]').open, "Network protection expanded by default");
+  pick('[data-admin-expanded="network"]').open = true;
+  change('[data-path="min_command_interval"]', "0.53", "input");
+  check(pick('[data-save]').disabled && !pick('[data-interval-error]').hidden, "Off-step interval was accepted");
+  pick('[data-reset-preferences]').click();
+  check(pick('[data-path="tie_breaker"]').value === "newest" && admin.preferences.tie_breaker === "oldest", "Reset changed persistence");
+  pick('[data-discard]').click();
+  pick('[data-exit-discard]').click();
+  pick('[data-settings-view="general"]').click();
+  await waitFor(() => pick('[data-save]:enabled'), "General did not load");
+  pick('[data-admin-boolean="show_sidebar"]').click();
+  pick('[data-save]').click();
+  await waitFor(() => pick('.notice') && pick('[data-settings-view="general"]'), "Preferences did not confirm the applied revision");
+  check(!admin.preferences.show_sidebar && admin.preferences.tie_breaker === "oldest", "General overwrote engine preferences");
+  const beforeRecovery = mutations;
+  pick('[data-settings-view="recovery"]').click();
+  pick('[data-recovery-step="lost"]').click();
+  check(pick('.slm-recovery-preview').textContent.includes('desconectada'), "Disconnect simulation did not update");
+  pick('[data-recovery-step="restored"]').click();
+  check(pick('.slm-recovery-preview').textContent.includes('Lectura vigente'), "Recovery simulation did not update");
+  pick('[data-recovery-step="available"]').click();
+  check(pick('.slm-recovery-preview').textContent.includes('Cine de ejemplo') && mutations === beforeRecovery, "Recovery simulation modified the configuration");
+  pick('[data-back]').click();
+  pick('[data-settings-view="diagnostics"]').click();
+  await waitFor(() => pick('[data-refresh-diagnostics]:enabled') && pick('.slm-diagnostic-list'), "Diagnostics did not show data");
+  check(pick('.slm-diagnostic-list').textContent.includes('Cine') && pick('.slm-diagnostic-list').textContent.includes('60'), "Diagnostics lost the request identity or priority");
+  editor._openView("home");
   window.captureAdmin = async (name, theme) => {
     document.documentElement.dataset.theme = theme;
     admin = structuredClone(demo);
@@ -372,7 +416,7 @@ try {
 </script>`;
 
 const server = createServer(async (request, response) => {
-  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views|smart-views|plan-views)\.mjs$/.exec(request.url);
+  const name = /^\/frontend\/(visual-editor-panel|visual-editor-model|rule-controls|admin-views|smart-views|plan-views|settings-views)\.mjs$/.exec(request.url);
   if (name) {
     const file = new URL(`../../custom_components/smart_led_manager/frontend/${name[1]}.mjs`, import.meta.url);
     response.setHeader("Content-Type", "text/javascript");

@@ -1,4 +1,5 @@
 import { escapeHtml as esc, inputField, selectField } from "./rule-controls.mjs";
+import { renderSettings, settingsMenu, SETTINGS_VIEWS } from "./settings-views.mjs";
 import { rgbToHex } from "./visual-editor-model.mjs";
 
 export const ADMIN_TEXT = {
@@ -38,7 +39,6 @@ export const ADMIN_TEXT = {
     voiceHelp: "Si quieres usar voz, comparte el interruptor desde Matter Hub u otro puente compatible.",
     modeAdvanced: "Opciones avanzadas", turnOn: "Permitir encender luces",
     deleteMode: "Eliminar modo", confirmMode: "¿Eliminar este modo?",
-    nativeLabel: "Configuración nativa", nativeHelp: "Abre los ajustes de la integración en Home Assistant.",
     modeError: {
       rules_use_removed_lights: "Modifica primero las reglas que dependen de las luces retiradas.",
       zones_use_removed_lights: "Modifica primero las zonas que contienen las luces retiradas.",
@@ -98,7 +98,6 @@ export const ADMIN_TEXT = {
     voiceHelp: "For voice control, expose the switch through Matter Hub or another compatible bridge.",
     modeAdvanced: "Advanced options", turnOn: "Allow lights to turn on",
     deleteMode: "Delete mode", confirmMode: "Delete this mode?",
-    nativeLabel: "Native configuration", nativeHelp: "Open the integration settings in Home Assistant.",
     modeError: {
       rules_use_removed_lights: "First update the rules that depend on the removed lights.",
       zones_use_removed_lights: "First update the zones that contain the removed lights.",
@@ -268,10 +267,9 @@ function modeGroups(data, t, ready) {
 
 export function renderAdministration(model) {
   const { view, t, data, draft, status, ready } = model;
+  if (view === "settings") return frame(t.settings, settingsMenu(t), t, status, homeButton(t));
+  if (SETTINGS_VIEWS.includes(view)) return frame(t[view], renderSettings(model), t, status, `<button data-back>← ${t.back}</button>`);
   if (draft && data) return adminEditor(model);
-  if (view === "settings") return frame(t.settings, `<a class="slm-row slm-link"
-      href="/config/integrations/integration/smart_led_manager"><strong>${t.nativeLabel}</strong>
-      <small>${t.nativeHelp}</small><span aria-hidden="true">›</span></a>`, t, status, homeButton(t));
   if (!data || view === "lights") return frame(t[view], "", t, status, homeButton(t));
   if (view === "zones") {
     const names = new Map(data.lights.map((light) => [light.entity_id, light.name]));

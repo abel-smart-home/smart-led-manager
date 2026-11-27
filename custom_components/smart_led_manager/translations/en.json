@@ -543,6 +543,9 @@
     "error": {
       "at_least_one_light": "Select at least one light",
       "at_least_one_target": "Select at least one managed light",
+      "invalid_sidebar_preference": "Choose whether the panel appears in the sidebar.",
+      "invalid_engine_preference": "Choose valid tie-break and manual control options.",
+      "invalid_command_interval": "Enter 0.10 to 10 seconds in increments of 0.05.",
       "target_not_managed": "Every target must be a managed light",
       "invalid_color_points": "Use value:R,G,B entries separated by semicolons, with at least two unique values",
       "invalid_or_duplicate_color_point": "Use one finite value and an RGB color that does not duplicate another point",

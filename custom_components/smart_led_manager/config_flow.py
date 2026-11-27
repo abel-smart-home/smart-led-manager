@@ -26,7 +26,6 @@ from .const import (
     CONF_ZONES,
     DEFAULT_MANUAL_POLICY,
     DEFAULT_MIN_COMMAND_INTERVAL,
-    DEFAULT_SHOW_SIDEBAR,
     DEFAULT_TIE_BREAKER,
     DOMAIN,
     NAME,
@@ -38,13 +37,23 @@ from .const import (
 )
 from .core.color import normalize_color_points
 from .core.conditions import WEEKDAYS
+from .models import TieBreaker
 from .modules.admin_configuration import (
     validate_managed_lights,
     validate_mode,
     validate_zone,
     validate_zone_removal,
 )
-from .modules.configuration import options_revision
+from .modules.configuration import (
+    COMMAND_INTERVAL_STEP,
+    MANUAL_POLICIES,
+    MAX_COMMAND_INTERVAL,
+    MIN_COMMAND_INTERVAL,
+    PreferenceError,
+    options_revision,
+    read_preferences,
+    validate_preferences,
+)
 from .modules.modes import ModeDefinition, ModeValidationError, ZoneDefinition
 from .modules.native_rule_controls import (
     RuleStateSelector,
@@ -273,22 +282,26 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure access to the local administration center."""
+        values = read_preferences(self._options())
+        errors = {}
         if user_input is not None:
-            return self._create_options_entry(
-                {CONF_SHOW_SIDEBAR: bool(user_input[CONF_SHOW_SIDEBAR])}
-            )
+            try:
+                return self._create_options_entry(
+                    validate_preferences("general", user_input)
+                )
+            except PreferenceError as err:
+                errors["base"] = str(err)
         return self.async_show_form(
             step_id="admin_center",
             data_schema=probatio.Schema(
                 {
                     probatio.Required(
                         CONF_SHOW_SIDEBAR,
-                        default=self.config_entry.options.get(
-                            CONF_SHOW_SIDEBAR, DEFAULT_SHOW_SIDEBAR
-                        ),
+                        default=values[CONF_SHOW_SIDEBAR],
                     ): selector.BooleanSelector()
                 }
             ),
+            errors=errors,
             description_placeholders={"path": "/smart-led-manager-editor"},
         )
 
@@ -327,82 +340,62 @@ class SmartLEDManagerOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Configure deterministic ranking and command protection."""
-        if user_input is not None:
-            return self._create_options_entry(user_input)
-        options = self._options()
-        return self.async_show_form(
-            step_id="settings",
-            data_schema=probatio.Schema(
-                {
-                    probatio.Required(
-                        CONF_TIE_BREAKER,
-                        default=options.get(CONF_TIE_BREAKER, DEFAULT_TIE_BREAKER),
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=["newest", "oldest", "lexical"],
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                            translation_key="tie_breaker",
-                        )
-                    ),
-                    probatio.Required(
-                        CONF_MIN_COMMAND_INTERVAL,
-                        default=options.get(
-                            CONF_MIN_COMMAND_INTERVAL, DEFAULT_MIN_COMMAND_INTERVAL
-                        ),
-                    ): _number_selector(0.1, 10, step=0.05),
-                    probatio.Required(
-                        CONF_MANUAL_POLICY,
-                        default=options.get(CONF_MANUAL_POLICY, DEFAULT_MANUAL_POLICY),
-                    ): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=["service_only", "respect", "temporary"],
-                            mode=selector.SelectSelectorMode.DROPDOWN,
-                            translation_key="manual_policy",
-                        )
-                    ),
-                }
-            ),
-        )
+        return self._engine_form("settings", user_input)
 
     async def async_step_advanced(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Expose advanced engine settings under the top-level menu."""
+        return self._engine_form("advanced", user_input)
+
+    def _engine_form(
+        self, step_id: str, user_input: dict[str, Any] | None
+    ) -> ConfigFlowResult:
+        options = read_preferences(self._options())
+        errors = {}
         if user_input is not None:
-            return self._create_options_entry(user_input)
-        options = self._options()
+            try:
+                return self._create_options_entry(
+                    validate_preferences("priorities", user_input)
+                )
+            except PreferenceError as err:
+                errors["base"] = str(err)
+                options.update(user_input)
         return self.async_show_form(
-            step_id="advanced",
+            step_id=step_id,
             data_schema=probatio.Schema(
                 {
                     probatio.Required(
                         CONF_TIE_BREAKER,
-                        default=options.get(CONF_TIE_BREAKER, DEFAULT_TIE_BREAKER),
+                        default=options[CONF_TIE_BREAKER],
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=["newest", "oldest", "lexical"],
+                            options=list(TieBreaker),
                             mode=selector.SelectSelectorMode.DROPDOWN,
                             translation_key="tie_breaker",
                         )
                     ),
                     probatio.Required(
                         CONF_MIN_COMMAND_INTERVAL,
-                        default=options.get(
-                            CONF_MIN_COMMAND_INTERVAL, DEFAULT_MIN_COMMAND_INTERVAL
-                        ),
-                    ): _number_selector(0.1, 10, step=0.05),
+                        default=options[CONF_MIN_COMMAND_INTERVAL],
+                    ): _number_selector(
+                        MIN_COMMAND_INTERVAL,
+                        MAX_COMMAND_INTERVAL,
+                        step=COMMAND_INTERVAL_STEP,
+                    ),
                     probatio.Required(
                         CONF_MANUAL_POLICY,
-                        default=options.get(CONF_MANUAL_POLICY, DEFAULT_MANUAL_POLICY),
+                        default=options[CONF_MANUAL_POLICY],
                     ): selector.SelectSelector(
                         selector.SelectSelectorConfig(
-                            options=["service_only", "respect", "temporary"],
+                            options=list(MANUAL_POLICIES),
                             mode=selector.SelectSelectorMode.DROPDOWN,
                             translation_key="manual_policy",
                         )
                     ),
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_rules(

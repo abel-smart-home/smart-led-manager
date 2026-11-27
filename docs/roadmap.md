@@ -127,11 +127,16 @@ Assistant. Las etapas son internas a `0.1.0-alpha.3` y comparten una rama.
 | C.2.1 | Estabilidad, guardado confirmado, recarga, concurrencia y borradores. P-01–P-06 aprobadas por el propietario en VirtualBox con `cf2f371353dc6321baaef67c0ca8858e6d564110`. [Resultado](haos-test-plan.md#resultado-de-c21-en-virtualbox). |
 | C.2.2 | Centro de cinco secciones, luces administradas, zonas y modos. 10/10 pruebas funcionales aprobadas en HAOS. El propietario cerró la observación sobre el tamaño del inicio con la revisión C.2.3. [Registro](haos-test-plan.md#resultado-de-c22-en-virtualbox). |
 | C.2.3 | Inicio compacto y plantillas de temperatura, humedad, energía, seguridad y presencia. R-01–R-12 y recorrido visual aprobados por el propietario en Core 2026.11.3. [Registro](haos-test-plan.md#resultado-de-c23-en-virtualbox). |
-| C.2.4 | Catálogo persistente de avisos y acción por ID con selección por nombre, horarios sin sensor y reglas activadas sólo por condiciones. CI y navegador Core aprobados. Validación práctica del propietario pendiente. [Guía y ZIP](haos-c24-checks.md). |
-| C.2.5 | Configuración y diagnóstico. |
+| C.2.4 | Catálogo de avisos por ID, horarios sin sensor y reglas por condiciones. El propietario aprobó 8/8 casos, la revisión visual y 2/2 comprobaciones reales adicionales. [Registro](haos-test-plan.md#resultado-de-c24-en-virtualbox). |
+| C.2.5 | Configuración general y del motor, recuperación informativa, diagnóstico y acceso a Options Flow. Validación práctica pendiente. |
 | C.2.6 | Estabilización integral, comparación visual por pantalla y recorrido práctico U-01–U-06. |
 
-La implementación autorizada llega a C.2.4. C-01–C-20 y las repeticiones
+Para C.2.6 se registra el efecto de recargar al guardar o eliminar una
+definición: los avisos temporales activos finalizan. Se evaluará su impacto
+en estabilización. El selector nativo requiere recargar su página para
+ver novedades del catálogo. [Contrato y limitación](design/backend-mapping.md#selector-nativo-de-avisos).
+
+La implementación autorizada llega a C.2.5. C-01–C-20 y las repeticiones
 Zigbee conservan su estado en el [plan HAOS](haos-test-plan.md).
 El Bloque D mantiene la recuperación configurable, la pausa/reanudación y la
 verificación física. Las animaciones multicolor avanzadas, secuencias

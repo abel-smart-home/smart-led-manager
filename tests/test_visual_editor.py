@@ -27,6 +27,7 @@ from custom_components.smart_led_manager.visual_editor import (
     async_reload_visual_editor_entry,
     async_remove_visual_editor_panel,
     async_setup_visual_editor,
+    websocket_admin_diagnostics,
     websocket_admin_get,
     websocket_admin_mode,
     websocket_admin_mutate,
@@ -669,6 +670,10 @@ class VisualEditorBackendTests(unittest.IsolatedAsyncioTestCase):
         hass = _Hass()
         connection = _Connection(admin=False)
         messages = [
+            (
+                websocket_admin_diagnostics,
+                _message("smart_led_manager/admin/diagnostics"),
+            ),
             (websocket_admin_get, _message("smart_led_manager/admin/get")),
             (websocket_admin_mode, _message("smart_led_manager/admin/mode")),
             (websocket_admin_mutate, _message("smart_led_manager/admin/mutate")),
@@ -752,7 +757,7 @@ class VisualEditorSurfaceTests(unittest.IsolatedAsyncioTestCase):
             await async_register_visual_editor_panel(hass, entry)
             async_remove_visual_editor_panel(hass)
 
-        self.assertEqual(register_command.call_count, 12)
+        self.assertEqual(register_command.call_count, 13)
         hass.http.async_register_static_paths.assert_awaited_once()
         static_path = hass.http.async_register_static_paths.await_args.args[0][0]
         self.assertEqual(static_path.url_path, STATIC_URL)
