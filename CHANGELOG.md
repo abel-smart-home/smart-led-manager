@@ -73,6 +73,7 @@ pre-release (`0.1.0-alpha.3`) y `pyproject.toml` usa su equivalente PEP 440
   que Options Flow. El restablecimiento de prioridades prepara un borrador.
 - El diagnóstico muestra las solicitudes vigentes y la ganadora por luz,
   con descarga redactada. Recuperación incluye una demostración en pantalla.
+- [Guía de instalación y validación práctica en VirtualBox](docs/haos-c25-checks.md).
 
 ### Añadido — Bloque A
 

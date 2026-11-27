@@ -563,3 +563,18 @@ de la duda inicial quedó indeterminada. C-01–C-20, U-01–U-06 y las pruebas
 físicas pendientes conservan sus estados.
 [Guía de instalación, recuperación y recorrido](haos-c24-checks.md) ·
 [Comparación visual y capturas de Core](design/c24-evidence/README.md).
+
+## Validación pendiente de C.2.5 en VirtualBox
+
+SHA funcional `e9ac4753680f03a541483ddab43277039bb0d39e`.
+Linux pasó 254 pruebas por versión de Core (`2026.11.0`, `2026.11.2` y
+`2026.11.3`) con 85,43 % de cobertura con ramas. Pasaron las 12 pruebas frontend,
+Ruff, Hassfest, HACS/Marketplace y el navegador con la integración instalada
+en Core 2026.11.3. Se verificó el guardado al ocultar la barra, el acceso por
+Options Flow y la descarga nativa del diagnóstico.
+[CI](https://github.com/abel-smart-home/smart-led-manager/actions/runs/46033976627) ·
+[Validadores de HA](https://github.com/abel-smart-home/smart-led-manager/actions/runs/46033976616).
+
+Quedan pendientes los casos T-01–T-07, la comprobación visual en HAOS y
+la comprobación física. [Guía de instalación y recuperación](haos-c25-checks.md) ·
+[Referencias y capturas](design/c25-evidence/README.md).

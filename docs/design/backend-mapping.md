@@ -11,9 +11,9 @@ Auditoría inicial en `a0df3c48711f8b40fe48f8ded122d5a572906c83`. Contratos de C
 | Avisos | `notify`, `cancel`, `clear_notifications`, animaciones y vencimiento | Definición persistente `notice` y ejecución temporal con `run_notice` por ID |
 | Horario | time condition/schedule y RuleManager | Regla `continuous` con horario local asociado a los días de inicio |
 | Avanzada | condition tree, rule_schema.py | Regla `continuous` con árbol de condiciones, horario opcional y editor compatible para árboles anidados |
-| General/motor | config_flow.py, const.py, CONF_SHOW_SIDEBAR, tie_breaker, manual_policy, min_command_interval | Exponer valores reales, validar intervalo 0.1–10 s paso 0.05 |
-| Recuperación | coordinator.py, controller, scheduling | Mostrar comportamiento y estado real; configuración de D pendiente |
-| Diagnóstico | diagnostics.py, coordinator.async_diagnostics | Redacción de secretos, actividad acotada, no inventar conexión física |
+| General/motor | `config_flow.py`, `modules/configuration.py`, `visual_editor.py` | Las dos superficies leen y validan las mismas preferencias. Guardado con revisión aplicada. |
+| Recuperación | Coordinador, controlador y planificador existentes | Pantalla informativa y simulación en navegador. Ajustes editables en el Bloque D. |
+| Diagnóstico | `diagnostics.py`, `coordinator.async_diagnostics` | Resumen administrador, decisiones por luz, historial acotado y descarga redactada. |
 
 `visual_editor.py` contiene registro del panel, WebSocket autenticado, revisión optimista y mutación de reglas. Investigar causa de `Smart LED Manager config entry is not loaded` durante recarga/configuración. No eludir permisos o validaciones. Mantener coordinador, PriorityEngine, catálogo, Store, entry_id, entity IDs y lógica de recuperación. Toda mutación debe revalidar autorización y evitar listeners/tareas duplicadas o comandos obsoletos. Deduplicar destinos y mantener rate limit por luz. No introducir backend paralelo ni dependencias externas innecesarias.
 
@@ -85,3 +85,38 @@ esos eventos. La alternativa operativa es guardar el borrador de la
 automatización y recargar la página del editor. Una actualización automática
 dentro del editor requeriría soporte de Home Assistant o una decisión de
 producto con aprobación previa. [Selector `select`](https://www.home-assistant.io/docs/blueprint/selectors/#select-selector) · [Colección de acciones del cliente](https://github.com/home-assistant/home-assistant-js-websocket/blob/master/lib/services.ts).
+
+## Contrato de C.2.5
+
+`admin/get` entrega los valores de ConfigEntry y los valores iniciales de
+Prioridades. `admin/mutate` aplica solo la parte de preferencias del formulario
+mediante la revisión optimista y la confirmación por revisión aplicada.
+Options Flow llama al mismo validador. Para entradas que guardaron un
+intervalo entre pasos en versiones previas, el formulario conserva el valor
+al abrirse y pide corregirlo antes de guardar Prioridades. General se puede
+guardar por separado. Restablecer copia los valores iniciales al borrador.
+
+La barra lateral cambia la visibilidad de la misma ruta administrativa.
+Con la barra oculta, el enlace de Centro de administración en Options Flow
+sigue disponible. Las reglas, modos, avisos y sus prioridades conservan sus
+definiciones e identificadores. Los cambios pasan por la recarga estándar de
+la entrada, que también descarta avisos temporales activos. El impacto de esa
+recarga al editar o eliminar definiciones queda anotado para C.2.6.
+
+La pantalla de diagnóstico y el archivo de Home Assistant comparten
+`async_get_config_entry_diagnostics`. La lectura WebSocket y la ruta de
+descarga exigen autorización administrativa. La descarga usa la ruta nativa
+y permite descargar el mismo contenido redactado mediante WebSocket cuando
+la ruta nativa no está disponible. Se redactan credenciales, filtros de datos
+de eventos y metadatos arbitrarios de solicitudes. Los errores muestran la
+categoría operativa y el destino cuando existe. El texto libre de la excepción
+queda en los registros de Core.
+[Diagnóstico de integraciones de Home Assistant](https://contributors.home-assistant.io/core/integrations/diagnostics/).
+
+El coordinador resuelve una instantánea de solicitudes vigentes con el mismo
+criterio de prioridad y desempate. Cada destino indica su ganadora y qué
+solicitudes quedan enmascaradas. El historial conserva el límite existente de
+100 cambios de intención. La lista de órdenes pendientes procede del controlador.
+El diagnóstico refleja decisiones y trabajo interno. La recepción física
+requiere comprobación en el dispositivo. La lectura ocurre al abrir o pulsar
+Actualizar. Si faltan datos del coordinador se muestra **No disponible**.

@@ -14,3 +14,4 @@ Orden de referencia: políticas vigentes de AGENTS.md y seguridad del backend > 
 - [Comparación visual de C.2.2](c22-evidence/README.md)
 - [Comparación visual de C.2.3](c23-evidence/README.md)
 - [Comparación visual de C.2.4](c24-evidence/README.md)
+- [Comparación visual de C.2.5](c25-evidence/README.md)

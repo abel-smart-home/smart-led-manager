@@ -128,7 +128,7 @@ Assistant. Las etapas son internas a `0.1.0-alpha.3` y comparten una rama.
 | C.2.2 | Centro de cinco secciones, luces administradas, zonas y modos. 10/10 pruebas funcionales aprobadas en HAOS. El propietario cerró la observación sobre el tamaño del inicio con la revisión C.2.3. [Registro](haos-test-plan.md#resultado-de-c22-en-virtualbox). |
 | C.2.3 | Inicio compacto y plantillas de temperatura, humedad, energía, seguridad y presencia. R-01–R-12 y recorrido visual aprobados por el propietario en Core 2026.11.3. [Registro](haos-test-plan.md#resultado-de-c23-en-virtualbox). |
 | C.2.4 | Catálogo de avisos por ID, horarios sin sensor y reglas por condiciones. El propietario aprobó 8/8 casos, la revisión visual y 2/2 comprobaciones reales adicionales. [Registro](haos-test-plan.md#resultado-de-c24-en-virtualbox). |
-| C.2.5 | Configuración general y del motor, recuperación informativa, diagnóstico y acceso a Options Flow. Validación práctica pendiente. |
+| C.2.5 | Configuración general y del motor, recuperación informativa, diagnóstico y acceso a Options Flow. CI y navegador Core aprobados. Validación práctica pendiente. [Guía y ZIP](haos-c25-checks.md). |
 | C.2.6 | Estabilización integral, comparación visual por pantalla y recorrido práctico U-01–U-06. |
 
 Para C.2.6 se registra el efecto de recargar al guardar o eliminar una
